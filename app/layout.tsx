@@ -4,26 +4,31 @@ import { ThemeProvider } from 'next-themes'
 import { CommandPalette } from '@/components/ui/command-palette'
 import './globals.css'
 
+const siteUrl = 'https://app.safemeds.uk'
+const siteName = 'SafeMeds'
+const siteDescription =
+  'Pharmaceutical compliance and supply chain management, engineered for audit-grade security and traceability.'
+
 export const metadata: Metadata = {
-  title: 'SafeMeds Platform',
-  description: 'Pharmaceutical compliance and supply chain management',
-  generator: 'v0.app',
-  icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'SafeMeds — The Pharmaceutical Compliance Standard',
+    template: '%s · SafeMeds',
+  },
+  description: siteDescription,
+  applicationName: siteName,
+  openGraph: {
+    type: 'website',
+    url: siteUrl,
+    siteName,
+    title: 'SafeMeds — The Pharmaceutical Compliance Standard',
+    description: siteDescription,
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'SafeMeds — The Pharmaceutical Compliance Standard',
+    description: siteDescription,
   },
 }
 

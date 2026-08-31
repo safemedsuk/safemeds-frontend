@@ -52,20 +52,27 @@ export function ElectronicSignature() {
     setIsSignatureModalOpen(true)
   }
 
-  const handleSign = (intent: string, password: string) => {
-    // Simulate signing
+  // This screen's "pending documents" queue has no real backend counterpart
+  // yet — that's Phase 9's task-inbox territory, not built in this codebase
+  // (see the base-engine build spec's Phase 9). The real, wired-up
+  // reauth-then-sign integration lives in the workflow viewer (the QPPV
+  // approval transition), which calls the actual `POST
+  // /workflow/instances/:id/transition` with the real signature token this
+  // modal now produces. This handler stays a local, in-memory demo of the
+  // same modal for a document type that doesn't have a real endpoint to
+  // sign against yet.
+  const handleSign = async ({ intentStatement }: { intentStatement: string; signatureToken: string }) => {
     const newSignedDocument: SignedDocument = {
       id: `sig-${Date.now()}`,
       title: pendingDocuments.find(d => d.id === selectedDocument)?.title || 'Document',
       type: pendingDocuments.find(d => d.id === selectedDocument)?.type || 'Document',
       signedBy: 'John Doe',
       signedAt: new Date().toISOString(),
-      intent: intent,
+      intent: intentStatement,
       validUntil: new Date(Date.now() + 86400000 * 365).toISOString(),
     }
 
     setSignedDocuments([newSignedDocument, ...signedDocuments])
-    setIsSignatureModalOpen(false)
     setShowSuccess(true)
 
     setTimeout(() => {
@@ -208,7 +215,7 @@ export function ElectronicSignature() {
       <SignatureModal
         isOpen={isSignatureModalOpen}
         onClose={() => setIsSignatureModalOpen(false)}
-        onSign={handleSign}
+        onSigned={handleSign}
         documentTitle={
           pendingDocuments.find(d => d.id === selectedDocument)?.title || 'Document'
         }

@@ -1,256 +1,258 @@
 'use client'
 
-import { useState } from 'react'
-import { ArrowRight, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
-import type { WorkflowDefinition, WorkflowInstance } from '@/lib/types'
+import { useEffect, useState } from 'react'
+import { CheckCircle2, Loader2, Plus, ShieldCheck } from 'lucide-react'
+import { getErrorMessage } from '@/lib/api/client'
+import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import {
+  AvailableTransition,
+  WorkflowInstanceDetail,
+  getAvailableTransitions,
+  getWorkflowInstance,
+  instantiateWorkflow,
+  postTransition,
+} from '@/lib/api/workflow'
+import { getSignaturesForRecord, SignatureEvent } from '@/lib/api/signatures'
+import { SignatureModal } from '@/components/ui/signature-modal'
+import { WorkflowStepper } from '@/components/ui/workflow-stepper'
 
-const mockWorkflowDefinitions: WorkflowDefinition[] = [
-  {
-    id: 'wf-1',
-    name: 'Product Registration',
-    version: 2,
-    stages: [
-      { id: 's1', order: 1, name: 'Submission', description: 'Initial product data entry', requiredApprovals: 1, timeoutDays: 7 },
-      { id: 's2', order: 2, name: 'Regulatory Review', description: 'Compliance officer review', requiredApprovals: 1, timeoutDays: 14 },
-      { id: 's3', order: 3, name: 'Management Approval', description: 'Manager sign-off', requiredApprovals: 2, timeoutDays: 7 },
-      { id: 's4', order: 4, name: 'Published', description: 'Live in the system', requiredApprovals: 0, timeoutDays: 0 },
-    ],
-    createdAt: new Date(Date.now() - 86400000 * 180).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'wf-2',
-    name: 'Batch Release',
-    version: 1,
-    stages: [
-      { id: 's1', order: 1, name: 'Quality Check', description: 'Lab testing', requiredApprovals: 1, timeoutDays: 5 },
-      { id: 's2', order: 2, name: 'Documentation', description: 'Verify paperwork', requiredApprovals: 1, timeoutDays: 3 },
-      { id: 's3', order: 3, name: 'Released', description: 'Ready for distribution', requiredApprovals: 0, timeoutDays: 0 },
-    ],
-    createdAt: new Date(Date.now() - 86400000 * 90).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
+const RECORD_TYPE = 'pv_case'
+const RECENT_INSTANCES_KEY = 'safemeds:workflow-viewer:recent-instance-ids'
 
-const mockWorkflowInstances: WorkflowInstance[] = [
-  {
-    id: 'inst-1',
-    workflowId: 'wf-1',
-    entityId: 'product-1',
-    entityType: 'product',
-    currentStage: 2,
-    state: 'in_review',
-    progress: 50,
-    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000).toISOString(),
-    createdBy: 'user-1',
-  },
-  {
-    id: 'inst-2',
-    workflowId: 'wf-2',
-    entityId: 'batch-1',
-    entityType: 'batch',
-    currentStage: 1,
-    state: 'in_review',
-    progress: 33,
-    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    updatedAt: new Date(Date.now() - 7200000).toISOString(),
-    createdBy: 'user-2',
-  },
-]
-
-const getStateIcon = (state: string) => {
-  switch (state) {
-    case 'approved':
-      return <CheckCircle2 className="h-5 w-5 text-status-success" />
-    case 'in_review':
-      return <Clock className="h-5 w-5 text-status-warning" />
-    case 'rejected':
-      return <AlertCircle className="h-5 w-5 text-status-error" />
-    default:
-      return <Clock className="h-5 w-5 text-muted-foreground" />
+function loadRecentInstanceIds(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    return JSON.parse(window.sessionStorage.getItem(RECENT_INSTANCES_KEY) ?? '[]') as string[]
+  } catch {
+    return []
   }
 }
 
-export function WorkflowViewer() {
-  const [selectedWorkflow, setSelectedWorkflow] = useState<string>('wf-1')
-  const [selectedInstance, setSelectedInstance] = useState<string>('inst-1')
+function saveRecentInstanceIds(ids: string[]): void {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.setItem(RECENT_INSTANCES_KEY, JSON.stringify(ids))
+}
 
-  const workflow = mockWorkflowDefinitions.find(w => w.id === selectedWorkflow)
-  const instances = mockWorkflowInstances.filter(i => i.workflowId === selectedWorkflow)
-  const activeInstance = instances.find(i => i.id === selectedInstance) || instances[0]
+/**
+ * There is no real case-creation flow yet in this codebase — VigiCloud
+ * (the module that would create real `pv_case` records) is Phase 11, not
+ * built. This screen therefore lets you spin up a demo `WorkflowInstance`
+ * directly against the seeded PV case workflow (Phase 5.1), so the
+ * workflow engine + signature engine (Phase 6) can be exercised end-to-end
+ * for real — genuine state transitions, genuine role enforcement, and a
+ * genuine re-auth-then-sign flow on the QPPV approval step — rather than
+ * sitting unreachable behind a module that doesn't exist yet.
+ */
+export function WorkflowViewer() {
+  const [instanceIds, setInstanceIds] = useState<string[]>([])
+  const [selectedId, setSelectedId] = useState<string>('')
+  const [instance, setInstance] = useState<WorkflowInstanceDetail | null>(null)
+  const [transitions, setTransitions] = useState<AvailableTransition[]>([])
+  const [signatures, setSignatures] = useState<SignatureEvent[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useTimedMessage()
+  const [busy, setBusy] = useState(false)
+  const [pendingSignatureTransition, setPendingSignatureTransition] = useState<AvailableTransition | null>(null)
+
+  useEffect(() => {
+    const ids = loadRecentInstanceIds()
+    setInstanceIds(ids)
+    if (ids.length > 0) setSelectedId(ids[0])
+  }, [])
+
+  const loadInstance = (id: string) => {
+    if (!id) return
+    setLoading(true)
+    setError(null)
+    Promise.all([getWorkflowInstance(id), getAvailableTransitions(id)])
+      .then(async ([inst, avail]) => {
+        setInstance(inst)
+        setTransitions(avail)
+        // Signatures are keyed by (recordType, recordId) — the workflow
+        // instance's own recordId, not the instance's own id.
+        setSignatures(await getSignaturesForRecord(RECORD_TYPE, inst.recordId))
+      })
+      .catch((err) => setError(getErrorMessage(err, 'Could not load this workflow instance.')))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    if (selectedId) loadInstance(selectedId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId])
+
+  const handleCreateDemo = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const recordId = crypto.randomUUID()
+      const created = await instantiateWorkflow(RECORD_TYPE, recordId)
+      const nextIds = [created.id, ...instanceIds].slice(0, 10)
+      setInstanceIds(nextIds)
+      saveRecentInstanceIds(nextIds)
+      setSelectedId(created.id)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not create a demo case.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const runTransition = async (toStateKey: string, signature?: { signatureToken: string; intentStatement: string }) => {
+    if (!instance) return
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      await postTransition(instance.id, toStateKey, signature)
+      setNotice(`Moved to "${toStateKey.replace(/_/g, ' ')}".`)
+      loadInstance(instance.id)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not perform this transition.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleTransitionClick = (transition: AvailableTransition) => {
+    if (!transition.allowed || busy) return
+    if (transition.requiresSignature) {
+      setPendingSignatureTransition(transition)
+      return
+    }
+    void runTransition(transition.toStateKey)
+  }
 
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Workflow Viewer</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Monitor and manage document workflows</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-display font-bold text-foreground">Workflow Viewer</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The PV case lifecycle (Phase 5 — Intake through Submitted), wired to the real workflow engine
+          </p>
+        </div>
+        <button
+          onClick={handleCreateDemo}
+          disabled={busy}
+          className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" /> New demo case
+        </button>
       </div>
 
+      {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error}</div>}
+      {notice && (
+        <div className="rounded-lg border border-status-success/30 bg-status-success/10 p-3 text-sm text-status-success flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4" /> {notice}
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Workflow Selection */}
-        <div className="lg:col-span-1 space-y-4">
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
-              Workflow Type
-            </label>
+        <div className="lg:col-span-1 space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+            Recent Demo Cases
+          </label>
+          {instanceIds.length === 0 ? (
+            <p className="text-xs text-muted-foreground p-3 rounded-lg bg-muted/50">
+              No demo cases yet — create one to walk the workflow.
+            </p>
+          ) : (
             <div className="space-y-2">
-              {mockWorkflowDefinitions.map(wf => (
+              {instanceIds.map((id) => (
                 <button
-                  key={wf.id}
-                  onClick={() => {
-                    setSelectedWorkflow(wf.id)
-                    setSelectedInstance('')
-                  }}
+                  key={id}
+                  onClick={() => setSelectedId(id)}
                   className={`w-full rounded-lg px-4 py-3 text-left transition-colors ${
-                    selectedWorkflow === wf.id
+                    selectedId === id
                       ? 'bg-safemeds-teal/10 border border-safemeds-teal text-safemeds-teal'
                       : 'border border-border text-foreground hover:bg-muted'
                   }`}
                 >
-                  <p className="font-medium text-sm">{wf.name}</p>
-                  <p className="text-xs text-muted-foreground">{wf.stages.length} stages</p>
+                  <p className="font-mono text-xs truncate">{id}</p>
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Active Instances */}
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
-              Active Instances
-            </label>
-            <div className="space-y-2">
-              {instances.length === 0 ? (
-                <p className="text-xs text-muted-foreground p-3 rounded-lg bg-muted/50">No active workflows</p>
-              ) : (
-                instances.map(inst => (
-                  <button
-                    key={inst.id}
-                    onClick={() => setSelectedInstance(inst.id)}
-                    className={`w-full rounded-lg px-4 py-3 text-left transition-colors ${
-                      selectedInstance === inst.id
-                        ? 'bg-safemeds-teal/10 border border-safemeds-teal'
-                        : 'border border-border hover:bg-muted'
-                    }`}
-                  >
-                    <p className="font-medium text-sm text-foreground">{inst.entityId}</p>
-                    <div className="mt-2 flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground">{inst.state}</p>
-                      <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full bg-safemeds-teal transition-all"
-                          style={{ width: `${inst.progress}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Workflow Visualization */}
-        <div className="lg:col-span-2">
-          {workflow && (
-            <div className="space-y-6">
-              {/* Workflow Info */}
+        <div className="lg:col-span-2 space-y-6">
+          {loading && (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+            </div>
+          )}
+
+          {!loading && instance && (
+            <>
               <div className="rounded-lg border border-border bg-card p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-display font-bold text-lg text-foreground">{workflow.name}</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="font-display font-bold text-lg text-foreground">{instance.definition.recordType}</h2>
                   <span className="text-xs font-medium bg-muted text-muted-foreground px-2.5 py-0.5 rounded-full">
-                    v{workflow.version}
+                    v{instance.definition.version}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground">{workflow.stages.length} stage workflow</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Current state: <span className="font-medium text-foreground">{instance.currentState.name}</span>
+                </p>
               </div>
 
-              {/* Flow Diagram */}
-              <div className="rounded-lg border border-border bg-card p-6">
-                <div className="flex items-center justify-between gap-2 overflow-x-auto pb-4">
-                  {workflow.stages.map((stage, index) => {
-                    const isCompleted = activeInstance && stage.order < activeInstance.currentStage
-                    const isCurrent = activeInstance && stage.order === activeInstance.currentStage
-                    const isUpcoming = activeInstance && stage.order > activeInstance.currentStage
+              <WorkflowStepper
+                states={instance.definition.states}
+                currentStateId={instance.currentStateId}
+                availableTransitions={transitions}
+                onTransitionClick={handleTransitionClick}
+                busy={busy}
+              />
 
-                    return (
-                      <div key={stage.id} className="flex items-center gap-2 flex-shrink-0">
-                        <div
-                          className={`rounded-full p-3 text-center min-w-20 ${
-                            isCompleted
-                              ? 'bg-status-success/10 text-status-success border-2 border-status-success'
-                              : isCurrent
-                                ? 'bg-status-warning/10 text-status-warning border-2 border-status-warning'
-                                : isUpcoming
-                                  ? 'bg-muted text-muted-foreground border-2 border-border'
-                                  : 'bg-muted text-muted-foreground border-2 border-border'
-                          }`}
-                        >
-                          <p className="font-bold text-sm">{stage.order}</p>
-                          <p className="text-xs font-medium">{stage.name}</p>
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground text-sm flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4" /> Signatures
+                </h3>
+                {signatures.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No signatures recorded for this case yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {signatures.map((sig) => (
+                      <div key={sig.id} className="rounded-lg border border-border bg-card p-3 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-foreground">{sig.roleAtSigning}</span>
+                          <span className="text-muted-foreground">{new Date(sig.signedAt).toLocaleString()}</span>
                         </div>
-
-                        {index < workflow.stages.length - 1 && (
-                          <ArrowRight
-                            className={`h-5 w-5 ${
-                              isCompleted ? 'text-status-success' : 'text-muted-foreground'
-                            } flex-shrink-0`}
-                          />
-                        )}
+                        <p className="text-muted-foreground mt-1">{sig.intentStatement}</p>
+                        <p className="font-mono text-[10px] text-muted-foreground/70 mt-1 truncate">{sig.recordHashSha256}</p>
                       </div>
-                    )
-                  })}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
+            </>
+          )}
 
-              {/* Stage Details */}
-              {activeInstance && (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-foreground">Current Stage Details</h3>
-                  {workflow.stages.map(stage => {
-                    if (stage.order !== activeInstance.currentStage) return null
-
-                    return (
-                      <div key={stage.id} className="rounded-lg border border-border bg-card p-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h4 className="font-semibold text-foreground">{stage.name}</h4>
-                            <p className="text-sm text-muted-foreground mt-1">{stage.description}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {getStateIcon(activeInstance.state)}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Approvals Required</p>
-                            <p className="font-semibold text-foreground mt-1">{stage.requiredApprovals}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Timeout</p>
-                            <p className="font-semibold text-foreground mt-1">{stage.timeoutDays} days</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Overall Progress</p>
-                            <div className="mt-1 w-full h-2 rounded-full bg-muted overflow-hidden">
-                              <div
-                                className="h-full bg-safemeds-teal"
-                                style={{ width: `${activeInstance.progress}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+          {!loading && !instance && (
+            <div className="rounded-lg border border-border bg-card/50 p-12 text-center">
+              <p className="text-sm text-muted-foreground">Select or create a demo case to view its workflow.</p>
             </div>
           )}
         </div>
       </div>
+
+      {pendingSignatureTransition && (
+        <SignatureModal
+          isOpen
+          onClose={() => setPendingSignatureTransition(null)}
+          documentTitle={`Approve transition to "${pendingSignatureTransition.toStateName}"`}
+          documentId={instance?.id ?? ''}
+          onSigned={async ({ intentStatement, signatureToken }) => {
+            const transition = pendingSignatureTransition
+            setPendingSignatureTransition(null)
+            if (transition) {
+              await runTransition(transition.toStateKey, { signatureToken, intentStatement })
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

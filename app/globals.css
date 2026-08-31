@@ -116,6 +116,17 @@
   --chart-5: #fbbf24;
   --radius: 0.625rem;
   --sidebar-ring: var(--primary);
+
+  /* Brand + status aliases — same tokens under the names `bg-safemeds-*`/
+     `text-status-*` utility classes actually resolve to across the app. */
+  --safemeds-teal: var(--primary);
+  --safemeds-spruce: var(--sidebar);
+  --safemeds-gold: var(--accent-gold);
+  --safemeds-slate: var(--text-muted);
+  --status-warning: var(--warn);
+  --status-error: var(--bad);
+  --status-success: var(--ok);
+  --status-info: var(--info);
 }
 
 .dark {
@@ -175,52 +186,17 @@
   --chart-4: #c084fc;
   --chart-5: #f97316;
   --sidebar-ring: var(--primary);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    color-scheme: dark;
-    --background: #0f172a;
-    --foreground: #f1f5f9;
-    --card: #1e293b;
-    --card-foreground: #f1f5f9;
-    --popover: #1e293b;
-    --popover-foreground: #f1f5f9;
-    --primary: #14b8a6;
-    --primary-foreground: #0f172a;
-    --secondary: #1e3a8a;
-    --secondary-foreground: #f1f5f9;
-    --muted: #334155;
-    --muted-foreground: #cbd5e1;
-    --accent: #fbbf24;
-    --accent-foreground: #0f172a;
-    --destructive: #f87171;
-    --border: #334155;
-    --input: #334155;
-    --ring: #64748b;
-    --chart-1: #14b8a6;
-    --chart-2: #fbbf24;
-    --chart-3: #cbd5e1;
-    --chart-4: #c084fc;
-    --chart-5: #f97316;
-    --sidebar: #1e293b;
-    --sidebar-foreground: #f1f5f9;
-    --sidebar-primary: #14b8a6;
-    --sidebar-primary-foreground: #0f172a;
-    --sidebar-accent: #fbbf24;
-    --sidebar-accent-foreground: #0f172a;
-    --sidebar-border: #334155;
-    --sidebar-ring: #64748b;
-
-    --safemeds-teal: #14b8a6;
-    --safemeds-spruce: #334155;
-    --safemeds-gold: #fbbf24;
-    --safemeds-slate: #cbd5e1;
-    --status-warning: #f59e0b;
-    --status-error: #f87171;
-    --status-success: #6ee7b7;
-    --status-info: #60a5fa;
-  }
+  /* Brand + status aliases — same tokens under the names `bg-safemeds-*`/
+     `text-status-*` utility classes actually resolve to across the app. */
+  --safemeds-teal: var(--primary);
+  --safemeds-spruce: var(--sidebar);
+  --safemeds-gold: var(--accent-gold);
+  --safemeds-slate: var(--text-muted);
+  --status-warning: var(--warn);
+  --status-error: var(--bad);
+  --status-success: var(--ok);
+  --status-info: var(--info);
 }
 
 @layer base {

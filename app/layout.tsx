@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { ThemeProvider } from 'next-themes'
 import { CommandPalette } from '@/components/ui/command-palette'
+import { SessionBoundary } from '@/components/providers/session-boundary'
 import './globals.css'
 
 const siteUrl = 'https://app.safemeds.uk'
@@ -49,6 +50,7 @@ export default function RootLayout({
     <html lang="en" className="bg-background" suppressHydrationWarning>
       <body className="antialiased font-sans bg-[var(--bg)] text-[var(--text)]">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <SessionBoundary />
           <CommandPalette />
           {children}
           {process.env.NODE_ENV === 'production' && <Analytics />}

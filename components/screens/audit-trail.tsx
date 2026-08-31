@@ -1,86 +1,152 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Filter, Download, Eye, EyeOff } from 'lucide-react'
-import type { AuditEntry } from '@/lib/types'
+import { useEffect, useMemo, useState } from 'react'
+import { Filter, ShieldAlert } from 'lucide-react'
+import { getErrorMessage } from '@/lib/api/client'
+import { AuditEntry, getAuditEntries } from '@/lib/api/audit'
+import { usePermissions } from '@/lib/hooks/use-permissions'
+import { Modal } from '@/components/ui/modal'
+import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
 
-const mockAuditEntries: AuditEntry[] = [
-  {
-    id: 'audit-1',
-    entityId: 'product-1',
-    entityType: 'product',
-    action: 'Updated',
-    changedBy: 'user-1',
-    changedAt: new Date(Date.now() - 3600000).toISOString(),
-    previousValue: { strength: '500mg' },
-    newValue: { strength: '500mg' },
-    reason: 'Corrected manufacturing country',
-    ipAddress: '192.168.1.100',
-  },
-  {
-    id: 'audit-2',
-    entityId: 'batch-1',
-    entityType: 'batch',
-    action: 'Created',
-    changedBy: 'user-2',
-    changedAt: new Date(Date.now() - 86400000).toISOString(),
-    newValue: { batchNumber: 'B-2024-001' },
-    ipAddress: '192.168.1.101',
-  },
-  {
-    id: 'audit-3',
-    entityId: 'rule-1',
-    entityType: 'country_rule',
-    action: 'Superseded',
-    changedBy: 'user-1',
-    changedAt: new Date(Date.now() - 172800000).toISOString(),
-    reason: 'New regulation effective',
-    ipAddress: '192.168.1.100',
-  },
-  {
-    id: 'audit-4',
-    entityId: 'batch-1',
-    entityType: 'batch',
-    action: 'Status Changed',
-    changedBy: 'user-2',
-    changedAt: new Date(Date.now() - 259200000).toISOString(),
-    previousValue: { status: 'pending' },
-    newValue: { status: 'active' },
-    reason: 'Quality tests passed',
-    ipAddress: '192.168.1.101',
-  },
-]
+const ACTION_COLORS: Record<string, string> = {
+  login: 'bg-status-info/10 text-status-info',
+  login_failed: 'bg-status-error/10 text-status-error',
+  user_roles_updated: 'bg-status-warning/10 text-status-warning',
+  user_deactivated: 'bg-status-error/10 text-status-error',
+  invitation_created: 'bg-status-success/10 text-status-success',
+  invitation_revoked: 'bg-status-error/10 text-status-error',
+  invitation_accepted: 'bg-status-success/10 text-status-success',
+  security_policy_updated: 'bg-status-warning/10 text-status-warning',
+  password_changed: 'bg-status-info/10 text-status-info',
+  password_reset: 'bg-status-info/10 text-status-info',
+  registration_approved: 'bg-status-success/10 text-status-success',
+  registration_rejected: 'bg-status-error/10 text-status-error',
+}
 
-const ACTION_COLORS = {
-  Created: 'bg-status-success/10 text-status-success',
-  Updated: 'bg-status-info/10 text-status-info',
-  Deleted: 'bg-status-error/10 text-status-error',
-  Approved: 'bg-status-success/10 text-status-success',
-  Rejected: 'bg-status-error/10 text-status-error',
-  'Status Changed': 'bg-status-warning/10 text-status-warning',
-  Superseded: 'bg-muted text-muted-foreground',
+const RECORD_TYPES = ['app_user', 'invitation', 'security_policy', 'company_registration', 'system']
+
+function formatAction(action: string): string {
+  return action.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
+}
+
+function actionColor(action: string): string {
+  return ACTION_COLORS[action] ?? 'bg-muted text-muted-foreground'
 }
 
 export function AuditTrail() {
-  const [entries] = useState<AuditEntry[]>(mockAuditEntries)
-  const [selectedEntityType, setSelectedEntityType] = useState<string>('all')
-  const [selectedAction, setSelectedAction] = useState<string>('all')
-  const [showDetails, setShowDetails] = useState<string | null>(null)
+  const { has } = usePermissions()
+  const canRead = has('audit.read')
 
-  const filteredEntries = useMemo(() => {
-    return entries.filter(
-      entry =>
-        (selectedEntityType === 'all' || entry.entityType === selectedEntityType) &&
-        (selectedAction === 'all' || entry.action === selectedAction)
+  const [entries, setEntries] = useState<AuditEntry[]>([])
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(25)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [detailEntry, setDetailEntry] = useState<AuditEntry | null>(null)
+
+  const [recordType, setRecordType] = useState('all')
+  const [action, setAction] = useState('all')
+  const [timeRange, setTimeRange] = useState('all')
+  const [knownActions, setKnownActions] = useState<string[]>([])
+
+  const from = useMemo(() => {
+    if (timeRange === 'all') return undefined
+    const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 24 * 7 : 24 * 30
+    return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
+  }, [timeRange])
+
+  useEffect(() => {
+    if (!canRead) return
+    setPage(1)
+  }, [recordType, action, timeRange, limit, canRead])
+
+  useEffect(() => {
+    if (!canRead) return
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+
+    getAuditEntries({
+      recordType: recordType === 'all' ? undefined : recordType,
+      action: action === 'all' ? undefined : action,
+      from,
+      page,
+      limit,
+    })
+      .then(({ entries: rows, meta }) => {
+        if (cancelled) return
+        setEntries(rows)
+        setTotalPages(meta.totalPages)
+        setTotal(meta.total)
+        setKnownActions((prev) => Array.from(new Set([...prev, ...rows.map((r) => r.action)])).sort())
+      })
+      .catch((err) => {
+        if (!cancelled) setError(getErrorMessage(err, 'Could not load the audit trail.'))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- from is derived from timeRange, re-running on it directly would double-fetch
+  }, [recordType, action, page, limit, canRead])
+
+  if (!canRead) {
+    return (
+      <div className="space-y-6 p-6">
+        <h1 className="text-3xl font-display font-bold text-foreground">Audit Trail</h1>
+        <div className="rounded-lg border border-border bg-card p-12 text-center">
+          <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
+          <p className="text-sm text-muted-foreground">
+            You don&apos;t have permission to view the audit trail. Contact your System Administrator.
+          </p>
+        </div>
+      </div>
     )
-  }, [entries, selectedEntityType, selectedAction])
-
-  const entityTypes = Array.from(new Set(entries.map(e => e.entityType)))
-  const actions = Array.from(new Set(entries.map(e => e.action)))
-
-  const getActionColor = (action: string): string => {
-    return ACTION_COLORS[action as keyof typeof ACTION_COLORS] || 'bg-muted text-muted-foreground'
   }
+
+  const columns: DataTableColumn<AuditEntry>[] = [
+    {
+      key: 'action',
+      label: 'Action',
+      sortable: false,
+      render: (value: string) => (
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${actionColor(value)}`}>
+          {formatAction(value)}
+        </span>
+      ),
+    },
+    {
+      key: 'recordType',
+      label: 'Record',
+      render: (value: string, row: AuditEntry) => (
+        <span className="whitespace-nowrap">
+          {value.replace(/_/g, ' ')}
+          {row.recordId ? ` · ${row.recordId.slice(0, 8)}` : ''}
+        </span>
+      ),
+    },
+    {
+      key: 'actorName',
+      label: 'Actor',
+      render: (value: string | null, row: AuditEntry) => value ?? (row.actorType === 'system' ? 'System' : 'Unknown user'),
+    },
+    { key: 'ip', label: 'IP Address', render: (value: string | null) => value ?? '—' },
+    {
+      key: 'occurredAt',
+      label: 'When',
+      sortable: false,
+      render: (value: string) => (
+        <span className="whitespace-nowrap">
+          {new Date(value).toLocaleDateString()} {new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      ),
+    },
+  ]
 
   return (
     <div className="space-y-6 p-6">
@@ -88,13 +154,9 @@ export function AuditTrail() {
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Audit Trail</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Complete record of all system changes and actions
+            {total} entries · Complete, immutable record of every regulated change in your company
           </p>
         </div>
-        <button className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm font-medium text-foreground hover:bg-muted/80 transition-colors">
-          <Download className="h-4 w-4" />
-          Export Report
-        </button>
       </div>
 
       {/* Filters */}
@@ -107,15 +169,15 @@ export function AuditTrail() {
         <div className="grid gap-4 md:grid-cols-3">
           <div>
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Entity Type
+              Record Type
             </label>
             <select
-              value={selectedEntityType}
-              onChange={e => setSelectedEntityType(e.target.value)}
+              value={recordType}
+              onChange={(e) => setRecordType(e.target.value)}
               className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
             >
               <option value="all">All Types</option>
-              {entityTypes.map(type => (
+              {RECORD_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {type.replace(/_/g, ' ')}
                 </option>
@@ -124,18 +186,16 @@ export function AuditTrail() {
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Action
-            </label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Action</label>
             <select
-              value={selectedAction}
-              onChange={e => setSelectedAction(e.target.value)}
+              value={action}
+              onChange={(e) => setAction(e.target.value)}
               className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
             >
               <option value="all">All Actions</option>
-              {actions.map(action => (
-                <option key={action} value={action}>
-                  {action}
+              {knownActions.map((a) => (
+                <option key={a} value={a}>
+                  {formatAction(a)}
                 </option>
               ))}
             </select>
@@ -145,130 +205,85 @@ export function AuditTrail() {
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Time Range
             </label>
-            <select className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground">
-              <option>Last 24 Hours</option>
-              <option>Last 7 Days</option>
-              <option>Last 30 Days</option>
-              <option>All Time</option>
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
+            >
+              <option value="24h">Last 24 Hours</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="all">All Time</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Timeline */}
-      <div className="space-y-3">
-        {filteredEntries.length === 0 ? (
-          <div className="rounded-lg border border-border bg-card/50 p-12 text-center">
-            <Eye className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-            <p className="text-sm text-muted-foreground">No audit entries match the selected filters</p>
-          </div>
-        ) : (
-          filteredEntries.map(entry => (
-            <div
-              key={entry.id}
-              className="rounded-lg border border-border bg-card p-4 hover:border-safemeds-teal/30 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-4 mb-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${getActionColor(entry.action)}`}>
-                      {entry.action}
-                    </span>
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {entry.entityType.replace(/_/g, ' ')} - {entry.entityId}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    <span>By {entry.changedBy}</span>
-                    <span>•</span>
-                    <span>
-                      {new Date(entry.changedAt).toLocaleDateString()} at{' '}
-                      {new Date(entry.changedAt).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                    {entry.ipAddress && (
-                      <>
-                        <span>•</span>
-                        <span className="font-mono">{entry.ipAddress}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowDetails(showDetails === entry.id ? null : entry.id)}
-                  className="rounded-lg p-2 text-muted-foreground hover:bg-muted transition-colors"
-                >
-                  {showDetails === entry.id ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
+      {error && (
+        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">
+          {error}
+        </div>
+      )}
 
-              {entry.reason && (
-                <div className="mb-3 rounded-lg bg-muted/30 px-3 py-2">
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">Reason:</span> {entry.reason}
-                  </p>
+      <DataTableV2
+        data={entries}
+        columns={columns}
+        onRowClick={(row) => (row.oldValue || row.newValue) && setDetailEntry(row)}
+        searchable={false}
+        exportable={false}
+        showDensityToggle={false}
+        loading={loading}
+        page={page}
+        totalPages={totalPages}
+        totalCount={total}
+        onPageChange={setPage}
+        rowsPerPage={limit}
+      />
+
+      <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
+        <span>Rows per page</span>
+        {[25, 50, 100].map((size) => (
+          <button
+            key={size}
+            onClick={() => setLimit(size)}
+            className={`px-2 py-1 rounded-md font-medium ${limit === size ? 'bg-[var(--primary)] text-white' : 'hover:bg-muted'}`}
+          >
+            {size}
+          </button>
+        ))}
+      </div>
+
+      {detailEntry && (
+        <Modal title={formatAction(detailEntry.action)} onClose={() => setDetailEntry(null)} maxWidth="max-w-xl">
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              {detailEntry.recordType.replace(/_/g, ' ')}
+              {detailEntry.recordId ? ` · ${detailEntry.recordId}` : ''} · By{' '}
+              {detailEntry.actorName ?? (detailEntry.actorType === 'system' ? 'System' : 'Unknown user')} ·{' '}
+              {new Date(detailEntry.occurredAt).toLocaleString()}
+              {detailEntry.ip ? ` · ${detailEntry.ip}` : ''}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {detailEntry.oldValue && (
+                <div className="rounded-lg bg-status-error/5 p-3">
+                  <p className="text-xs font-semibold text-status-error mb-1">Before</p>
+                  <pre className="text-xs text-muted-foreground overflow-x-auto">
+                    {JSON.stringify(detailEntry.oldValue, null, 2)}
+                  </pre>
                 </div>
               )}
-
-              {showDetails === entry.id && (
-                <div className="mt-4 space-y-3 border-t border-border pt-4">
-                  {entry.previousValue && (
-                    <div className="rounded-lg bg-status-error/5 p-3">
-                      <p className="text-xs font-semibold text-status-error mb-1">Previous Value</p>
-                      <pre className="text-xs text-muted-foreground overflow-x-auto">
-                        {JSON.stringify(entry.previousValue, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                  {entry.newValue && (
-                    <div className="rounded-lg bg-status-success/5 p-3">
-                      <p className="text-xs font-semibold text-status-success mb-1">New Value</p>
-                      <pre className="text-xs text-muted-foreground overflow-x-auto">
-                        {JSON.stringify(entry.newValue, null, 2)}
-                      </pre>
-                    </div>
-                  )}
+              {detailEntry.newValue && (
+                <div className="rounded-lg bg-status-success/5 p-3">
+                  <p className="text-xs font-semibold text-status-success mb-1">After</p>
+                  <pre className="text-xs text-muted-foreground overflow-x-auto">
+                    {JSON.stringify(detailEntry.newValue, null, 2)}
+                  </pre>
                 </div>
               )}
             </div>
-          ))
-        )}
-      </div>
-
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Total Entries</p>
-          <p className="text-2xl font-bold text-foreground mt-1">{entries.length}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Last 24 Hours</p>
-          <p className="text-2xl font-bold text-foreground mt-1">
-            {entries.filter(e => {
-              const hours = (Date.now() - new Date(e.changedAt).getTime()) / (1000 * 60 * 60)
-              return hours < 24
-            }).length}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Entities Affected</p>
-          <p className="text-2xl font-bold text-foreground mt-1">
-            {new Set(entries.map(e => e.entityId)).size}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Users Active</p>
-          <p className="text-2xl font-bold text-foreground mt-1">
-            {new Set(entries.map(e => e.changedBy)).size}
-          </p>
-        </div>
-      </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

@@ -1,49 +1,42 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronRight, ChevronLeft, CheckCircle2, AlertCircle, Loader, Upload, X } from 'lucide-react'
 import { AuthLayout } from '@/components/layout/auth-layout'
 import { useAuthStore } from '@/lib/store/auth-store'
-import { registerCompany, verifyEmail } from '@/lib/mock/auth'
-import { FileUpload } from '@/components/ui/file-upload'
+import { ApiRequestError, getErrorMessage } from '@/lib/api/client'
+import { getAllCountries, type Country } from '@/lib/api/countries'
+import { registerCompany, resendCode, uploadLicence, verifyEmail, type CompanyType } from '@/lib/api/auth'
+import { getPasswordRequirements } from '@/lib/password-requirements'
 
-const COUNTRIES = [
-  { id: 'us', label: 'United States', code: 'US' },
-  { id: 'uk', label: 'United Kingdom', code: 'GB' },
-  { id: 'de', label: 'Germany', code: 'DE' },
-  { id: 'fr', label: 'France', code: 'FR' },
-  { id: 'ca', label: 'Canada', code: 'CA' },
-  { id: 'au', label: 'Australia', code: 'AU' },
-  { id: 'jp', label: 'Japan', code: 'JP' },
-]
-
-const COMPANY_TYPES = [
+const COMPANY_TYPES: Array<{ id: CompanyType; label: string; icon: string }> = [
   { id: 'manufacturer', label: 'Pharmaceutical Manufacturer', icon: '🏭' },
-  { id: 'distributor', label: 'Wholesale Distributor', icon: '🚚' },
-  { id: 'pharmacy', label: 'Pharmacy/Retail', icon: '💊' },
-]
-
-const PASSWORD_REQUIREMENTS = [
-  { id: 'length', label: 'At least 12 characters', check: (pwd: string) => pwd.length >= 12 },
-  { id: 'uppercase', label: 'Contains uppercase letter', check: (pwd: string) => /[A-Z]/.test(pwd) },
-  { id: 'lowercase', label: 'Contains lowercase letter', check: (pwd: string) => /[a-z]/.test(pwd) },
-  { id: 'number', label: 'Contains number', check: (pwd: string) => /\d/.test(pwd) },
-  { id: 'special', label: 'Contains special character', check: (pwd: string) => /[!@#$%^&*]/.test(pwd) },
+  { id: 'importer_distributor', label: 'Importer / Wholesale Distributor', icon: '🚚' },
+  { id: 'pharmacy_chain', label: 'Pharmacy / Retail Chain', icon: '💊' },
+  { id: 'e_pharmacy', label: 'E-Pharmacy', icon: '📱' },
+  { id: 'medical_facility', label: 'Medical Facility (Clinic / Hospital)', icon: '🏥' },
+  { id: 'ngo_social_health', label: 'NGO / Social Health Organization', icon: '🤝' },
+  { id: 'research_institution', label: 'Research Institution', icon: '🔬' },
+  { id: 'other', label: 'Other', icon: '📋' },
 ]
 
 export default function RegisterPage() {
   const router = useRouter()
-  const { setCurrentUser, setIsAuthenticated, setAuthError } = useAuthStore()
+  const { registrationDraft, setRegistrationDraft, resetRegistration } = useAuthStore()
 
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [countries, setCountries] = useState<Country[]>([])
+  const [countriesLoading, setCountriesLoading] = useState(true)
+
   // Company details (Step 1)
   const [companyName, setCompanyName] = useState('')
-  const [companyType, setCompanyType] = useState('')
+  const [companyType, setCompanyType] = useState<CompanyType | ''>('')
   const [countryId, setCountryId] = useState('')
   const [licenceNumber, setLicenceNumber] = useState('')
   const [licenseFile, setLicenseFile] = useState<File | null>(null)
@@ -58,9 +51,37 @@ export default function RegisterPage() {
 
   // Verification (Step 3)
   const [verificationCode, setVerificationCode] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
 
-  const passwordStrength = PASSWORD_REQUIREMENTS.filter(req => req.check(adminPassword))
-  const isPasswordValid = passwordStrength.length === PASSWORD_REQUIREMENTS.length
+  useEffect(() => {
+    getAllCountries()
+      .then(setCountries)
+      .catch(() => setError('Could not load the country list. Please refresh and try again.'))
+      .finally(() => setCountriesLoading(false))
+  }, [])
+
+  // This page always starts the wizard at step 1 with blank fields (there's
+  // no mid-flow "resume after refresh" UI built on top of it), so a
+  // `registrationDraft` left over in localStorage from a *previous*,
+  // possibly long-since-approved/rejected registration serves no purpose —
+  // and reusing its stale referenceNumber for a brand-new submission causes
+  // the licence upload to fail with REGISTRATION_NOT_EDITABLE. Clear it
+  // once per fresh mount so every visit to this page starts a real new
+  // registration.
+  useEffect(() => {
+    resetRegistration()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const timer = setInterval(() => setResendCooldown((seconds) => Math.max(0, seconds - 1)), 1000)
+    return () => clearInterval(timer)
+  }, [resendCooldown])
+
+  const passwordRequirements = getPasswordRequirements()
+  const passwordStrength = passwordRequirements.filter(req => req.check(adminPassword))
+  const isPasswordValid = passwordStrength.length === passwordRequirements.length
   const passwordsMatch = adminPassword === adminPasswordConfirm && adminPassword.length > 0
 
   const canProceedStep1 = companyName && companyType && countryId && licenceNumber && licenseFile
@@ -78,7 +99,6 @@ export default function RegisterPage() {
 
     try {
       if (step === 1) {
-        // Validate company details
         if (!canProceedStep1) {
           setError('Please fill in all company details')
           setLoading(false)
@@ -86,49 +106,67 @@ export default function RegisterPage() {
         }
         setStep(2)
       } else if (step === 2) {
-        // Create registration
         if (!canProceedStep2) {
           setError('Please complete all required fields and agree to terms')
           setLoading(false)
           return
         }
 
-        const result = await registerCompany({
-          companyName,
-          companyType: companyType as 'manufacturer' | 'distributor' | 'pharmacy',
-          countryId,
-          licenceNumber,
-          adminFullName: adminName,
-          adminEmail,
-          adminPhone,
-          adminPassword,
-        })
+        let draft = registrationDraft
 
-        if (result.success) {
-          setStep(3)
-        } else {
-          setError(result.error || 'Registration failed')
+        if (!draft) {
+          draft = await registerCompany({
+            companyName,
+            companyType: companyType as CompanyType,
+            countryId,
+            licenceNumber,
+            adminFullName: adminName,
+            adminEmail,
+            adminPhone,
+            adminPassword,
+          })
+          setRegistrationDraft(draft)
         }
+
+        if (licenseFile) {
+          setUploadProgress(0)
+          await uploadLicence(draft.referenceNumber, licenseFile, setUploadProgress)
+          setUploadProgress(null)
+        }
+
+        setStep(3)
       } else if (step === 3) {
-        // Verify email
         if (verificationCode.length !== 6) {
           setError('Please enter a valid 6-digit code')
           setLoading(false)
           return
         }
 
-        const result = await verifyEmail(adminEmail, verificationCode)
-
-        if (result.success) {
-          setStep(4)
-        } else {
-          setError(result.error || 'Invalid verification code')
-        }
+        await verifyEmail(adminEmail, verificationCode)
+        setStep(4)
       }
     } catch (err) {
-      setError('An error occurred. Please try again.')
+      setUploadProgress(null)
+      setError(getErrorMessage(err, 'An error occurred. Please try again.'))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResendCode = async () => {
+    if (resendCooldown > 0) return
+    setError(null)
+
+    try {
+      await resendCode(adminEmail)
+      setResendCooldown(60)
+    } catch (err) {
+      if (err instanceof ApiRequestError && err.code === 'RESEND_COOLDOWN') {
+        const details = err.details as { retryAfterSeconds?: number } | undefined
+        setResendCooldown(details?.retryAfterSeconds ?? 60)
+      } else {
+        setError(getErrorMessage(err, 'Could not resend the code. Please try again.'))
+      }
     }
   }
 
@@ -189,7 +227,7 @@ export default function RegisterPage() {
                 type="text"
                 value={companyName}
                 onChange={e => setCompanyName(e.target.value)}
-                placeholder="PharmaTech Solutions Inc."
+                placeholder="PharmaTech Solutions Ltd"
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
               />
             </div>
@@ -200,6 +238,7 @@ export default function RegisterPage() {
                 {COMPANY_TYPES.map(type => (
                   <button
                     key={type.id}
+                    type="button"
                     onClick={() => setCompanyType(type.id)}
                     className={`p-3 rounded-lg border-2 text-left transition-all ${
                       companyType === type.id
@@ -224,12 +263,13 @@ export default function RegisterPage() {
                 <select
                   value={countryId}
                   onChange={e => setCountryId(e.target.value)}
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
+                  disabled={countriesLoading}
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)] disabled:opacity-50"
                 >
-                  <option value="">Select country...</option>
-                  {COUNTRIES.map(country => (
+                  <option value="">{countriesLoading ? 'Loading countries...' : 'Select country...'}</option>
+                  {countries.map(country => (
                     <option key={country.id} value={country.id}>
-                      {country.label}
+                      {country.name}
                     </option>
                   ))}
                 </select>
@@ -241,7 +281,7 @@ export default function RegisterPage() {
                   type="text"
                   value={licenceNumber}
                   onChange={e => setLicenceNumber(e.target.value)}
-                  placeholder="LIC-2024-001234"
+                  placeholder="PPB/LIC/2026/001234"
                   className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
                 />
               </div>
@@ -283,7 +323,7 @@ export default function RegisterPage() {
                         const file = e.target.files?.[0]
                         if (file && file.size <= 10 * 1024 * 1024) {
                           setLicenseFile(file)
-                        } else {
+                        } else if (file) {
                           setError('File must be under 10MB')
                         }
                       }}
@@ -317,47 +357,47 @@ export default function RegisterPage() {
         {step === 2 && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-display font-bold text-foreground">Administrator Account</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Create the primary admin account for your company</p>
+              <h2 className="text-2xl font-display font-bold text-[var(--text)]">Administrator Account</h2>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">Create the primary admin account for your company</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Full Name</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">Full Name</label>
               <input
                 type="text"
                 value={adminName}
                 onChange={e => setAdminName(e.target.value)}
-                placeholder="John Smith"
-                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-safemeds-teal/50 focus:border-safemeds-teal"
+                placeholder="Jane Wanjiru"
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Email Address</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">Email Address</label>
               <input
                 type="email"
                 value={adminEmail}
                 onChange={e => setAdminEmail(e.target.value)}
-                placeholder="john@pharmatech.com"
+                placeholder="jane@pharmatech.co.ke"
                 autoComplete="email"
-                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-safemeds-teal/50 focus:border-safemeds-teal"
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Phone Number</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">Phone Number</label>
               <input
                 type="tel"
                 value={adminPhone}
                 onChange={e => setAdminPhone(e.target.value)}
-                placeholder="+1 (555) 123-4567"
+                placeholder="+254712345678"
                 autoComplete="tel"
-                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-safemeds-teal/50 focus:border-safemeds-teal"
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Password</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">Password</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -365,33 +405,32 @@ export default function RegisterPage() {
                   onChange={e => setAdminPassword(e.target.value)}
                   placeholder="Enter secure password"
                   autoComplete="new-password"
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-safemeds-teal/50 focus:border-safemeds-teal pr-10"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)] pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text)]"
                 >
                   {showPassword ? '👁️' : '👁️‍🗨️'}
                 </button>
               </div>
 
-              {/* Password requirements checklist */}
               <div className="mt-3 space-y-2">
-                {PASSWORD_REQUIREMENTS.map(req => (
+                {passwordRequirements.map(req => (
                   <div key={req.id} className="flex items-center gap-2 text-sm">
                     <div
                       className={`h-4 w-4 rounded border flex items-center justify-center ${
                         req.check(adminPassword)
                           ? 'bg-status-success border-status-success'
-                          : 'border-border bg-transparent'
+                          : 'border-[var(--border)] bg-transparent'
                       }`}
                     >
                       {req.check(adminPassword) && <span className="text-white text-xs">✓</span>}
                     </div>
                     <span
                       className={
-                        req.check(adminPassword) ? 'text-status-success' : 'text-muted-foreground'
+                        req.check(adminPassword) ? 'text-status-success' : 'text-[var(--text-muted)]'
                       }
                     >
                       {req.label}
@@ -402,19 +441,19 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Confirm Password</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">Confirm Password</label>
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={adminPasswordConfirm}
                 onChange={e => setAdminPasswordConfirm(e.target.value)}
                 placeholder="Confirm password"
                 autoComplete="new-password"
-                className={`w-full px-3 py-2 border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-offset-0 ${
+                className={`w-full px-3 py-2 border rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-offset-0 ${
                   adminPasswordConfirm
                     ? passwordsMatch
                       ? 'border-status-success focus:ring-status-success/50 focus:border-status-success'
                       : 'border-status-error focus:ring-status-error/50 focus:border-status-error'
-                    : 'border-border focus:ring-safemeds-teal/50 focus:border-safemeds-teal'
+                    : 'border-[var(--border)] focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]'
                 }`}
               />
               {adminPasswordConfirm && !passwordsMatch && (
@@ -428,14 +467,29 @@ export default function RegisterPage() {
                 id="terms"
                 checked={agreeTerms}
                 onChange={e => setAgreeTerms(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-border bg-background cursor-pointer accent-safemeds-teal"
+                className="mt-1 h-4 w-4 rounded border-[var(--border)] bg-[var(--bg)] cursor-pointer accent-[var(--primary)]"
               />
-              <label htmlFor="terms" className="text-sm text-muted-foreground cursor-pointer">
-                I agree to the SafeMeds <span className="text-foreground font-medium">Terms of Service</span> and{' '}
-                <span className="text-foreground font-medium">Data Processing Agreement</span>, and confirm that I am
+              <label htmlFor="terms" className="text-sm text-[var(--text-muted)] cursor-pointer">
+                I agree to the SafeMeds <span className="text-[var(--text)] font-medium">Terms of Service</span> and{' '}
+                <span className="text-[var(--text)] font-medium">Data Processing Agreement</span>, and confirm that I am
                 authorized to register this company.
               </label>
             </div>
+
+            {uploadProgress !== null && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-[var(--text-muted)]">
+                  <span>Uploading licence document…</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-[var(--muted)] overflow-hidden">
+                  <div
+                    className="h-full bg-[var(--primary)] transition-all"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="p-3 rounded-lg bg-status-error/10 border border-status-error text-status-error text-sm flex items-center gap-2">
@@ -450,32 +504,39 @@ export default function RegisterPage() {
         {step === 3 && (
           <div className="space-y-6 text-center">
             <div>
-              <h2 className="text-2xl font-display font-bold text-foreground">Verify Email Address</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                We&apos;ve sent a verification code to <span className="font-medium text-foreground">{adminEmail}</span>
+              <h2 className="text-2xl font-display font-bold text-[var(--text)]">Verify Email Address</h2>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">
+                We&apos;ve sent a verification code to <span className="font-medium text-[var(--text)]">{adminEmail}</span>
               </p>
             </div>
 
-            <div className="p-4 rounded-lg bg-card border border-border">
-              <p className="text-xs text-muted-foreground mb-3">Enter the 6-digit code:</p>
+            <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
+              <p className="text-xs text-[var(--text-muted)] mb-3">Enter the 6-digit code:</p>
               <input
                 type="text"
                 value={verificationCode}
-                onChange={e => setVerificationCode(e.target.value.slice(0, 6))}
+                onChange={e => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 placeholder="000000"
                 maxLength={6}
                 autoComplete="one-time-code"
-                className="w-full text-center text-3xl tracking-widest px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-safemeds-teal/50 focus:border-safemeds-teal font-mono"
+                className="w-full text-center text-3xl tracking-widest px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)] font-mono"
               />
             </div>
 
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-[var(--text-muted)]">
               Didn&apos;t receive the code?{' '}
-              <button className="text-safemeds-teal hover:underline font-medium">Resend email</button>
+              <button
+                type="button"
+                onClick={handleResendCode}
+                disabled={resendCooldown > 0}
+                className="text-[var(--primary)] hover:underline font-medium disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
+              >
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend email'}
+              </button>
             </p>
 
             {error && (
-              <div className="p-3 rounded-lg bg-[var(--bad-bg)] border border-[var(--bad)] text-[var(--bad)] text-sm flex items-center gap-2">
+              <div className="p-3 rounded-lg bg-status-error/10 border border-status-error text-status-error text-sm flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
                 {error}
               </div>
@@ -493,22 +554,22 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <h2 className="text-2xl font-display font-bold text-foreground">Registration Complete!</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Your company account is under review. We&apos;ll notify you via email within 2-3 business days.
+              <h2 className="text-2xl font-display font-bold text-[var(--text)]">Registration Complete!</h2>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">
+                Your company account is under review. We&apos;ll notify you via email once a decision is made.
               </p>
             </div>
 
-            <div className="p-4 rounded-lg bg-card border border-border space-y-3">
+            <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)] space-y-3">
               <div className="text-left">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Reference Number</p>
-                <p className="text-sm font-mono text-foreground mt-1">REG-2024-00{Math.floor(Math.random() * 10000)}</p>
+                <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Reference Number</p>
+                <p className="text-sm font-mono text-[var(--text)] mt-1">{registrationDraft?.referenceNumber}</p>
               </div>
-              <div className="text-left border-t border-border pt-3">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Next Steps</p>
-                <ul className="text-sm text-muted-foreground mt-2 space-y-1">
-                  <li>✓ Check your email for confirmation</li>
-                  <li>✓ Await regulatory review (2-3 business days)</li>
+              <div className="text-left border-t border-[var(--border)] pt-3">
+                <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Next Steps</p>
+                <ul className="text-sm text-[var(--text-muted)] mt-2 space-y-1">
+                  <li>✓ Your email is verified</li>
+                  <li>✓ Await regulatory review</li>
                   <li>✓ Log in once your account is approved</li>
                 </ul>
               </div>
@@ -522,7 +583,7 @@ export default function RegisterPage() {
             <button
               onClick={handlePrevStep}
               disabled={loading}
-              className="flex-1 px-4 py-2 rounded-lg border border-border bg-card hover:bg-card/80 text-foreground font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-[var(--text)] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <ChevronLeft className="h-4 w-4" />
               Back
@@ -533,7 +594,7 @@ export default function RegisterPage() {
             <button
               onClick={handleNextStep}
               disabled={loading || (step === 1 && !canProceedStep1) || (step === 2 && !canProceedStep2)}
-              className="flex-1 px-4 py-2 rounded-lg bg-safemeds-teal hover:bg-safemeds-teal/90 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -552,7 +613,7 @@ export default function RegisterPage() {
           {step === 4 && (
             <button
               onClick={handleSignIn}
-              className="w-full px-4 py-2 rounded-lg bg-safemeds-teal hover:bg-safemeds-teal/90 text-white font-medium transition-colors flex items-center justify-center gap-2"
+              className="w-full px-4 py-2 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-medium transition-colors flex items-center justify-center gap-2"
             >
               Go to Login
               <ChevronRight className="h-4 w-4" />
@@ -563,11 +624,11 @@ export default function RegisterPage() {
         {/* Sign in link */}
         <div className="text-center">
           {step < 4 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-[var(--text-muted)]">
               Already have an account?{' '}
               <button
                 onClick={handleSignIn}
-                className="text-safemeds-teal hover:underline font-medium"
+                className="text-[var(--primary)] hover:underline font-medium"
               >
                 Sign in
               </button>

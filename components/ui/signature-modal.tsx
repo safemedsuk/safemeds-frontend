@@ -1,12 +1,24 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Check, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { X, Check, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react'
+import { reauth } from '@/lib/api/auth'
+import { ApiRequestError, getErrorMessage } from '@/lib/api/client'
+import { useAuthStore } from '@/lib/store/auth-store'
 
 interface SignatureModalProps {
   isOpen: boolean
   onClose: () => void
-  onSign: (intent: string, password: string) => void
+  /**
+   * Called once re-authentication succeeds, with the resulting single-use
+   * signature-grade token — the caller is responsible for the actual
+   * signing action (e.g. `postTransition(instanceId, toStateKey, {
+   * signatureToken, intentStatement })`), since what gets signed differs
+   * per record type. If this rejects, its message is shown inline and the
+   * modal stays open so the user can retry.
+   */
+  onSigned: (params: { intentStatement: string; signatureToken: string }) => Promise<void>
   documentTitle: string
   documentId: string
 }
@@ -14,18 +26,41 @@ interface SignatureModalProps {
 export function SignatureModal({
   isOpen,
   onClose,
-  onSign,
+  onSigned,
   documentTitle,
   documentId,
 }: SignatureModalProps) {
+  const router = useRouter()
+  const mfaEnabled = useAuthStore((s) => s.mfaEnabled)
   const [intent, setIntent] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [mfaCode, setMfaCode] = useState('')
+  // testing-todo Stage 12.1 — the system already knows whether this
+  // account has MFA active (`useAuthStore().mfaEnabled`, set at login
+  // and kept live by the Settings MFA section) before this modal ever
+  // opens, so the code field shows up front for an MFA account instead
+  // of round-tripping a guaranteed `MFA_CODE_REQUIRED` failure first.
+  // Still corrected reactively from the backend's own response below —
+  // `mfaEnabled` is a UX head start, not the source of truth.
+  const [mfaCodeRequired, setMfaCodeRequired] = useState(mfaEnabled)
+  const [mfaSetupRequired, setMfaSetupRequired] = useState(false)
 
-  const isFormValid = intent.trim().length > 0 && password.length >= 8 && agreeToTerms
+  useEffect(() => {
+    if (isOpen) {
+      setMfaCodeRequired(mfaEnabled)
+    }
+  }, [isOpen, mfaEnabled])
+
+  const isFormValid =
+    intent.trim().length > 0 &&
+    password.length >= 8 &&
+    agreeToTerms &&
+    !mfaSetupRequired &&
+    (!mfaCodeRequired || mfaCode.trim().length === 6)
 
   const handleSubmit = async () => {
     if (!isFormValid) return
@@ -33,19 +68,42 @@ export function SignatureModal({
     setError('')
     setIsSubmitting(true)
 
-    // Simulate API call
-    setTimeout(() => {
-      try {
-        onSign(intent, password)
-        setIntent('')
-        setPassword('')
-        setAgreeToTerms(false)
-        setIsSubmitting(false)
-      } catch (err) {
-        setError('Failed to sign document. Please try again.')
-        setIsSubmitting(false)
+    try {
+      // Step 1: re-authenticate (Phase 1.9) — proves presence right now,
+      // independent of the existing session cookie, and mints a 5-minute
+      // single-use token that only a signing action can consume.
+      const { signatureToken } = await reauth(password, mfaCodeRequired ? mfaCode : undefined)
+
+      // Step 2: the caller performs the actual signed action with that
+      // token. On success, the intent/password/terms all reset and the
+      // modal closes — on failure (wrong password, or the signing action
+      // itself rejects for an unrelated reason), the error surfaces here
+      // and the modal stays open so the user isn't forced to re-enter
+      // their intent statement over a transient failure.
+      await onSigned({ intentStatement: intent, signatureToken })
+
+      setIntent('')
+      setPassword('')
+      setMfaCode('')
+      setMfaCodeRequired(false)
+      setAgreeToTerms(false)
+      onClose()
+    } catch (err) {
+      if (err instanceof ApiRequestError && err.code === 'MFA_CODE_REQUIRED') {
+        setMfaCodeRequired(true)
+        setError('Your account has an authenticator app set up — enter your current code to continue.')
+      } else if (err instanceof ApiRequestError && err.code === 'MFA_SETUP_REQUIRED') {
+        setMfaSetupRequired(true)
+        setError('Your role requires multi-factor authentication before you can sign. Set it up in Settings, then come back to sign.')
+      } else if (err instanceof ApiRequestError && err.code === 'REAUTH_FAILED' && mfaCodeRequired) {
+        setError('Incorrect password or authenticator code. Please try again.')
+        setMfaCode('')
+      } else {
+        setError(getErrorMessage(err, 'Could not complete the signature. Please try again.'))
       }
-    }, 1500)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (!isOpen) return null
@@ -116,6 +174,42 @@ export function SignatureModal({
             <p className="text-xs text-muted-foreground mt-1">Minimum 8 characters</p>
           </div>
 
+          {/* MFA code — only shown once the backend tells us this account actually has one */}
+          {mfaCodeRequired && !mfaSetupRequired && (
+            <div>
+              <label className="text-sm font-semibold text-foreground block mb-2">
+                Authenticator Code
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={mfaCode}
+                onChange={e => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="6-digit code"
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground tracking-widest focus:outline-none focus:ring-2 focus:ring-safemeds-teal"
+              />
+              <p className="text-xs text-muted-foreground mt-1">From your authenticator app</p>
+            </div>
+          )}
+
+          {mfaSetupRequired && (
+            <div className="rounded-lg border border-safemeds-teal/30 bg-safemeds-teal/5 p-3 flex items-start gap-3">
+              <ShieldCheck className="h-4 w-4 text-safemeds-teal flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-foreground">
+                <p className="font-semibold mb-1">Multi-factor authentication required</p>
+                <p className="mb-2">Your role requires MFA before you can sign. Set it up once in Settings, then come back here.</p>
+                <button
+                  type="button"
+                  onClick={() => router.push('/settings?forceMfaSetup=1')}
+                  className="font-medium text-safemeds-teal hover:underline"
+                >
+                  Set up MFA now
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Terms */}
           <div className="flex items-start gap-3">
             <input
@@ -131,8 +225,8 @@ export function SignatureModal({
             </label>
           </div>
 
-          {/* Error */}
-          {error && (
+          {/* Error — suppressed when mfaSetupRequired, whose own dedicated box above already says this */}
+          {error && !mfaSetupRequired && (
             <div className="flex items-center gap-2 rounded-lg bg-status-error/10 px-3 py-2">
               <AlertCircle className="h-4 w-4 text-status-error flex-shrink-0" />
               <p className="text-xs text-status-error">{error}</p>

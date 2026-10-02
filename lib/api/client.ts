@@ -8,7 +8,12 @@
  * envelope convention; errors normalize to ApiRequestError.
  */
 
+import { fileTooLargeMessage, MAX_UPLOAD_SIZE_BYTES } from '../upload-limits'
+
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1'
+
+/** Any multipart upload gets this long to complete before the client gives up and surfaces a clear error, rather than leaving the UI's loading state hanging forever on a connection that silently stalled. */
+const UPLOAD_TIMEOUT_MS = 120_000
 
 export interface PaginationMeta {
   page: number
@@ -81,7 +86,8 @@ export function getErrorMessage(err: unknown, fallback: string): string {
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
   body?: unknown
-  query?: Record<string, string | number | boolean | undefined>
+  /** An array value repeats the key (`?a=1&a=2`) rather than joining it — matches how Nest's `@Query()` parses a repeated query param into an array. */
+  query?: Record<string, string | number | boolean | string[] | undefined>
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
@@ -121,19 +127,45 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
   const url = new URL(`${API_BASE_URL}${path}`)
   if (query) {
     for (const [key, value] of Object.entries(query)) {
-      if (value !== undefined) url.searchParams.set(key, String(value))
+      if (value === undefined) continue
+      if (Array.isArray(value)) {
+        for (const v of value) url.searchParams.append(key, v)
+      } else {
+        url.searchParams.set(key, String(value))
+      }
     }
   }
   return url.toString()
+}
+
+/**
+ * Every FormData upload in this app (licences, permits, PV source
+ * documents, recall evidence, QPPV nomination confirmations, SDEA/
+ * training/CoA/validation documents, DHCP letter/regulatory-submission
+ * evidence, etc.) flows through this one function — so checking for an
+ * oversized `File` entry here, once, covers every upload call site in the
+ * app without needing the same check re-implemented per component. See
+ * `lib/upload-limits.ts`'s own doc comment for the real-usage bug this
+ * closes.
+ */
+function checkFormDataFileSizes(body: FormData): void {
+  for (const value of body.values()) {
+    if (value instanceof File && value.size > MAX_UPLOAD_SIZE_BYTES) {
+      throw new ApiRequestError(413, { code: 'FILE_TOO_LARGE', message: fileTooLargeMessage(value.name) })
+    }
+  }
 }
 
 async function rawFetch(path: string, options: RequestOptions): Promise<Response> {
   const method = options.method ?? 'GET'
   const headers: Record<string, string> = {}
   let body: BodyInit | undefined
+  let isUpload = false
 
   if (options.body instanceof FormData) {
+    checkFormDataFileSizes(options.body)
     body = options.body
+    isUpload = true
   } else if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json'
     body = JSON.stringify(options.body)
@@ -144,12 +176,45 @@ async function rawFetch(path: string, options: RequestOptions): Promise<Response
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
   }
 
-  return fetch(buildUrl(path, options.query), {
-    method,
-    headers,
-    body,
-    credentials: 'include',
-  })
+  // A multipart upload whose underlying connection stalls or gets
+  // interrupted mid-request (e.g. the server rejecting an oversized file
+  // mid-stream) can otherwise leave `fetch()` pending indefinitely — the
+  // UI's loading spinner never clears and no error ever appears, exactly
+  // the "silent failure" shape a real-usage report filed against this
+  // app. An explicit timeout guarantees the promise always settles.
+  const controller = isUpload ? new AbortController() : undefined
+  const timeoutId = controller ? setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS) : undefined
+
+  try {
+    return await fetch(buildUrl(path, options.query), {
+      method,
+      headers,
+      body,
+      credentials: 'include',
+      signal: controller?.signal,
+    })
+  } catch (err) {
+    // A raw network-level failure (connection reset, aborted mid-stream,
+    // our own timeout above) is not an `ApiRequestError` and has no
+    // backend-authored message — without this, callers using
+    // `err instanceof ApiRequestError` to decide what to show would fall
+    // through to their own generic fallback string, and any caller that
+    // forgot a fallback entirely would show nothing at all. Normalizing
+    // it here, once, means every upload call site gets a real, clear
+    // message for this case without each one needing to handle it.
+    if (isUpload) {
+      const aborted = err instanceof DOMException && err.name === 'AbortError'
+      throw new ApiRequestError(0, {
+        code: aborted ? 'UPLOAD_TIMEOUT' : 'NETWORK_ERROR',
+        message: aborted
+          ? 'Upload timed out — check your connection and try again.'
+          : 'Upload failed — check your connection and try again.',
+      })
+    }
+    throw err
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
 }
 
 let refreshPromise: Promise<boolean> | null = null

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import {
   Building2,
   CheckCircle2,
@@ -31,11 +32,14 @@ function StatTile({
   value,
   icon: Icon,
   tone = 'accent',
+  href,
 }: {
   label: string
   value: string | number
   icon: typeof Building2
   tone?: 'accent' | 'warn' | 'ok' | 'purple' | 'gold'
+  /** Real-usage request, 1 Oct 2026 — links the tile to its real underlying filtered list. Omitted when no corresponding filtered list screen exists yet (e.g. there's no admin companies-list screen today). */
+  href?: string
 }) {
   const valueToneClass = tone === 'warn' ? 'text-status-warning' : tone === 'ok' ? 'text-status-success' : 'text-[var(--text)]'
   const chipClass =
@@ -48,8 +52,8 @@ function StatTile({
           : tone === 'gold'
             ? 'bg-chart-2/15 text-chart-2'
             : 'bg-chart-1/10 text-chart-1'
-  return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+  const content = (
+    <>
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-medium text-[var(--text-muted)]">{label}</p>
         <span className={`flex h-6 w-6 items-center justify-center rounded-full ${chipClass}`}>
@@ -57,8 +61,16 @@ function StatTile({
         </span>
       </div>
       <p className={`text-2xl font-display font-semibold tabular-nums ${valueToneClass}`}>{value}</p>
-    </div>
+    </>
   )
+  if (href) {
+    return (
+      <Link href={href} className="block rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--primary)] hover:bg-[var(--surface-raised)]">
+        {content}
+      </Link>
+    )
+  }
+  return <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">{content}</div>
 }
 
 function SectionCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {

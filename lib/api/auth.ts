@@ -1,4 +1,5 @@
 import { ApiRequestError, API_BASE_URL, del, get, post } from './client'
+import { validateUploadSize } from '../upload-limits'
 
 export type CompanyType =
   | 'manufacturer'
@@ -15,6 +16,8 @@ export interface RegisterCompanyPayload {
   companyType: CompanyType
   countryId: string
   licenceNumber: string
+  /** testing-correction-explanation.md decision #4 — a real company-level contact address, distinct from `adminEmail` (this one specific person's login), so renewal/retention reminders always have somewhere to go regardless of staff turnover. Required. */
+  companyEmail: string
   adminFullName: string
   adminEmail: string
   adminPhone?: string
@@ -83,6 +86,11 @@ export function uploadLicence(
   file: File,
   onProgress?: (percent: number) => void,
 ): Promise<{ key: string; sha256: string }> {
+  const sizeError = validateUploadSize(file)
+  if (sizeError) {
+    return Promise.reject(new ApiRequestError(413, { code: 'FILE_TOO_LARGE', message: sizeError }))
+  }
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     const formData = new FormData()

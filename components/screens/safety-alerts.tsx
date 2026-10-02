@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Loader2, Mail, Plus, ShieldAlert } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import { Product, listProducts } from '@/lib/api/master-data'
@@ -49,7 +50,13 @@ export function SafetyAlertsScreen() {
   const canManage = has('safety_alerts.manage')
 
   const [alerts, setAlerts] = useState<SafetyAlert[]>([])
-  const [statusFilter, setStatusFilter] = useState<SafetyAlertStatus | 'all'>('all')
+  // Real-usage request, 1 Oct 2026 — the master dashboard's "Safety
+  // Alerts Open" stat tile now links here as `?status=open`.
+  const searchParams = useSearchParams()
+  const initialStatus = searchParams.get('status')
+  const [statusFilter, setStatusFilter] = useState<SafetyAlertStatus | 'all'>(
+    initialStatus && initialStatus in SAFETY_ALERT_STATUS_LABELS ? (initialStatus as SafetyAlertStatus) : 'all',
+  )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useTimedMessage()

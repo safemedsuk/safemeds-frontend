@@ -13,6 +13,7 @@ import {
   type PersonnelLicence,
 } from '@/lib/api/personnel-licences'
 import { usePermissions } from '@/lib/hooks/use-permissions'
+import { defaultAnnualLicenceExpiryOn } from '@/lib/licence-defaults'
 
 const STATUS_STYLES: Record<string, string> = {
   active: 'bg-[var(--ok-bg)] text-[var(--ok)]',
@@ -144,9 +145,18 @@ function PersonnelLicenceForm({ users, onSaved, onError }: { users: TenantUser[]
   const [userId, setUserId] = useState(users[0]?.id ?? '')
   const [licenceType, setLicenceType] = useState('pharmacist')
   const [licenceNumber, setLicenceNumber] = useState('')
-  const [issuedOn, setIssuedOn] = useState(new Date().toISOString().slice(0, 10))
-  const [expiresOn, setExpiresOn] = useState('')
+  const today = new Date().toISOString().slice(0, 10)
+  const [issuedOn, setIssuedOn] = useState(today)
+  // Defaults to 31 December of the year after issuance (Kenya's PPB
+  // personnel licences are real annual licences, always renewed to the
+  // calendar year boundary) — a default only, stays fully editable.
+  const [expiresOn, setExpiresOn] = useState(defaultAnnualLicenceExpiryOn(today))
   const [saving, setSaving] = useState(false)
+
+  const handleIssuedOnChange = (value: string) => {
+    setIssuedOn(value)
+    setExpiresOn(defaultAnnualLicenceExpiryOn(value))
+  }
 
   const handleSubmit = async () => {
     if (!userId || !licenceNumber.trim()) return
@@ -192,7 +202,7 @@ function PersonnelLicenceForm({ users, onSaved, onError }: { users: TenantUser[]
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Issued on</label>
-          <input type="date" value={issuedOn} onChange={(e) => setIssuedOn(e.target.value)} className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm" />
+          <input type="date" value={issuedOn} onChange={(e) => handleIssuedOnChange(e.target.value)} className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm" />
         </div>
         <div>
           <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Expires on (optional)</label>

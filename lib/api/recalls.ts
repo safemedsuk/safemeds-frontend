@@ -34,7 +34,16 @@ export interface Recall {
   recallClass: string | null
   reason: string
   status: string
-  authorityNotifiedAt: string | null
+  /** QualCloud (Phase 13) Stage 10.2 — `REC-YYYY-NNNN` (real) / `MOCK-YYYY-NNN` (drill). */
+  ref: string | null
+  mode: string
+  type: string | null
+  level: string | null
+  reasonCategory: string | null
+  triggerSourceType: string | null
+  triggerSourceId: string | null
+  openedAt: string | null
+  closedAt: string | null
   rootCauseCapaId: string | null
   createdBy: string | null
   createdAt: string
@@ -52,15 +61,35 @@ export interface RecallPage {
   meta: PaginationMeta
 }
 
+/**
+ * QualCloud (Phase 13) Stage 10.2 — the real 9-state lifecycle
+ * (superseding the original 5-state `reported → investigating →
+ * notified_to_authority → in_progress → closed` sequence).
+ */
 export const RECALL_STATUS_LABELS: Record<string, string> = {
-  reported: 'Reported',
-  investigating: 'Investigating',
-  notified_to_authority: 'Notified to Authority',
-  in_progress: 'In Progress',
+  draft: 'Draft',
+  under_assessment: 'Under Assessment',
+  approved: 'Approved',
+  notification: 'Notification',
+  execution: 'Execution',
+  reconciliation: 'Reconciliation',
+  closure_pending: 'Closure Pending',
   closed: 'Closed',
+  cancelled: 'Cancelled',
 }
 
-export async function listRecalls(params: { productId?: string; status?: string; page?: number; limit?: number } = {}): Promise<RecallPage> {
+export const RECALL_TYPE_LABELS: Record<string, string> = {
+  voluntary: 'Voluntary',
+  directed: 'Directed (regulator-mandated)',
+}
+
+export const RECALL_LEVEL_LABELS: Record<string, string> = {
+  wholesale: 'Wholesale',
+  retail_facility: 'Retail/Facility',
+  patient: 'Patient',
+}
+
+export async function listRecalls(params: { productId?: string; status?: string; mode?: 'real' | 'mock'; page?: number; limit?: number } = {}): Promise<RecallPage> {
   const { data, meta } = await get<Recall[]>('/recalls', params as Record<string, string | number | undefined>)
   return { rows: data, meta: meta! }
 }
@@ -70,7 +99,17 @@ export async function getRecall(id: string): Promise<RecallDetail> {
   return data
 }
 
-export async function createRecall(payload: { productId: string; reason: string; recallClass?: string; caseIds?: string[]; rootCauseCapaId?: string }): Promise<RecallDetail> {
+export async function createRecall(payload: {
+  productId: string
+  reason: string
+  recallClass?: string
+  caseIds?: string[]
+  rootCauseCapaId?: string
+  mode?: 'real' | 'mock'
+  type?: 'voluntary' | 'directed'
+  level?: 'wholesale' | 'retail_facility' | 'patient'
+  reasonCategory?: string
+}): Promise<RecallDetail> {
   const { data } = await post<RecallDetail>('/recalls', payload)
   return data
 }

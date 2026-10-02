@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { ClipboardList, FileText, GraduationCap, Globe, KeyRound, LayoutDashboard, Link2, Lock, ShieldCheck } from 'lucide-react'
+import { ClipboardList, FileText, GraduationCap, Globe, KeyRound, LayoutDashboard, Link2, Lock, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { TopBar } from '@/components/layout/top-bar'
 import { IdleTimeoutGuard } from '@/components/auth/idle-timeout-guard'
 import { useAuthStore } from '@/lib/store/auth-store'
@@ -42,7 +42,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     ...BASE_NAV_ITEMS,
     ...(has('platform.config.manage') ? [{ label: 'Country Rules', href: '/admin/country-rules', icon: Globe }] : []),
     ...(has('platform.config.manage') ? [{ label: 'Audit Checklist', href: '/admin/audit-checklist', icon: ClipboardList }] : []),
+    ...(has('platform.config.manage') ? [{ label: 'Inspection Checklist', href: '/admin/inspection-checklist', icon: ClipboardList }] : []),
     ...(has('platform.config.manage') ? [{ label: 'Training Types', href: '/admin/training-types', icon: GraduationCap }] : []),
+    // QualCloud (Phase 13) Stage 10.1 — its own narrower, platform-only
+    // permission (`regulatory_lead` only), never `platform.config.manage`.
+    ...(has('platform.recall_rules.manage') ? [{ label: 'Recall Rule-Sets', href: '/admin/recall-rule-sets', icon: ShieldAlert }] : []),
     ...(has('platform.rbac.manage') ? [{ label: 'RBAC', href: '/admin/rbac', icon: Lock }] : []),
   ]
 

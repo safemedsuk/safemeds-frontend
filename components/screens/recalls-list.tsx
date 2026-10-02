@@ -10,11 +10,15 @@ import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2
 import { NewRecallModal } from '@/components/recalls/new-recall-modal'
 
 const STATUS_STYLES: Record<string, string> = {
-  reported: 'bg-status-warning/10 text-status-warning',
-  investigating: 'bg-status-warning/10 text-status-warning',
-  notified_to_authority: 'bg-status-info/10 text-status-info',
-  in_progress: 'bg-status-info/10 text-status-info',
+  draft: 'bg-muted text-muted-foreground',
+  under_assessment: 'bg-status-warning/10 text-status-warning',
+  approved: 'bg-status-info/10 text-status-info',
+  notification: 'bg-status-info/10 text-status-info',
+  execution: 'bg-status-info/10 text-status-info',
+  reconciliation: 'bg-status-info/10 text-status-info',
+  closure_pending: 'bg-status-warning/10 text-status-warning',
   closed: 'bg-status-success/10 text-status-success',
+  cancelled: 'bg-status-error/10 text-status-error',
 }
 
 function formatDate(value: string): string {
@@ -28,7 +32,14 @@ function formatDate(value: string): string {
  * its own direct discoverability, not buried inside Master Data the way
  * Stage 13's deliberately lighter-weight promotional-material record is.
  */
-export function RecallsList() {
+/**
+ * `mode` fixes this screen to one drill state without a user-facing
+ * toggle — used by the dedicated `/mock-recalls` route (10.7 — "reuses
+ * the Recall Cases list/detail screens with `mode: mock` filtering
+ * rather than a parallel screen family"). The default `/recalls` route
+ * still shows a real/drill toggle so both stay reachable from there too.
+ */
+export function RecallsList({ mode: fixedMode }: { mode?: 'mock' } = {}) {
   const router = useRouter()
   const { hasAny } = usePermissions()
   const canView = hasAny('regulatory.view_all', 'records.view_all')
@@ -41,12 +52,13 @@ export function RecallsList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showNew, setShowNew] = useState(false)
+  const [modeFilter, setModeFilter] = useState<'all' | 'real' | 'mock'>(fixedMode ?? 'all')
 
   const load = () => {
     if (!canView) return
     setLoading(true)
     setError(null)
-    listRecalls({ page, limit })
+    listRecalls({ page, limit, mode: modeFilter === 'all' ? undefined : modeFilter })
       .then(({ rows, meta }) => {
         setRecalls(rows)
         setTotalPages(meta.totalPages)
@@ -56,7 +68,7 @@ export function RecallsList() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [page, canView]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(load, [page, canView, modeFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!canView) {
     return (
@@ -71,6 +83,16 @@ export function RecallsList() {
   }
 
   const columns: DataTableColumn<Recall>[] = [
+    {
+      key: 'ref',
+      label: 'Ref',
+      render: (v, row) => (
+        <span className="flex items-center gap-1.5 font-mono text-xs text-foreground">
+          {(v as string | null) ?? '—'}
+          {row.mode === 'mock' && <span className="rounded-full bg-status-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-status-warning">DRILL</span>}
+        </span>
+      ),
+    },
     { key: 'product', label: 'Product', render: (v) => (v as { brandName: string }).brandName },
     { key: 'reason', label: 'Reason', render: (v) => <span className="line-clamp-1 max-w-md text-sm text-foreground">{v as string}</span> },
     { key: 'recallClass', label: 'Class', render: (v) => (v as string | null) ?? '—' },
@@ -90,9 +112,10 @@ export function RecallsList() {
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Recalls</h1>
+          <h1 className="text-3xl font-display font-bold text-foreground">{fixedMode === 'mock' ? 'Mock Recalls' : 'Recalls'}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {total} {total === 1 ? 'recall' : 'recalls'} · reported through to a signed closure
+            {total} {total === 1 ? 'recall' : 'recalls'} ·{' '}
+            {fixedMode === 'mock' ? 'self-inspection drills, scored for readiness' : 'reported through to a signed closure'}
           </p>
         </div>
         <button
@@ -100,9 +123,28 @@ export function RecallsList() {
           className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
         >
           <Plus className="h-4 w-4" />
-          Report a Recall
+          {fixedMode === 'mock' ? 'Schedule a Drill' : 'Report a Recall'}
         </button>
       </div>
+
+      {!fixedMode && (
+        <div className="flex gap-1 rounded-lg border border-border bg-muted/30 p-1 w-fit">
+          {(['all', 'real', 'mock'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => {
+                setModeFilter(m)
+                setPage(1)
+              }}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                modeFilter === m ? 'bg-safemeds-teal text-white' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {m === 'all' ? 'All' : m === 'real' ? 'Real' : 'Drills'}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error}</div>}
 
@@ -133,6 +175,7 @@ export function RecallsList() {
 
       {showNew && (
         <NewRecallModal
+          defaultMode={fixedMode ?? (modeFilter === 'mock' ? 'mock' : 'real')}
           onClose={() => setShowNew(false)}
           onCreated={(recallId) => {
             setShowNew(false)

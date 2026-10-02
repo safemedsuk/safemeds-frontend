@@ -11,15 +11,31 @@ import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { WorkflowActionsPanel } from '@/components/pv-cases/workflow-actions-panel'
 import { RecordTasksPanel } from '@/components/tasks/record-tasks-panel'
 import { DecisionHistoryCard } from '@/components/ui/decision-history-card'
+import {
+  RecallCountriesSection,
+  RecallDistributionSection,
+  RecallReconciliationSection,
+  RecallScopeSection,
+  RecallStakeholderPortalSection,
+} from '@/components/recalls/recall-lifecycle-sections'
+import {
+  MockRecallReadinessSection,
+  RecallClosureReadinessSection,
+  RecallCompliancePackSection,
+} from '@/components/recalls/recall-closure-sections'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 
 const STATUS_STYLES: Record<string, string> = {
-  reported: 'bg-status-warning/10 text-status-warning',
-  investigating: 'bg-status-warning/10 text-status-warning',
-  notified_to_authority: 'bg-status-info/10 text-status-info',
-  in_progress: 'bg-status-info/10 text-status-info',
+  draft: 'bg-muted text-muted-foreground',
+  under_assessment: 'bg-status-warning/10 text-status-warning',
+  approved: 'bg-status-info/10 text-status-info',
+  notification: 'bg-status-info/10 text-status-info',
+  execution: 'bg-status-info/10 text-status-info',
+  reconciliation: 'bg-status-info/10 text-status-info',
+  closure_pending: 'bg-status-warning/10 text-status-warning',
   closed: 'bg-status-success/10 text-status-success',
+  cancelled: 'bg-status-error/10 text-status-error',
 }
 
 function formatDateTime(value: string | null): string {
@@ -113,10 +129,22 @@ export function RecallDetail({ recallId }: Props) {
 
       <div className="rounded-lg border border-border bg-card p-5">
         <h2 className="mb-3 text-sm font-semibold text-foreground">Details</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="text-xs text-muted-foreground">Authority notified at</p>
-            <p className="text-sm text-foreground">{formatDateTime(recall.authorityNotifiedAt)}</p>
+            <p className="text-xs text-muted-foreground">Reference</p>
+            <p className="font-mono text-sm text-foreground">{recall.ref ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Mode</p>
+            <p className="text-sm text-foreground">{recall.mode === 'mock' ? 'Drill (mock)' : 'Real'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Opened</p>
+            <p className="text-sm text-foreground">{formatDateTime(recall.openedAt)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Closed</p>
+            <p className="text-sm text-foreground">{formatDateTime(recall.closedAt)}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Root-cause CAPA</p>
@@ -125,9 +153,31 @@ export function RecallDetail({ recallId }: Props) {
         </div>
       </div>
 
+      {recall.mode === 'mock' && (
+        <div className="rounded-lg border border-status-warning bg-status-warning/10 p-3 text-sm font-medium text-status-warning">
+          This is a drill (mock recall) — excluded from real dashboards, metrics, and regulator submissions.
+        </div>
+      )}
+
       <WorkflowActionsPanel workflowInstanceId={recall.workflowInstanceId} onTransitioned={refresh} />
 
       <RecordTasksPanel recordType="recall" recordId={recall.id} />
+
+      {recall.mode === 'mock' && <MockRecallReadinessSection recallId={recall.id} />}
+
+      <RecallClosureReadinessSection recallId={recall.id} onChanged={refresh} />
+
+      <RecallCountriesSection recallId={recall.id} onChanged={refresh} />
+
+      <RecallScopeSection recallId={recall.id} onChanged={refresh} />
+
+      <RecallDistributionSection recallId={recall.id} />
+
+      <RecallStakeholderPortalSection recallId={recall.id} />
+
+      <RecallReconciliationSection recallId={recall.id} />
+
+      <RecallCompliancePackSection recallId={recall.id} />
 
       <EvidenceCasesCard recall={recall} canManage={canManage} onLinked={refresh} setNotice={setNotice} setError={setError} />
 

@@ -23,6 +23,8 @@ import { usePermissions } from '@/lib/hooks/use-permissions'
 import { SignatureModal } from '@/components/ui/signature-modal'
 import { ProductClassPicker } from '@/components/regulatory/product-class-picker'
 import { BulkImportTrialSubjectsModal } from '@/components/pv-cases/bulk-import-trial-subjects-modal'
+import { ClinicalTrialApprovalsPanel } from '@/components/pv-cases/clinical-trial-approvals-panel'
+import { useAuthStore } from '@/lib/store/auth-store'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
 
@@ -81,6 +83,7 @@ interface Props {
 
 export function ClinicalTrialDetail({ trialId }: Props) {
   const router = useRouter()
+  const companyId = useAuthStore((state) => state.currentUser?.companyId)
   const { has } = usePermissions()
   const canManage = has('pv.manage_clinical_trials')
   const canUnblind = has('pv.unblind_treatment')
@@ -292,6 +295,16 @@ export function ClinicalTrialDetail({ trialId }: Props) {
         </div>
       </div>
 
+      <ClinicalTrialApprovalsPanel
+        trial={trial}
+        companyId={companyId ?? undefined}
+        canManage={canManage}
+        onRenewed={(updated) => {
+          setTrial({ ...trial, ...updated })
+          setNotice('Approval renewed.')
+        }}
+      />
+
       {/* RegCloud (Phase 12) Stage 12 — Clinical Trials Regulatory Route: every CTA dossier ever filed for this trial, through the exact same reg_dossier mechanics as any other dossier. */}
       <div className="rounded-lg border border-border bg-card p-6">
         <div className="flex items-center justify-between mb-4">
@@ -392,7 +405,15 @@ export function ClinicalTrialDetail({ trialId }: Props) {
         <BulkImportTrialSubjectsModal
           onClose={() => setShowBulkImport(false)}
           onImported={() => {
-            setShowBulkImport(false)
+            // Real bug, 22 Sep 2026 — this used to also close the modal
+            // right here, which unmounted it the instant Import was
+            // clicked, before the user ever saw the modal's own "Done"
+            // result screen (BulkImportModal's `handleCommit` calls
+            // `onImported` *before* the user dismisses it) — looked
+            // exactly like "click import, modal disappears, nothing
+            // happens," even though the import itself succeeded.
+            // `BulkImportProductsModal`'s own usage on Master Data never
+            // had this bug — it only refreshes data here, same fix.
             refresh()
             setSubjectsPage(1)
             loadSubjects(1, subjectsLimit)

@@ -9,6 +9,7 @@ import { activateRmp, attachRmpDocument, createRmp, listRmp, RiskManagementPlan,
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { BuildRmpModal } from '@/components/rmp/build-rmp-modal'
+import { BulkImportRmpsModal } from '@/components/rmp/bulk-import-rmps-modal'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -45,6 +46,7 @@ export function RiskManagementPlansScreen() {
   const [editingRenewalFor, setEditingRenewalFor] = useState<string | null>(null)
   const [renewalDraft, setRenewalDraft] = useState('')
   const [buildingRmp, setBuildingRmp] = useState<RiskManagementPlan | null>(null)
+  const [showBulkImport, setShowBulkImport] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -53,17 +55,19 @@ export function RiskManagementPlansScreen() {
       .catch(() => setProducts([]))
   }, [])
 
-  const load = useCallback(() => {
+  const load = useCallback((opts: { silent?: boolean } = {}) => {
     if (!productId) {
       setVersions([])
       return
     }
-    setLoading(true)
+    if (!opts.silent) setLoading(true)
     setError(null)
     listRmp(productId)
       .then(setVersions)
       .catch((err) => setError(getErrorMessage(err, 'Could not load RMP versions.')))
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!opts.silent) setLoading(false)
+      })
   }, [productId])
 
   useEffect(() => {
@@ -121,13 +125,23 @@ export function RiskManagementPlansScreen() {
           </div>
           <p className="mt-1 text-sm text-muted-foreground">Per-product RMP: current version, submission, and renewal tracking.</p>
         </div>
-        {canManage && productId && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
-          >
-            New Draft
-          </button>
+        {canManage && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowBulkImport(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+            >
+              <Upload className="h-4 w-4" /> Bulk Import
+            </button>
+            {productId && (
+              <button
+                onClick={() => setShowCreate(true)}
+                className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
+              >
+                New Draft
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -289,11 +303,22 @@ export function RiskManagementPlansScreen() {
         />
       )}
 
+      {showBulkImport && (
+        <BulkImportRmpsModal
+          onClose={() => setShowBulkImport(false)}
+          onImported={() => {
+            setNotice('RMPs imported — select a product above to view its new draft.')
+            load()
+          }}
+        />
+      )}
+
       {buildingRmp && (
         <BuildRmpModal
           rmp={buildingRmp}
-          productBrandName={products.find((p) => p.id === productId)?.brandName ?? 'Product'}
+          product={products.find((p) => p.id === productId) ?? null}
           onClose={() => setBuildingRmp(null)}
+          onSaved={() => load({ silent: true })}
           onGenerated={() => {
             setBuildingRmp(null)
             setNotice('RMP document generated.')

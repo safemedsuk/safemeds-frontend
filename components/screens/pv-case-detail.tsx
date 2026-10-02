@@ -384,7 +384,21 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
 
       <CaseStageTracker stages={PV_CASE_STAGES} currentKey={pvCase.status} />
 
-      <WorkflowActionsPanel workflowInstanceId={pvCase.workflowInstanceId} onTransitioned={refresh} />
+      {/*
+        Real-usage request, 22 Sep 2026 — a reason is now required for
+        the Narrative → Medical Review reject transition. `toStateKey`
+        alone can't distinguish that from the completely normal
+        Triage → Medical Review forward step (both land on the same
+        state) — but `getAvailableTransitions()` only ever returns
+        transitions valid from the case's *current* state, so gating
+        on `pvCase.status === 'narrative'` here is exactly as precise
+        as gating on the real fromState would be.
+      */}
+      <WorkflowActionsPanel
+        workflowInstanceId={pvCase.workflowInstanceId}
+        onTransitioned={refresh}
+        requireNote={pvCase.status === 'narrative' ? ['medical_review'] : undefined}
+      />
 
       <DecisionHistoryCard entries={pvCase.transitionHistory ?? []} resolveLabel={statusLabel} />
 
@@ -482,7 +496,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       </Section>
 
       {pvCase.status === 'submission_ready' && (
-        <Section title="Regulatory Submission" subtitle="A real E2B(R3) XML and a human-readable PDF, generated from this case's own captured data — no live gateway, generate then upload to the authority's own portal">
+        <Section title="Regulatory Submission" subtitle="A real E2B(R2) XML and a human-readable PDF, generated from this case's own captured data — no live gateway, generate then upload to the authority's own portal">
           <InfoNote>
             This generates the actual electronic report the regulator expects (E2B XML) plus a readable PDF version
             for your own records — it does not submit anywhere automatically. Once you&apos;ve uploaded the XML to

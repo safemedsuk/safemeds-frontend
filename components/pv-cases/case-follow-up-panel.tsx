@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, Clock, Loader2, Mail, Phone, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, FileText, Loader2, Mail, Phone, UploadCloud, XCircle } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
+import { DocumentVersion, getDownloadUrl, listDocuments, uploadDocument } from '@/lib/api/documents'
 import {
   CaseFollowUp,
   FOLLOW_UP_STATUS_LABELS,
@@ -11,6 +12,7 @@ import {
   logFollowUpAttempt,
   startCaseFollowUp,
 } from '@/lib/api/pv-cases'
+import { DocumentPreviewModal } from '@/components/ui/document-preview-modal'
 
 interface Props {
   caseId: string
@@ -57,6 +59,12 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
   const [logging, setLogging] = useState(false)
   const [showLogForm, setShowLogForm] = useState(false)
 
+  // Real-usage request, 22 Sep 2026 (item 18) — a document the reporter sent as part of their response.
+  const [logDocumentId, setLogDocumentId] = useState<string | null>(null)
+  const [logDocumentName, setLogDocumentName] = useState<string | null>(null)
+  const [uploadingDocument, setUploadingDocument] = useState(false)
+  const [previewing, setPreviewing] = useState<{ documentId: string; version: DocumentVersion } | null>(null)
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -90,14 +98,46 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
     setLogging(true)
     setError(null)
     try {
-      await logFollowUpAttempt(followUp.id, { outcome: logOutcome, note: logNote.trim() || undefined })
+      await logFollowUpAttempt(followUp.id, {
+        outcome: logOutcome,
+        note: logNote.trim() || undefined,
+        documentId: logDocumentId ?? undefined,
+      })
       setShowLogForm(false)
       setLogNote('')
+      setLogDocumentId(null)
+      setLogDocumentName(null)
       await load()
     } catch (err) {
       setError(getErrorMessage(err, 'Could not log this follow-up attempt.'))
     } finally {
       setLogging(false)
+    }
+  }
+
+  const handleUploadDocument = async (file: File) => {
+    setUploadingDocument(true)
+    setError(null)
+    try {
+      const version = await uploadDocument('pv_case', caseId, file, { title: 'Sent with follow-up response' })
+      setLogDocumentId(version.documentId)
+      setLogDocumentName(file.name)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not upload this document.'))
+    } finally {
+      setUploadingDocument(false)
+    }
+  }
+
+  const handleViewDocument = async (documentId: string) => {
+    setError(null)
+    try {
+      const docs = await listDocuments('pv_case', caseId)
+      const latestVersion = docs.find((d) => d.id === documentId)?.versions[0]
+      if (!latestVersion) throw new Error('Document version not found')
+      setPreviewing({ documentId, version: latestVersion })
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not load this document.'))
     }
   }
 
@@ -157,6 +197,14 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
               {attempt.respondedAt && <> · Responded {formatDateTime(attempt.respondedAt)}</>}
             </p>
             {attempt.note && <p className="mt-1 text-foreground">{attempt.note}</p>}
+            {attempt.documentId && (
+              <button
+                onClick={() => handleViewDocument(attempt.documentId!)}
+                className="mt-1.5 flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline"
+              >
+                <FileText className="h-3.5 w-3.5" /> View attached document
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -187,6 +235,25 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
                 rows={2}
                 className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
               />
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  onChange={(e) => e.target.files?.[0] && handleUploadDocument(e.target.files[0])}
+                  disabled={uploadingDocument}
+                  className="block flex-1 text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs"
+                />
+                {uploadingDocument && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                {logDocumentId && !uploadingDocument && (
+                  <span className="flex items-center gap-1 text-xs text-status-success">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> {logDocumentName ?? 'Uploaded'}
+                  </span>
+                )}
+              </div>
+              {!logDocumentId && !uploadingDocument && (
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <UploadCloud className="h-3.5 w-3.5" /> Attach a document the reporter sent, if any (optional).
+                </p>
+              )}
               <div className="flex gap-2">
                 <button
                   onClick={handleLogAttempt}
@@ -209,6 +276,16 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
       )}
 
       {error && <p className="text-xs text-status-error">{error}</p>}
+
+      {previewing && (
+        <DocumentPreviewModal
+          title="Document sent with follow-up response"
+          filename={previewing.version.filename}
+          contentType={previewing.version.contentType}
+          getUrl={() => getDownloadUrl(previewing.documentId, previewing.version.id)}
+          onClose={() => setPreviewing(null)}
+        />
+      )}
     </div>
   )
 }

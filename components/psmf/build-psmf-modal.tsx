@@ -14,6 +14,17 @@ interface Props {
   psmf: Psmf
   onClose: () => void
   onGenerated: () => void
+  /**
+   * Real-usage bug, 22 Sep 2026 — "I clicked save progress, then when I
+   * took build again it wasn't there, I had to refresh the page." Root
+   * cause: the parent screen's `versions` list (and therefore the `psmf`
+   * prop this modal was opened with) was never refreshed on a plain
+   * save, only on a full document generation — so closing and reopening
+   * Build handed this component the stale pre-save snapshot again. Fires
+   * silently after every successful "Save progress" so the parent's own
+   * list is never stale the next time Build is opened.
+   */
+  onSaved?: () => void
 }
 
 /**
@@ -30,7 +41,7 @@ interface Props {
  * what actually produces the real PDF and attaches it, at which point
  * the existing Activate button on the main table becomes usable.
  */
-export function BuildPsmfModal({ psmf, onClose, onGenerated }: Props) {
+export function BuildPsmfModal({ psmf, onClose, onGenerated, onSaved }: Props) {
   const [content, setContent] = useState<PsmfContent>(psmf.content ?? {})
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -48,6 +59,7 @@ export function BuildPsmfModal({ psmf, onClose, onGenerated }: Props) {
     try {
       await updatePsmfContent(psmf.id, content)
       setSaved(true)
+      onSaved?.()
     } catch (err) {
       setError(getErrorMessage(err, 'Could not save this draft.'))
     } finally {

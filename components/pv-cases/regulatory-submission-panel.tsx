@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, Download, FileText, Loader2, ShieldAlert, UploadCl
 import { getErrorMessage } from '@/lib/api/client'
 import {
   attachRegulatorySubmissionEvidence,
+  E2bFormat,
   generateRegulatorySubmission,
   getRegulatorySubmissionDownloadUrl,
   listRegulatorySubmissions,
@@ -28,6 +29,30 @@ function formatDateTime(value: string | null): string {
 }
 
 /**
+ * Real-usage request, 22 Sep 2026 (item 25), flagged by the user as
+ * highest priority — "future clients may be outside Africa," whose
+ * receiving gateway may expect the newer HL7 v3-based E2B(R3) instead
+ * of R2. R2 stays the default (Kenya PPB/VigiFlow, and most African
+ * NRAs, only accept R2 today) — R3 is a deliberate, explicit choice,
+ * never inferred.
+ */
+function FormatSelector({ value, onChange }: { value: E2bFormat; onChange: (f: E2bFormat) => void }) {
+  return (
+    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      Format
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as E2bFormat)}
+        className="rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground"
+      >
+        <option value="R2">E2B(R2) — VigiFlow/PPB default</option>
+        <option value="R3">E2B(R3) — HL7 v3, for non-VigiFlow gateways</option>
+      </select>
+    </label>
+  )
+}
+
+/**
  * VigiCloud Stage 12 — the "Generate submission" action, per-submission
  * XML/PDF download links, and the evidence-upload step. Deliberately does
  * **not** transition the case's workflow itself — the existing
@@ -43,6 +68,7 @@ export function RegulatorySubmissionPanel({ caseId, canGenerate, canAttachEviden
   const [error, setError] = useState<string | null>(null)
   const [busySubmissionId, setBusySubmissionId] = useState<string | null>(null)
   const [previewing, setPreviewing] = useState<{ submissionId: string; submissionNumber: number; artifact: 'xml' | 'pdf' } | null>(null)
+  const [format, setFormat] = useState<E2bFormat>('R2')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -63,7 +89,7 @@ export function RegulatorySubmissionPanel({ caseId, canGenerate, canAttachEviden
     setGenerating(true)
     setError(null)
     try {
-      await generateRegulatorySubmission(caseId)
+      await generateRegulatorySubmission(caseId, format)
       await load()
     } catch (err) {
       setError(getErrorMessage(err, 'Could not generate a submission for this case.'))
@@ -112,20 +138,24 @@ export function RegulatorySubmissionPanel({ caseId, canGenerate, canAttachEviden
         <div className="rounded-lg border border-border p-4 flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">No submission generated for this case yet.</p>
           {canGenerate && (
-            <button
-              onClick={handleGenerate}
-              disabled={generating}
-              className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50 whitespace-nowrap"
-            >
-              {generating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Generate submission
-            </button>
+            <div className="flex items-center gap-2">
+              <FormatSelector value={format} onChange={setFormat} />
+              <button
+                onClick={handleGenerate}
+                disabled={generating}
+                className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50 whitespace-nowrap"
+              >
+                {generating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Generate submission
+              </button>
+            </div>
           )}
         </div>
       ) : (
         <>
           {canGenerate && (
-            <div className="flex justify-end">
+            <div className="flex items-center justify-end gap-2">
+              <FormatSelector value={format} onChange={setFormat} />
               <button
                 onClick={handleGenerate}
                 disabled={generating}
@@ -183,6 +213,9 @@ function SubmissionCard({
             {submission.submissionNumber === 1 ? 'Initial submission' : `Resubmission ${submission.submissionNumber}`}
           </span>
           <span className="text-xs text-muted-foreground">to {submission.authority.name} ({submission.authority.code})</span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            E2B({submission.format})
+          </span>
         </div>
         {submission.reportable ? (
           <span className="flex items-center gap-1 rounded-full bg-status-success/10 px-2.5 py-0.5 text-xs font-medium text-status-success">

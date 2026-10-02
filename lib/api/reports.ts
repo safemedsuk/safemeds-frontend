@@ -27,6 +27,9 @@ export interface ListGeneratedReportsFilters {
   moduleKey?: string
   reportTypeKey?: string
   status?: GeneratedReportStatus
+  /** Real-usage request, 22 Sep 2026 (item 22) — e.g. every report generated for one specific signal. */
+  recordType?: string
+  recordId?: string
   page?: number
   limit?: number
 }
@@ -74,5 +77,13 @@ export async function finalizeGeneratedReport(id: string): Promise<GeneratedRepo
 
 export async function submitGeneratedReport(id: string): Promise<GeneratedReport> {
   const { data } = await post<GeneratedReport>(`/reports/${id}/submit`)
+  return data
+}
+
+/** Real-usage request, 22 Sep 2026 (item 22) — proof this report was actually submitted to the authority. Generic across every report type. */
+export async function attachReportEvidence(id: string, file: File): Promise<GeneratedReport> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await post<GeneratedReport>(`/reports/${id}/evidence`, formData)
   return data
 }

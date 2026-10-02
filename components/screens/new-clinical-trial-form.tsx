@@ -2,16 +2,99 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Loader2, UploadCloud } from 'lucide-react'
 import { Country, getAllCountries } from '@/lib/api/countries'
 import { getErrorMessage } from '@/lib/api/client'
+import { uploadDocument } from '@/lib/api/documents'
+import { useAuthStore } from '@/lib/store/auth-store'
 import { BLINDING_TYPE_LABELS, ClinicalTrialBlindingType, createClinicalTrial } from '@/lib/api/clinical-trials'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
 
+/** Real-usage request, 22 Sep 2026 (item 19) — same server-proxied "upload against a holding pair first" mechanism `call-log-form.tsx` already established for voicemail audio: the trial doesn't exist yet at the moment a PDF is picked, so it uploads scoped to the company itself, and the resulting document id is passed in the trial-creation payload. */
+const CLINICAL_TRIAL_APPROVAL_RECORD_TYPE = 'clinical_trial'
+
+function ApprovalUpload({
+  label,
+  companyId,
+  documentId,
+  approvalDate,
+  expiryDate,
+  onDocumentId,
+  onApprovalDate,
+  onExpiryDate,
+}: {
+  label: string
+  companyId: string | undefined
+  documentId: string | null
+  approvalDate: string
+  expiryDate: string
+  onDocumentId: (id: string) => void
+  onApprovalDate: (date: string) => void
+  onExpiryDate: (date: string) => void
+}) {
+  const [uploading, setUploading] = useState(false)
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleFile = async (file: File) => {
+    if (!companyId) return
+    setUploading(true)
+    setError(null)
+    try {
+      const version = await uploadDocument(CLINICAL_TRIAL_APPROVAL_RECORD_TYPE, companyId, file, { title: label })
+      onDocumentId(version.documentId)
+      setFileName(file.name)
+    } catch (err) {
+      setError(getErrorMessage(err, `Could not upload ${label.toLowerCase()}.`))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border p-4">
+      <p className="text-sm font-medium text-foreground">{label} *</p>
+      <div className="flex items-center gap-2">
+        <input
+          type="file"
+          accept="application/pdf"
+          onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+          disabled={uploading || !companyId}
+          className="block flex-1 text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs"
+        />
+        {uploading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        {documentId && !uploading && (
+          <span className="flex items-center gap-1 text-xs text-status-success">
+            <CheckCircle2 className="h-3.5 w-3.5" /> {fileName ?? 'Uploaded'}
+          </span>
+        )}
+      </div>
+      {error && <p className="text-xs text-status-error">{error}</p>}
+      {!documentId && !uploading && (
+        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <UploadCloud className="h-3.5 w-3.5" /> Required before this trial can be created.
+        </p>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className={labelClass}>Date of Approval *</label>
+          <input type="date" value={approvalDate} onChange={(e) => onApprovalDate(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>Expiry Date</label>
+          <input type="date" value={expiryDate} onChange={(e) => onExpiryDate(e.target.value)} className={inputClass} />
+          <p className="mt-1 text-xs text-muted-foreground">Leave blank if the approval has no expiry.</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function NewClinicalTrialForm() {
   const router = useRouter()
+  const companyId = useAuthStore((state) => state.currentUser?.companyId)
   const [countries, setCountries] = useState<Country[]>([])
 
   const [trialReference, setTrialReference] = useState('')
@@ -24,6 +107,14 @@ export function NewClinicalTrialForm() {
   const [clinicalTrialPortalReference, setClinicalTrialPortalReference] = useState('')
   const [countryId, setCountryId] = useState('')
   const [startDate, setStartDate] = useState('')
+
+  // Real-usage request, 22 Sep 2026 (item 19) — no trial without proof of both approvals.
+  const [regulatoryApprovalDocumentId, setRegulatoryApprovalDocumentId] = useState<string | null>(null)
+  const [regulatoryApprovalDate, setRegulatoryApprovalDate] = useState('')
+  const [regulatoryApprovalExpiryDate, setRegulatoryApprovalExpiryDate] = useState('')
+  const [ethicsApprovalDocumentId, setEthicsApprovalDocumentId] = useState<string | null>(null)
+  const [ethicsApprovalDate, setEthicsApprovalDate] = useState('')
+  const [ethicsApprovalExpiryDate, setEthicsApprovalExpiryDate] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,10 +130,18 @@ export function NewClinicalTrialForm() {
       })
   }, [])
 
-  const isValid = trialReference.trim().length > 0 && trialName.trim().length > 0 && countryId.length > 0 && startDate.length > 0
+  const isValid =
+    trialReference.trim().length > 0 &&
+    trialName.trim().length > 0 &&
+    countryId.length > 0 &&
+    startDate.length > 0 &&
+    !!regulatoryApprovalDocumentId &&
+    regulatoryApprovalDate.length > 0 &&
+    !!ethicsApprovalDocumentId &&
+    ethicsApprovalDate.length > 0
 
   const handleSubmit = async () => {
-    if (!isValid) return
+    if (!isValid || !regulatoryApprovalDocumentId || !ethicsApprovalDocumentId) return
     setSubmitting(true)
     setError(null)
     try {
@@ -57,6 +156,12 @@ export function NewClinicalTrialForm() {
         clinicalTrialPortalReference: clinicalTrialPortalReference.trim() || undefined,
         countryId,
         startDate,
+        regulatoryApprovalDocumentId,
+        regulatoryApprovalDate,
+        regulatoryApprovalExpiryDate: regulatoryApprovalExpiryDate || undefined,
+        ethicsApprovalDocumentId,
+        ethicsApprovalDate,
+        ethicsApprovalExpiryDate: ethicsApprovalExpiryDate || undefined,
       })
       router.push(`/clinical-trials/${trial.id}`)
     } catch (err) {
@@ -127,6 +232,30 @@ export function NewClinicalTrialForm() {
             <label className={labelClass}>Start Date *</label>
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputClass} />
           </div>
+        </div>
+
+        <div className="border-t border-border pt-5 space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Approvals (required)</p>
+          <ApprovalUpload
+            label="Regulatory Authority Approval"
+            companyId={companyId ?? undefined}
+            documentId={regulatoryApprovalDocumentId}
+            approvalDate={regulatoryApprovalDate}
+            expiryDate={regulatoryApprovalExpiryDate}
+            onDocumentId={setRegulatoryApprovalDocumentId}
+            onApprovalDate={setRegulatoryApprovalDate}
+            onExpiryDate={setRegulatoryApprovalExpiryDate}
+          />
+          <ApprovalUpload
+            label="Ethics Committee Approval"
+            companyId={companyId ?? undefined}
+            documentId={ethicsApprovalDocumentId}
+            approvalDate={ethicsApprovalDate}
+            expiryDate={ethicsApprovalExpiryDate}
+            onDocumentId={setEthicsApprovalDocumentId}
+            onApprovalDate={setEthicsApprovalDate}
+            onExpiryDate={setEthicsApprovalExpiryDate}
+          />
         </div>
 
         <div className="border-t border-border pt-5 space-y-4">

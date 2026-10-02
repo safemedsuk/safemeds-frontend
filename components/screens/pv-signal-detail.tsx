@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, Link2, Loader2, Radar, Search } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, FileText, Link2, Loader2, Radar, Search, UploadCloud } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import { PvCase, listPvCases } from '@/lib/api/pv-cases'
+import { attachReportEvidence, GeneratedReport, listGeneratedReports } from '@/lib/api/reports'
+import { getDownloadUrl, listDocuments } from '@/lib/api/documents'
 import {
+  generateSignalReport,
   getSignal,
   linkCasesToSignal,
   recordSignalAssessment,
@@ -23,6 +26,7 @@ import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { WorkflowActionsPanel } from '@/components/pv-cases/workflow-actions-panel'
 import { RecordTasksPanel } from '@/components/tasks/record-tasks-panel'
 import { DecisionHistoryCard } from '@/components/ui/decision-history-card'
+import { DocumentPreviewModal } from '@/components/ui/document-preview-modal'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -138,6 +142,8 @@ export function PvSignalDetail({ signalId }: Props) {
 
       <RecordTasksPanel recordType="signal" recordId={signal.id} />
 
+      <SignalReportsCard signal={signal} canManage={canManage} setNotice={setNotice} setError={setError} />
+
       <EvidenceCasesCard signal={signal} canManage={canManage} onLinked={refresh} setNotice={setNotice} setError={setError} />
 
       <ValidationCard signal={signal} canManage={canManage} onSaved={refresh} setNotice={setNotice} setError={setError} />
@@ -155,6 +161,145 @@ interface CardProps {
   canManage: boolean
   setNotice: (msg: string) => void
   setError: (msg: string | null) => void
+}
+
+/**
+ * Real-usage request, 22 Sep 2026 (item 22) — "generate signal reports;
+ * clients should be able to upload proof they submitted the report to
+ * the authority." Every generation is tracked via the generic
+ * `GeneratedReport` primitive (`lib/api/reports.ts`) — the same one
+ * every periodic report already uses — filtered to this one signal.
+ */
+function SignalReportsCard({ signal, canManage, setNotice, setError }: CardProps) {
+  const [reports, setReports] = useState<GeneratedReport[]>([])
+  const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
+  const [previewing, setPreviewing] = useState<{ documentId: string; versionId: string; filename: string; contentType: string } | null>(null)
+  const [attachingId, setAttachingId] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const { reports: rows } = await listGeneratedReports({ recordType: 'signal', recordId: signal.id })
+      setReports(rows)
+    } catch {
+      // Best-effort — the signal itself already loaded; a reports-list hiccup shouldn't block the page.
+    } finally {
+      setLoading(false)
+    }
+  }, [signal.id])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const handleGenerate = async () => {
+    setGenerating(true)
+    try {
+      await generateSignalReport(signal.id)
+      setNotice('Signal report generated.')
+      await load()
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not generate a report for this signal.'))
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleView = async (reportId: string) => {
+    setError(null)
+    try {
+      const docs = await listDocuments('generated_report', reportId)
+      const latestVersion = docs[0]?.versions[0]
+      if (!latestVersion) throw new Error('Report document not found')
+      setPreviewing({ documentId: docs[0].id, versionId: latestVersion.id, filename: latestVersion.filename, contentType: latestVersion.contentType })
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not load this report.'))
+    }
+  }
+
+  const handleAttachEvidence = async (reportId: string, file: File) => {
+    setAttachingId(reportId)
+    setError(null)
+    try {
+      await attachReportEvidence(reportId, file)
+      setNotice('Submission evidence attached.')
+      await load()
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not attach this evidence file.'))
+    } finally {
+      setAttachingId(null)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Signal Reports</h2>
+          <p className="text-xs text-muted-foreground">A generated PDF summary of this signal&apos;s lifecycle to date — generate as often as needed, and attach proof once submitted to the authority.</p>
+        </div>
+        {canManage && (
+          <button onClick={handleGenerate} disabled={generating} className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50 whitespace-nowrap">
+            {generating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Generate Report
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      ) : reports.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No report generated yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {reports.map((r) => (
+            <li key={r.id} className="rounded-md border border-border/60 p-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <button onClick={() => handleView(r.id)} className="flex items-center gap-1.5 text-xs font-medium text-safemeds-teal hover:underline">
+                  <FileText className="h-3.5 w-3.5" /> {new Date(r.createdAt).toLocaleString()}
+                </button>
+                {r.evidenceDocumentId ? (
+                  <span className="flex items-center gap-1 rounded-full bg-status-success/10 px-2 py-0.5 text-xs font-medium text-status-success">
+                    <CheckCircle2 className="h-3 w-3" /> Submission evidence attached
+                  </span>
+                ) : canManage ? (
+                  <EvidenceUpload busy={attachingId === r.id} onUpload={(file) => handleAttachEvidence(r.id, file)} />
+                ) : (
+                  <span className="text-xs text-muted-foreground">Awaiting proof of submission</span>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {previewing && (
+        <DocumentPreviewModal
+          title="Signal Report"
+          filename={previewing.filename}
+          contentType={previewing.contentType}
+          getUrl={() => getDownloadUrl(previewing.documentId, previewing.versionId)}
+          onClose={() => setPreviewing(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function EvidenceUpload({ busy, onUpload }: { busy: boolean; onUpload: (file: File) => void }) {
+  return (
+    <label className="flex items-center gap-1.5 text-xs font-medium text-safemeds-teal hover:underline cursor-pointer">
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
+      Attach proof of submission
+      <input
+        type="file"
+        className="hidden"
+        disabled={busy}
+        onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
+      />
+    </label>
+  )
 }
 
 function EvidenceCasesCard({ signal, canManage, onLinked, setNotice, setError }: CardProps & { onLinked: () => void }) {

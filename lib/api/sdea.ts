@@ -20,6 +20,8 @@ export interface Sdea {
   version: number
   status: SdeaStatus
   documentId: string | null
+  /** Real-usage request, 22 Sep 2026 — when the signed agreement was actually received from the distributor, distinct from `effectiveDate` (when its terms start applying). */
+  receivedDate: string | null
   effectiveDate: string | null
   expiryDate: string | null
   createdBy: string | null
@@ -32,6 +34,7 @@ export interface CreateSdeaInput {
   title: string
   counterpartyName: string
   templateUsed?: string
+  receivedDate?: string
   effectiveDate?: string
   expiryDate?: string
 }

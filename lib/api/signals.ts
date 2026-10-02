@@ -64,6 +64,8 @@ export interface Signal {
   patientExposureNote: string | null
   expectedRegulatoryResponseNote: string | null
   assessmentNote: string | null
+  /** Real-usage request, 22 Sep 2026 (item 22) — the basis for the four-eyes guard on the final `assessed -> action_recommended` transition. */
+  assessedBy: string | null
   recommendationAction: SignalRecommendationAction | null
   recommendationNote: string | null
   createdBy: string | null
@@ -168,5 +170,11 @@ export async function recordSignalRecommendation(id: string, input: RecordSignal
 
 export async function scanForSignals(): Promise<ScanResult> {
   const { data } = await post<ScanResult>('/pv/signals/scan', {})
+  return data
+}
+
+/** Real-usage request, 22 Sep 2026 (item 22) — generates a real PDF report of the signal's full lifecycle to date. Tracked via the generic Reports primitive (`lib/api/reports.ts`) — list every generation attempt with `recordType: 'signal', recordId: id`, attach proof of submission via `attachReportEvidence()`. */
+export async function generateSignalReport(id: string): Promise<{ id: string }> {
+  const { data } = await post<{ id: string }>(`/pv/signals/${id}/report`)
   return data
 }

@@ -5,8 +5,12 @@ import { AlertCircle, CheckCircle2, Loader2, Plus, ShieldAlert, Trash2 } from 'l
 import { LogoMark } from '@/components/ui/logo-mark'
 import {
   PublicCompanyDisplay,
+  PublicCountry,
+  PublicOrganizationResult,
   SubmitPublicReportInput,
   attachPublicSourceDocument,
+  getPublicCountries,
+  listPublicOrganizations,
   resolvePublicCompany,
   submitPublicReport,
 } from '@/lib/api/public-reporting'
@@ -30,6 +34,20 @@ const OUTCOME_OPTIONS: { value: ReactionOutcome; label: string }[] = [
   { value: 'recovered_with_sequelae', label: 'Recovered with sequelae' },
   { value: 'fatal', label: 'Fatal' },
 ]
+
+/** Real-usage request, 22 Sep 2026 (item 22-I) — a real dropdown instead of free text, with an "Other" fallback so no genuine qualification is ever blocked. */
+const HCP_QUALIFICATION_OPTIONS = [
+  'Doctor / Physician',
+  'Pharmacist',
+  'Nurse',
+  'Clinical Officer',
+  'Dentist',
+  'Radiologist',
+  'Laboratory Technician',
+  'Medical Student',
+  'Intern',
+]
+const OTHER_OPTION = '__other__'
 
 const SERIOUSNESS_CRITERIA = [
   ['seriousnessDeath', 'Death'],
@@ -75,8 +93,19 @@ export function PublicReportForm({ slug }: { slug: string }) {
   const [reporterFullName, setReporterFullName] = useState('')
   const [reporterEmail, setReporterEmail] = useState('')
   const [reporterPhone, setReporterPhone] = useState('')
-  const [reporterQualification, setReporterQualification] = useState('')
-  const [reporterOrganization, setReporterOrganization] = useState('')
+  // Real-usage request, 22 Sep 2026 (item 22) — both are now a real
+  // dropdown with an "Other" fallback, not free text only. The actual
+  // value submitted is derived just before building the payload (see
+  // `effectiveQualification`/`effectiveOrganization` below) — never a
+  // second source of truth the submit handler could forget to read.
+  const [qualificationOption, setQualificationOption] = useState('')
+  const [reporterQualificationOther, setReporterQualificationOther] = useState('')
+  const [organizationOption, setOrganizationOption] = useState('')
+  const [reporterOrganizationOther, setReporterOrganizationOther] = useState('')
+  const [organizations, setOrganizations] = useState<PublicOrganizationResult[]>([])
+  /** Real-usage request, 22 Sep 2026 (item 12) — drives both intake classification and the case reference number for this self-report (see `PublicReportingService.submit()`'s own doc comment). */
+  const [countryOfResidenceId, setCountryOfResidenceId] = useState('')
+  const [countries, setCountries] = useState<PublicCountry[]>([])
 
   const [patientAgeYears, setPatientAgeYears] = useState('')
   const [patientSex, setPatientSex] = useState<PatientSex>('unknown')
@@ -93,6 +122,8 @@ export function PublicReportForm({ slug }: { slug: string }) {
   const [pregnancyExpectedDeliveryDate, setPregnancyExpectedDeliveryDate] = useState('')
 
   const [consentGranted, setConsentGranted] = useState(false)
+  /** Real-usage bug, 22 Sep 2026 — a genuinely separate consent from `consentGranted` above; see `CreatePvCaseDto.contactConsent`'s own backend doc comment for the full account of why this was missing everywhere, not just here. */
+  const [contactConsentGranted, setContactConsentGranted] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -102,6 +133,18 @@ export function PublicReportForm({ slug }: { slug: string }) {
   const [attachError, setAttachError] = useState<string | null>(null)
   const [attached, setAttached] = useState(false)
   const [skippedAttachment, setSkippedAttachment] = useState(false)
+
+  useEffect(() => {
+    getPublicCountries()
+      .then(setCountries)
+      .catch(() => setCountries([])) // best-effort — the dropdown just shows empty if this fails, never blocks the rest of the form
+  }, [])
+
+  useEffect(() => {
+    listPublicOrganizations(slug)
+      .then(setOrganizations)
+      .catch(() => setOrganizations([])) // best-effort — the "Other" free-text fallback still works if this fails
+  }, [slug])
 
   useEffect(() => {
     resolvePublicCompany(slug)
@@ -142,6 +185,15 @@ export function PublicReportForm({ slug }: { slug: string }) {
 
   const canSubmit = validProducts.length > 0 && validEvents.length > 0 && consentGranted && !submitting
 
+  // Real-usage request, 22 Sep 2026 (item 22) — the single actual value
+  // that gets submitted, whichever way it was entered (a preset pick or
+  // free text under "Other").
+  const effectiveQualification = qualificationOption === OTHER_OPTION ? reporterQualificationOther.trim() : qualificationOption
+  const effectiveOrganization =
+    organizationOption === OTHER_OPTION
+      ? reporterOrganizationOther.trim()
+      : (organizations.find((o) => o.id === organizationOption)?.name ?? '')
+
   const handleSubmit = async () => {
     if (!canSubmit) return
     setSubmitting(true)
@@ -153,8 +205,8 @@ export function PublicReportForm({ slug }: { slug: string }) {
           fullName: reporterFullName.trim() || undefined,
           email: reporterEmail.trim() || undefined,
           phone: reporterPhone.trim() || undefined,
-          qualification: reporterQualification.trim() || undefined,
-          organization: reporterOrganization.trim() || undefined,
+          qualification: effectiveQualification || undefined,
+          organization: effectiveOrganization || undefined,
         },
         patient: {
           ageYears: patientAgeYears ? Number(patientAgeYears) : undefined,
@@ -165,10 +217,12 @@ export function PublicReportForm({ slug }: { slug: string }) {
         suspectProducts: validProducts.map(({ key: _key, ...rest }) => rest),
         adverseEvents: validEvents.map(({ key: _key, ...rest }) => rest),
         consent: { granted: true, method: 'written' as ConsentMethod },
+        contactConsent: contactConsentGranted ? { granted: true, method: 'written' as ConsentMethod } : undefined,
         suspectedFalsifiedOrSubstandard: suspectedFalsifiedOrSubstandard || undefined,
         pregnancy: pregnancyExposure
           ? ({ outcome: pregnancyOutcome, expectedDeliveryDate: pregnancyExpectedDeliveryDate || undefined } satisfies CreatePregnancyInput)
           : undefined,
+        countryOfResidenceId: countryOfResidenceId || undefined,
       }
       const result = await submitPublicReport(slug, input)
       setReferenceNumber(result.referenceNumber)
@@ -301,11 +355,43 @@ export function PublicReportForm({ slug }: { slug: string }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Qualification</label>
-                  <input value={reporterQualification} onChange={(e) => setReporterQualification(e.target.value)} placeholder="e.g. Pharmacist, Nurse" className={inputClass} />
+                  <select value={qualificationOption} onChange={(e) => setQualificationOption(e.target.value)} className={inputClass}>
+                    <option value="">Select…</option>
+                    {HCP_QUALIFICATION_OPTIONS.map((q) => (
+                      <option key={q} value={q}>
+                        {q}
+                      </option>
+                    ))}
+                    <option value={OTHER_OPTION}>Other…</option>
+                  </select>
+                  {qualificationOption === OTHER_OPTION && (
+                    <input
+                      value={reporterQualificationOther}
+                      onChange={(e) => setReporterQualificationOther(e.target.value)}
+                      placeholder="Please specify"
+                      className={`${inputClass} mt-2`}
+                    />
+                  )}
                 </div>
                 <div>
                   <label className={labelClass}>Organization</label>
-                  <input value={reporterOrganization} onChange={(e) => setReporterOrganization(e.target.value)} className={inputClass} />
+                  <select value={organizationOption} onChange={(e) => setOrganizationOption(e.target.value)} className={inputClass}>
+                    <option value="">Select…</option>
+                    {organizations.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                    <option value={OTHER_OPTION}>Other / not listed…</option>
+                  </select>
+                  {organizationOption === OTHER_OPTION && (
+                    <input
+                      value={reporterOrganizationOther}
+                      onChange={(e) => setReporterOrganizationOther(e.target.value)}
+                      placeholder="Please specify"
+                      className={`${inputClass} mt-2`}
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -318,6 +404,17 @@ export function PublicReportForm({ slug }: { slug: string }) {
                 <label className={labelClass}>Phone</label>
                 <input value={reporterPhone} onChange={(e) => setReporterPhone(e.target.value)} className={inputClass} />
               </div>
+            </div>
+            <div>
+              <label className={labelClass}>Country of residence</label>
+              <select value={countryOfResidenceId} onChange={(e) => setCountryOfResidenceId(e.target.value)} className={inputClass}>
+                <option value="">Select a country…</option>
+                {countries.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </Section>
@@ -379,18 +476,39 @@ export function PublicReportForm({ slug }: { slug: string }) {
                     onClear={() => handleClearLinkedProduct(product.key)}
                   />
                 </div>
-                <div>
-                  <label className={labelClass}>Product / medicine name *</label>
-                  <input
-                    value={product.medicinalProduct}
-                    onChange={(e) => updateProduct(product.key, { medicinalProduct: e.target.value })}
-                    placeholder="e.g. Amoxil 500mg"
-                    className={inputClass}
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Brand name *</label>
+                    <input
+                      value={product.medicinalProduct}
+                      onChange={(e) => updateProduct(product.key, { medicinalProduct: e.target.value })}
+                      placeholder="e.g. Amoxil 500mg"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Generic name (if known)</label>
+                    <input
+                      value={product.genericName ?? ''}
+                      onChange={(e) => updateProduct(product.key, { genericName: e.target.value })}
+                      placeholder="e.g. Amoxicillin"
+                      className={inputClass}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className={labelClass}>Batch/lot number (if visible on the pack)</label>
-                  <input value={product.batchNumber ?? ''} onChange={(e) => updateProduct(product.key, { batchNumber: e.target.value })} className={inputClass} />
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className={labelClass}>Batch/lot number</label>
+                    <input value={product.batchNumber ?? ''} onChange={(e) => updateProduct(product.key, { batchNumber: e.target.value })} placeholder="If visible on the pack" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Manufacturing date</label>
+                    <input type="date" value={product.manufacturingDate ?? ''} onChange={(e) => updateProduct(product.key, { manufacturingDate: e.target.value })} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Expiry date</label>
+                    <input type="date" value={product.expiryDate ?? ''} onChange={(e) => updateProduct(product.key, { expiryDate: e.target.value })} className={inputClass} />
+                  </div>
                 </div>
               </div>
             ))}
@@ -504,11 +622,17 @@ export function PublicReportForm({ slug }: { slug: string }) {
           </div>
         </Section>
 
-        <div className="rounded-lg border border-border bg-card p-4">
+        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
           <label className="flex items-start gap-2.5 text-sm text-foreground">
             <input type="checkbox" checked={consentGranted} onChange={(e) => setConsentGranted(e.target.checked)} className="mt-0.5" />
             <span>
               I consent to {company?.companyName} processing this report, including sharing it with the relevant medicines regulator if required.
+            </span>
+          </label>
+          <label className="flex items-start gap-2.5 text-sm text-foreground">
+            <input type="checkbox" checked={contactConsentGranted} onChange={(e) => setContactConsentGranted(e.target.checked)} className="mt-0.5" />
+            <span>
+              I agree to be contacted again for follow-up on this report if more information is needed (optional — you can still submit without this).
             </span>
           </label>
         </div>

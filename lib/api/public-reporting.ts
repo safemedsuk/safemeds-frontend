@@ -13,8 +13,12 @@ export interface SubmitPublicReportInput {
   suspectProducts: CreateSuspectProductInput[]
   adverseEvents: CreateAdverseEventInput[]
   consent?: { granted: boolean; method: ConsentMethod }
+  /** Real-usage bug, 22 Sep 2026 — a genuinely separate consent from `consent` above; see `CreatePvCaseDto.contactConsent`'s own backend doc comment for the full account. */
+  contactConsent?: { granted: boolean; method: ConsentMethod }
   suspectedFalsifiedOrSubstandard?: boolean
   pregnancy?: CreatePregnancyInput
+  /** Real-usage request, 22 Sep 2026 — item 12: the reporter's own country of residence, driving both intake classification and the case reference number for a self-report. */
+  countryOfResidenceId?: string
 }
 
 export interface PublicSubmissionResult {
@@ -70,6 +74,48 @@ export function submitPublicReport(slug: string, input: SubmitPublicReportInput)
 
 export function searchPublicProducts(slug: string, q: string): Promise<PublicProductResult[]> {
   return publicFetch<PublicProductResult[]>(`/report/${encodeURIComponent(slug)}/products?q=${encodeURIComponent(q)}`)
+}
+
+/** Real-usage request, 22 Sep 2026 (item 22) — the company's own active distributors, for the "Organization" dropdown. */
+export interface PublicOrganizationResult {
+  id: string
+  name: string
+}
+
+export function listPublicOrganizations(slug: string): Promise<PublicOrganizationResult[]> {
+  return publicFetch<PublicOrganizationResult[]>(`/report/${encodeURIComponent(slug)}/organizations`)
+}
+
+export interface PublicCountry {
+  id: string
+  isoCode: string
+  name: string
+}
+
+/**
+ * Real-usage request, 22 Sep 2026 (item 12) — the "country of
+ * residence" dropdown on the About You card. `GET /countries` is
+ * already `@Public()` (no auth at all) — this just fetches it through
+ * `publicFetch()` rather than the authenticated `lib/api/countries.ts
+ * .getAllCountries()`, matching this file's own established reasoning
+ * for every other call here (no session exists on this page to retry
+ * a 401 with). The backend paginates even this reference table
+ * (max 100/page), so this flattens every page the same way
+ * `getAllCountries()` does.
+ */
+export async function getPublicCountries(): Promise<PublicCountry[]> {
+  const countries: PublicCountry[] = []
+  let page = 1
+  let totalPages = 1
+  do {
+    const response = await fetch(`${API_BASE_URL}/countries?page=${page}&limit=100`)
+    const payload = await response.json()
+    if (!response.ok) throw new Error(payload?.error?.message ?? 'Could not load the country list.')
+    countries.push(...(payload.data as PublicCountry[]))
+    totalPages = payload.meta?.totalPages ?? 1
+    page += 1
+  } while (page <= totalPages)
+  return countries
 }
 
 /**

@@ -85,7 +85,7 @@ export interface SuspectProduct {
   obtainedCountryId: string | null
   /** VigiCloud Stage 2 — optional link to the tenant's own Product catalog, set when the case-intake product picker matched a real entry. */
   productId: string | null
-  /** VigiCloud Stage 3.1 — special-situation flags matching ICH E2B(R3)'s `drugadditional` field group. */
+  /** VigiCloud Stage 3.1 — special-situation flags matching ICH E2B(R2)'s `drugadditional` field group. */
   isOverdose: boolean
   isOffLabelUse: boolean
   isMisuse: boolean
@@ -256,6 +256,9 @@ export interface PvCase {
   /** Real-usage feedback, 19 Aug 2026 — the reviewer currently working this draft-review case, if any; must be set (by that same actor) before `confirmDraftCase()` succeeds. */
   draftClaimedBy: string | null
   draftClaimedAt: string | null
+  /** Real-usage request, 22 Sep 2026 (item 13) — set once a reviewer rejects the draft instead of confirming it; the row is never deleted. */
+  draftRejectedAt: string | null
+  draftRejectionReason: string | null
   /** The email Message-Id, WhatsApp sender ID, or null (public URL/form) — traceability back to the original inbound artifact. */
   sourceChannelReference: string | null
   /** VigiCloud Stage 5 — null until `classifyCase()` has run at least once for this case. */
@@ -419,12 +422,17 @@ export interface CreatePatientInput {
 export interface CreateSuspectProductInput {
   drugCharacterization: DrugCharacterization
   medicinalProduct: string
+  /** Real-usage request, 22 Sep 2026 — distinct from `medicinalProduct` (the brand/as-reported name) and `activeSubstanceName` (the INN), matching `Product.genericName`'s own distinction elsewhere in this app. */
+  genericName?: string
   activeSubstanceName?: string
   atcCode?: string
   dosageForm?: string
   route?: string
   doseText?: string
   batchNumber?: string
+  /** Real-usage request, 22 Sep 2026 — the physical batch's own dates, distinct from `startDate`/`endDate` (the patient's exposure window). */
+  manufacturingDate?: string
+  expiryDate?: string
   startDate?: string
   endDate?: string
   actionTaken?: string
@@ -553,6 +561,12 @@ export async function releaseDraftCase(id: string): Promise<PvCase> {
   return data
 }
 
+/** Real-usage request, 22 Sep 2026 (item 13) — the reviewer's other option besides confirming: this draft never should have become a case. Requires a claim first, same as `confirmDraftCase()`. */
+export async function rejectDraftCase(id: string, reason: string): Promise<PvCase> {
+  const { data } = await post<PvCase>(`/pv/cases/${id}/reject-draft`, { reason })
+  return data
+}
+
 /** VigiCloud Stage 5 — derives (or accepts an explicit override of) the case's seriousness and computes/recomputes its real legal reporting deadline. Callable any number of times — reclassification mid-case is the normal path, not an edge case. */
 export async function classifyCase(id: string, input: ClassifyCaseInput = {}): Promise<ClassifyResult> {
   const { data } = await post<ClassifyResult>(`/pv/cases/${id}/triage`, input)
@@ -659,6 +673,8 @@ export interface CaseFollowUpAttempt {
   respondedAt: string | null
   loggedBy: string | null
   note: string | null
+  /** Real-usage request, 22 Sep 2026 (item 18) — a document the reporter sent as part of this response (e.g. a discharge letter, a photo). */
+  documentId: string | null
 }
 
 export interface CaseFollowUp {
@@ -696,6 +712,8 @@ export async function startCaseFollowUp(caseId: string): Promise<CaseFollowUp> {
 export interface LogFollowUpAttemptInput {
   outcome: 'responded_resolved' | 'responded_new_information' | 'no_response'
   note?: string
+  /** Real-usage request, 22 Sep 2026 (item 18) — upload the file first via the generic documents endpoint, then pass the resulting document id here. */
+  documentId?: string
 }
 
 export async function logFollowUpAttempt(followUpId: string, input: LogFollowUpAttemptInput): Promise<CaseFollowUp> {
@@ -705,6 +723,8 @@ export async function logFollowUpAttempt(followUpId: string, input: LogFollowUpA
 
 // ── VigiCloud Stage 12 — Regulatory Submission (E2B, No Gateway) ────────
 
+export type E2bFormat = 'R2' | 'R3'
+
 export interface RegulatorySubmission {
   id: string
   caseId: string
@@ -713,6 +733,8 @@ export interface RegulatorySubmission {
   /** The `ReportabilityService` snapshot taken at generation time — a case can still be generated for a QPPV's own records even when not individually reportable (e.g. a foreign case), the reason is always shown plainly either way. */
   reportable: boolean
   reportabilityReason: string
+  /** Real-usage request, 22 Sep 2026 (item 25) — which ICH E2B format this attempt's XML was generated in. R2 is the older, DTD-based format WHO-UMC's VigiFlow (PPB, and most African NRAs) actually requires; R3 is the newer, HL7 v3-based message, offered for a future non-African client whose gateway expects it. */
+  format: E2bFormat
   xmlDocumentId: string
   pdfDocumentId: string
   generatedBy: string
@@ -722,8 +744,8 @@ export interface RegulatorySubmission {
   submittedBy: string | null
 }
 
-export async function generateRegulatorySubmission(caseId: string): Promise<RegulatorySubmission> {
-  const { data } = await post<RegulatorySubmission>(`/pv/cases/${caseId}/regulatory-submissions`)
+export async function generateRegulatorySubmission(caseId: string, format: E2bFormat = 'R2'): Promise<RegulatorySubmission> {
+  const { data } = await post<RegulatorySubmission>(`/pv/cases/${caseId}/regulatory-submissions`, { format })
   return data
 }
 

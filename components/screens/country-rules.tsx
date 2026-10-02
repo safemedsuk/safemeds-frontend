@@ -1173,7 +1173,7 @@ function CreateSubmissionFormatForm({
       {error && <p className="text-xs text-status-error">{error}</p>}
       <div className="space-y-1">
         <FieldLabel>Template reference</FieldLabel>
-        <input value={templateRef} onChange={(e) => setTemplateRef(e.target.value)} placeholder="e.g. E2B(R3)" className={inputClass} />
+        <input value={templateRef} onChange={(e) => setTemplateRef(e.target.value)} placeholder="e.g. E2B(R2)" className={inputClass} />
       </div>
       <div className="space-y-1">
         <FieldLabel>Channel</FieldLabel>

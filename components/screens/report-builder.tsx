@@ -18,6 +18,9 @@ import {
 } from '@/lib/api/report-builder'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
+import { DocumentsPanel } from '@/components/documents/documents-panel'
+import { Modal } from '@/components/ui/modal'
+import type { GeneratedReport } from '@/lib/api/reports'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'mb-1 block text-xs font-medium text-muted-foreground'
@@ -71,6 +74,17 @@ export function ReportBuilder() {
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
+  /**
+   * Real-usage bug, 22 Sep 2026 — "downloading fails" turned out to be a
+   * real UX gap, not a broken export: `handleExport()` always succeeded
+   * server-side (a real `GeneratedReport` + CSV document, same as any
+   * other report type), but this screen never showed the user anything
+   * to actually click afterward — clicking "Export now" just silently
+   * refreshed the saved-reports list. Reusing the exact same
+   * `DocumentsPanel` the Reports screen's own detail view already uses
+   * for a `GeneratedReport`'s attached file.
+   */
+  const [viewingExport, setViewingExport] = useState<GeneratedReport | null>(null)
 
   const source = dataSources.find((s) => s.key === dataSourceKey) ?? null
 
@@ -179,8 +193,9 @@ export function ReportBuilder() {
     setBusyId(def.id)
     setError(null)
     try {
-      await exportReportDefinition(def.id)
+      const report = await exportReportDefinition(def.id)
       load()
+      setViewingExport(report)
     } catch (err) {
       setError(getErrorMessage(err, `Could not export "${def.name}".`))
     } finally {
@@ -453,6 +468,12 @@ export function ReportBuilder() {
           modules into one report is a larger feature planned for later.
         </p>
       </div>
+
+      {viewingExport && (
+        <Modal title={`Export ready — ${viewingExport.title}`} onClose={() => setViewingExport(null)}>
+          <DocumentsPanel recordType="generated_report" recordId={viewingExport.id} />
+        </Modal>
+      )}
     </div>
   )
 }

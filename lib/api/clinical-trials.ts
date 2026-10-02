@@ -4,6 +4,8 @@ import { PatientSex } from './pv-cases'
 export type ClinicalTrialBlindingType = 'open_label' | 'single_blind' | 'double_blind'
 export type ClinicalTrialStatus = 'active' | 'completed' | 'terminated'
 export type ClinicalTrialSubjectStatus = 'enrolled' | 'withdrawn' | 'completed'
+/** Real-usage request, 22 Sep 2026 (items 19/20). */
+export type ApprovalStatus = 'valid' | 'expiring' | 'expired' | 'no_expiry' | 'missing'
 
 export const BLINDING_TYPE_LABELS: Record<ClinicalTrialBlindingType, string> = {
   open_label: 'Open-label',
@@ -56,6 +58,15 @@ export interface ClinicalTrial {
   subjectCount: number
   /** Best-effort estimate — the real due-ness check happens server-side on a weekly scan. */
   annualRenewalDueAt: string
+  /** Real-usage request, 22 Sep 2026 (items 19/20) — null on a trial created before this requirement existed; every new trial requires both. */
+  regulatoryApprovalDocumentId: string | null
+  regulatoryApprovalDate: string | null
+  regulatoryApprovalExpiryDate: string | null
+  ethicsApprovalDocumentId: string | null
+  ethicsApprovalDate: string | null
+  ethicsApprovalExpiryDate: string | null
+  regulatoryApprovalStatus: ApprovalStatus
+  ethicsApprovalStatus: ApprovalStatus
 }
 
 export interface ClinicalTrialWithSubjects extends ClinicalTrial {
@@ -73,6 +84,20 @@ export interface CreateClinicalTrialInput {
   clinicalTrialPortalReference?: string
   countryId: string
   startDate: string
+  /** Real-usage request, 22 Sep 2026 (item 19) — both required; upload the PDFs first via the generic documents endpoint. */
+  regulatoryApprovalDocumentId: string
+  regulatoryApprovalDate: string
+  regulatoryApprovalExpiryDate?: string
+  ethicsApprovalDocumentId: string
+  ethicsApprovalDate: string
+  ethicsApprovalExpiryDate?: string
+}
+
+export interface RenewClinicalTrialApprovalInput {
+  approvalType: 'regulatory' | 'ethics'
+  documentId: string
+  approvalDate: string
+  expiryDate?: string
 }
 
 export interface UpdateClinicalTrialInput {
@@ -151,6 +176,12 @@ export async function createClinicalTrial(input: CreateClinicalTrialInput): Prom
 
 export async function updateClinicalTrial(id: string, input: UpdateClinicalTrialInput): Promise<ClinicalTrial> {
   const { data } = await patch<ClinicalTrial>(`/pv/clinical-trials/${id}`, input)
+  return data
+}
+
+/** Real-usage request, 22 Sep 2026 (item 20) — renewing either approval as its own distinct, audited action. */
+export async function renewClinicalTrialApproval(id: string, input: RenewClinicalTrialApprovalInput): Promise<ClinicalTrial> {
+  const { data } = await post<ClinicalTrial>(`/pv/clinical-trials/${id}/renew-approval`, input)
   return data
 }
 

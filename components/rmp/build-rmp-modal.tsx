@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, Sparkles } from 'lucide-react'
+import { Loader2, Sparkles, Wand2 } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
+import type { Product } from '@/lib/api/master-data'
 import { generateRmpDocument, RiskManagementPlan, RmpContent, updateRmpContent } from '@/lib/api/risk-management-plans'
 import { Modal } from '@/components/ui/modal'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
@@ -12,9 +13,20 @@ const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
 
 interface Props {
   rmp: RiskManagementPlan
-  productBrandName: string
+  /**
+   * Real-usage request, 22 Sep 2026 (item 9) — "the product should be
+   * linked such that things we already know about it (ATC code, dosage
+   * form, etc.) is re-used in building the RMP." The parent screen
+   * already resolves the linked product for the page title — this
+   * modal now gets the full record, not just its brand name, so
+   * "Fill from product catalog" (below) has real data to reuse. Null
+   * only if the product list hasn't loaded yet or was somehow deleted.
+   */
+  product: Product | null
   onClose: () => void
   onGenerated: () => void
+  /** Same fix as `BuildPsmfModal`'s own `onSaved` — see that component's doc comment for the real bug this closes. */
+  onSaved?: () => void
 }
 
 /**
@@ -27,7 +39,7 @@ interface Props {
  * the real PDF and attaches it, at which point the existing Activate
  * button on the main table becomes usable.
  */
-export function BuildRmpModal({ rmp, productBrandName, onClose, onGenerated }: Props) {
+export function BuildRmpModal({ rmp, product, onClose, onGenerated, onSaved }: Props) {
   const [content, setContent] = useState<RmpContent>(rmp.content ?? {})
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -39,12 +51,36 @@ export function BuildRmpModal({ rmp, productBrandName, onClose, onGenerated }: P
     setSaved(false)
   }
 
+  /**
+   * Real-usage request, 22 Sep 2026 (item 9) — a deliberate, explicit
+   * action rather than a silent auto-fill on open: only overwrites the
+   * handful of fields this product catalog entry actually has an
+   * opinion on (dosage form/strength, active substance, ATC code) —
+   * every other Part I field (indications, target population, QPPV
+   * name) stays exactly as typed, since the catalog has no data for
+   * those at all.
+   */
+  const fillFromProduct = () => {
+    if (!product) return
+    setContent((prev) => ({
+      ...prev,
+      header: { ...prev.header, dosageFormAndStrength: `${product.dosageForm}, ${product.strength}` },
+      partI: {
+        ...prev.partI,
+        activeSubstance: product.innName ?? product.genericName,
+        atcCode: product.atcCode ?? prev.partI?.atcCode,
+      },
+    }))
+    setSaved(false)
+  }
+
   const handleSave = async () => {
     setSaving(true)
     setError(null)
     try {
       await updateRmpContent(rmp.id, content)
       setSaved(true)
+      onSaved?.()
     } catch (err) {
       setError(getErrorMessage(err, 'Could not save this draft.'))
     } finally {
@@ -66,13 +102,23 @@ export function BuildRmpModal({ rmp, productBrandName, onClose, onGenerated }: P
   }
 
   return (
-    <Modal title={`Build RMP for ${productBrandName} — v${rmp.version}`} onClose={onClose} maxWidth="max-w-3xl">
+    <Modal title={`Build RMP for ${product?.brandName ?? 'Product'} — v${rmp.version}`} onClose={onClose} maxWidth="max-w-3xl">
       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">
           Fill in as much as you have — every section can be saved incomplete and finished later. Generating the
           document renders exactly what&apos;s filled in below; anything left blank shows as an honest &quot;Not yet
           provided&quot; line, never a guess.
         </p>
+
+        {product && (
+          <button
+            onClick={fillFromProduct}
+            className="flex items-center gap-1.5 rounded-lg border border-safemeds-teal/30 bg-safemeds-teal/5 px-3 py-2 text-xs font-medium text-safemeds-teal hover:bg-safemeds-teal/10"
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+            Fill dosage/strength, active substance, and ATC code from the {product.brandName} catalog entry
+          </button>
+        )}
 
         <CollapsibleSection title="Header — MAH / LTR / Version" defaultOpen>
           <div className="grid gap-3 sm:grid-cols-2">

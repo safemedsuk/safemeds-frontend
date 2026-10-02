@@ -52,8 +52,8 @@ export function PsmfScreen() {
   // list so the banner tells the truth once staff acts on it.
   const [vigicloudEnabled, setVigicloudEnabled] = useState<boolean | null>(null)
 
-  const load = useCallback(() => {
-    setLoading(true)
+  const load = useCallback((opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) setLoading(true)
     setError(null)
     Promise.all([
       listPsmf(),
@@ -66,7 +66,9 @@ export function PsmfScreen() {
         }
       })
       .catch((err) => setError(getErrorMessage(err, 'Could not load PSMF versions.')))
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!opts.silent) setLoading(false)
+      })
   }, [])
 
   useEffect(() => {
@@ -142,7 +144,7 @@ export function PsmfScreen() {
             <CheckCircle2 className="h-4 w-4 shrink-0" />
             VigiCloud module access is enabled for this company.
           </span>
-          <button onClick={load} className="flex items-center gap-1 text-xs text-status-success hover:underline flex-shrink-0" title="Re-check the current access status">
+          <button onClick={() => load()} className="flex items-center gap-1 text-xs text-status-success hover:underline flex-shrink-0" title="Re-check the current access status">
             <RefreshCw className="h-3 w-3" /> Refresh
           </button>
         </div>
@@ -152,7 +154,7 @@ export function PsmfScreen() {
             Version {activeVersion.version} is active — SafeMeds staff can now switch on VigiCloud module access for
             this company. It isn&apos;t on yet as of the last check.
           </span>
-          <button onClick={load} className="flex items-center gap-1 text-xs text-status-info hover:underline flex-shrink-0" title="Re-check the current access status">
+          <button onClick={() => load()} className="flex items-center gap-1 text-xs text-status-info hover:underline flex-shrink-0" title="Re-check the current access status">
             <RefreshCw className="h-3 w-3" /> Refresh
           </button>
         </div>
@@ -275,6 +277,7 @@ export function PsmfScreen() {
         <BuildPsmfModal
           psmf={building}
           onClose={() => setBuilding(null)}
+          onSaved={() => load({ silent: true })}
           onGenerated={() => {
             setBuilding(null)
             setNotice('PSMF document generated.')

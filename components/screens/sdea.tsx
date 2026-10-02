@@ -4,6 +4,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, FileSignature, Loader2, Upload } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import { uploadDocument } from '@/lib/api/documents'
+import {
+  attachDistributorTrainingCertificate,
+  createDistributorTrainingRecord,
+  DistributorTrainingStatus,
+  getDistributorTrainingStatus,
+} from '@/lib/api/distributor-training'
 import { Distributor, listDistributors } from '@/lib/api/reconciliation'
 import { activateSdea, attachSdeaDocument, createSdea, getSdeaStatusForDistributor, listSdeas, Sdea, SDEA_STATUS_LABELS, SdeaDistributorStatus, SdeaStatus } from '@/lib/api/sdea'
 import { usePermissions } from '@/lib/hooks/use-permissions'
@@ -27,6 +33,20 @@ const DISTRIBUTOR_STATUS_LABELS: Record<SdeaDistributorStatus, string> = {
   missing: 'No SDEA',
 }
 
+/** Real-usage request, 22 Sep 2026 (item 6) — the "trained annually" flag, same style as the SDEA status pill above. */
+const TRAINING_STATUS_STYLES: Record<DistributorTrainingStatus, string> = {
+  valid: 'bg-status-success/10 text-status-success',
+  expiring: 'bg-status-warning/10 text-status-warning',
+  expired: 'bg-status-error/10 text-status-error',
+  missing: 'bg-muted text-muted-foreground',
+}
+const TRAINING_STATUS_LABELS: Record<DistributorTrainingStatus, string> = {
+  valid: 'Trained',
+  expiring: 'Renewal Due Soon',
+  expired: 'Training Expired',
+  missing: 'No Training on File',
+}
+
 function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleDateString() : '—'
 }
@@ -34,13 +54,21 @@ function formatDate(value: string | null): string {
 interface DistributorRow {
   distributor: Distributor
   status: SdeaDistributorStatus
+  trainingStatus: DistributorTrainingStatus
 }
 
 const SDEA_HISTORY_COLUMNS: DataTableColumn<Sdea>[] = [
   { key: 'title', label: 'Title' },
   { key: 'version', label: 'Version', render: (v) => <span className="font-mono text-xs">v{v}</span> },
   { key: 'status', label: 'Status', render: (v) => SDEA_STATUS_LABELS[v as SdeaStatus] },
-  { key: 'expiryDate', label: 'Expiry', sortable: true, render: (v) => formatDate(v) },
+  // Real-usage request, 22 Sep 2026 (item 5) — "check date received
+  // versus date uploaded versus date it has to be renewed." Received
+  // and Renewal (expiry) sit side by side here since both are dates a
+  // human actually types in; "date uploaded" is the underlying
+  // Document's own upload timestamp — already tracked and visible on
+  // the Documents/Audit Trail screens generically, not duplicated here.
+  { key: 'receivedDate', label: 'Received', sortable: true, render: (v) => formatDate(v) },
+  { key: 'expiryDate', label: 'Renewal', sortable: true, render: (v) => formatDate(v) },
 ]
 
 /**
@@ -58,6 +86,7 @@ export function SdeaScreen() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useTimedMessage()
   const [showNew, setShowNew] = useState(false)
+  const [loggingTrainingFor, setLoggingTrainingFor] = useState<Distributor | null>(null)
   const [historyPage, setHistoryPage] = useState(1)
   const [historyLimit, setHistoryLimit] = useState(10)
   const [historyTotalPages, setHistoryTotalPages] = useState(1)
@@ -69,8 +98,17 @@ export function SdeaScreen() {
     setError(null)
     try {
       const distResult = await listDistributors({ limit: 100 })
-      const statuses = await Promise.all(distResult.distributors.map((d) => getSdeaStatusForDistributor(d.id)))
-      setRows(distResult.distributors.map((d, i) => ({ distributor: d, status: statuses[i].status })))
+      const [statuses, trainingStatuses] = await Promise.all([
+        Promise.all(distResult.distributors.map((d) => getSdeaStatusForDistributor(d.id))),
+        Promise.all(distResult.distributors.map((d) => getDistributorTrainingStatus(d.id))),
+      ])
+      setRows(
+        distResult.distributors.map((d, i) => ({
+          distributor: d,
+          status: statuses[i].status,
+          trainingStatus: trainingStatuses[i].status,
+        })),
+      )
     } catch (err) {
       setError(getErrorMessage(err, 'Could not load SDEA data.'))
     } finally {
@@ -110,6 +148,7 @@ export function SdeaScreen() {
   }
 
   const atRiskCount = rows.filter((r) => r.status === 'expiring' || r.status === 'expired' || r.status === 'missing').length
+  const untrainedCount = rows.filter((r) => r.trainingStatus === 'expiring' || r.trainingStatus === 'expired' || r.trainingStatus === 'missing').length
 
   return (
     <div className="space-y-6 p-6">
@@ -135,6 +174,14 @@ export function SdeaScreen() {
         </div>
       )}
 
+      {/* Real-usage request, 22 Sep 2026 (item 6) — proof distributors are actually trained annually. */}
+      {untrainedCount > 0 && (
+        <div className="rounded-lg border border-status-warning bg-status-warning/10 p-4 text-sm text-status-warning flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          {untrainedCount} distributor{untrainedCount === 1 ? '' : 's'} without current-year training on file — missing, expiring, or expired.
+        </div>
+      )}
+
       {notice && <div className="rounded-lg border border-status-success bg-status-success/10 p-3 text-sm text-status-success">{notice}</div>}
       {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-sm text-status-error">{error}</div>}
 
@@ -154,6 +201,8 @@ export function SdeaScreen() {
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <th className="p-3">Distributor</th>
                 <th className="p-3">SDEA Status</th>
+                <th className="p-3">Training Status</th>
+                <th className="p-3"></th>
               </tr>
             </thead>
             <tbody>
@@ -162,6 +211,16 @@ export function SdeaScreen() {
                   <td className="p-3 font-medium text-foreground">{r.distributor.name}</td>
                   <td className="p-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${DISTRIBUTOR_STATUS_STYLES[r.status]}`}>{DISTRIBUTOR_STATUS_LABELS[r.status]}</span>
+                  </td>
+                  <td className="p-3">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TRAINING_STATUS_STYLES[r.trainingStatus]}`}>{TRAINING_STATUS_LABELS[r.trainingStatus]}</span>
+                  </td>
+                  <td className="p-3 text-right">
+                    {canManage && (
+                      <button onClick={() => setLoggingTrainingFor(r.distributor)} className="text-xs font-medium text-safemeds-teal hover:underline whitespace-nowrap">
+                        Log Training
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -205,6 +264,18 @@ export function SdeaScreen() {
           }}
         />
       )}
+
+      {loggingTrainingFor && (
+        <LogDistributorTrainingModal
+          distributor={loggingTrainingFor}
+          onClose={() => setLoggingTrainingFor(null)}
+          onDone={() => {
+            setLoggingTrainingFor(null)
+            setNotice('Training logged.')
+            load()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -214,6 +285,7 @@ function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distrib
   const [distributorId, setDistributorId] = useState('')
   const [title, setTitle] = useState('')
   const [counterpartyName, setCounterpartyName] = useState('')
+  const [receivedDate, setReceivedDate] = useState('')
   const [expiryDate, setExpiryDate] = useState('')
   const [draftId, setDraftId] = useState<string | null>(null)
   const [documentId, setDocumentId] = useState<string | null>(null)
@@ -228,7 +300,13 @@ function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distrib
     setSubmitting(true)
     setError(null)
     try {
-      const draft = await createSdea({ distributorId, title: title.trim(), counterpartyName: counterpartyName.trim(), expiryDate: expiryDate || undefined })
+      const draft = await createSdea({
+        distributorId,
+        title: title.trim(),
+        counterpartyName: counterpartyName.trim(),
+        receivedDate: receivedDate || undefined,
+        expiryDate: expiryDate || undefined,
+      })
       setDraftId(draft.id)
       setStep('upload')
     } catch (err) {
@@ -292,9 +370,15 @@ function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distrib
               <label className={labelClass}>Counterparty Name *</label>
               <input value={counterpartyName} onChange={(e) => setCounterpartyName(e.target.value)} className={inputClass} />
             </div>
-            <div>
-              <label className={labelClass}>Expiry Date</label>
-              <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className={inputClass} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Date Received</label>
+                <input type="date" value={receivedDate} onChange={(e) => setReceivedDate(e.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Renewal / Expiry Date</label>
+                <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className={inputClass} />
+              </div>
             </div>
 
             {error && <p className="text-sm text-status-error">{error}</p>}
@@ -347,6 +431,149 @@ function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distrib
               >
                 {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                 Activate
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Real-usage request, 22 Sep 2026 (item 6) — "proof distributors are
+ * actually trained annually; should essentially be a record
+ * checklist." One log entry per training event, with an optional
+ * certificate upload as the real evidence — the certificate can be
+ * attached later too (not required to log the training itself), since
+ * a completed training and a scanned certificate often arrive at
+ * different times in practice.
+ */
+function LogDistributorTrainingModal({
+  distributor,
+  onClose,
+  onDone,
+}: {
+  distributor: Distributor
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [trainingType, setTrainingType] = useState('pv_annual')
+  const [title, setTitle] = useState('')
+  const [completionDate, setCompletionDate] = useState('')
+  const [expiryDate, setExpiryDate] = useState('')
+  const [recordId, setRecordId] = useState<string | null>(null)
+  const [documentId, setDocumentId] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const detailsValid = title.trim().length > 0 && completionDate.length > 0
+
+  const handleLog = async () => {
+    if (!detailsValid) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const record = await createDistributorTrainingRecord({
+        distributorId: distributor.id,
+        trainingType,
+        title: title.trim(),
+        completionDate,
+        expiryDate: expiryDate || undefined,
+      })
+      setRecordId(record.id)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not log this training.'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleFileSelected = async (file: File) => {
+    if (!recordId) return
+    setUploading(true)
+    setError(null)
+    try {
+      const version = await uploadDocument('distributor_training_record', recordId, file, { title: 'Training certificate' })
+      await attachDistributorTrainingCertificate(recordId, version.documentId)
+      setDocumentId(version.documentId)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not upload this certificate.'))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
+        <h2 className="font-display font-bold text-lg text-foreground">Log Training — {distributor.name}</h2>
+
+        {!recordId ? (
+          <>
+            <div>
+              <label className={labelClass}>Training Type</label>
+              <input value={trainingType} onChange={(e) => setTrainingType(e.target.value)} placeholder="e.g. pv_annual" className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Title *</label>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Annual PV/Reporting-Obligations Training 2026" className={inputClass} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Completion Date *</label>
+                <input type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Renewal Due</label>
+                <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className={inputClass} />
+                <p className="mt-1 text-xs text-muted-foreground">Leave blank if this training has no expiry.</p>
+              </div>
+            </div>
+
+            {error && <p className="text-sm text-status-error">{error}</p>}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
+                Cancel
+              </button>
+              <button
+                onClick={handleLog}
+                disabled={!detailsValid || submitting}
+                className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
+              >
+                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                Log Training
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-status-success">Training logged.</p>
+            <p className="text-sm text-muted-foreground">Optionally attach the certificate now, or do it later.</p>
+            {documentId ? (
+              <p className="text-sm text-status-success">Certificate attached.</p>
+            ) : (
+              <label className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted-foreground cursor-pointer hover:bg-muted">
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                Upload certificate
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleFileSelected(file)
+                  }}
+                />
+              </label>
+            )}
+
+            {error && <p className="text-sm text-status-error">{error}</p>}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={onDone} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce">
+                Done
               </button>
             </div>
           </>

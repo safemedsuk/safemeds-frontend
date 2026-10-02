@@ -6,8 +6,10 @@ import { AlertTriangle, CheckCircle2, ClipboardCheck, Gavel, Loader2, Plus, Shie
 import { getErrorMessage } from '@/lib/api/client'
 import {
   AUDIT_FINDING_SEVERITY_LABELS,
+  AUDIT_SCOPE_LABELS,
   AuditFinding,
   AuditFindingSeverity,
+  AuditScope,
   Capa,
   CAPA_STATUS_LABELS,
   CapaEffectivenessResult,
@@ -22,6 +24,7 @@ import {
   listInternalAudits,
   recordCapaEffectivenessCheck,
 } from '@/lib/api/internal-audits'
+import { listSuppliers, type Supplier } from '@/lib/api/quality'
 import { OpenCapaModal } from '@/components/internal-audits/open-capa-modal'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
@@ -112,8 +115,19 @@ export function InternalAuditsScreen() {
   )
 }
 
+const AUDIT_SCOPE_STYLES: Record<AuditScope, string> = {
+  internal: 'bg-muted text-muted-foreground',
+  supplier: 'bg-status-info/10 text-status-info',
+  regulatory: 'bg-status-warning/10 text-status-warning',
+}
+
 const AUDIT_COLUMNS: DataTableColumn<InternalAudit>[] = [
   { key: 'title', label: 'Title' },
+  {
+    key: 'auditScope',
+    label: 'Scope',
+    render: (v) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${AUDIT_SCOPE_STYLES[v as AuditScope]}`}>{AUDIT_SCOPE_LABELS[v as AuditScope]}</span>,
+  },
   { key: 'scheduledDate', label: 'Scheduled', sortable: true, render: (v) => formatDate(v) },
   {
     key: 'status',
@@ -211,18 +225,33 @@ function AuditsTab({ canManage, onOpenAudit }: { canManage: boolean; onOpenAudit
 function ScheduleAuditModal({ onClose, onScheduled }: { onClose: () => void; onScheduled: () => void }) {
   const [title, setTitle] = useState('')
   const [scope, setScope] = useState('')
+  const [auditScope, setAuditScope] = useState<AuditScope>('internal')
+  const [supplierId, setSupplierId] = useState('')
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [scheduledDate, setScheduledDate] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const isValid = title.trim().length > 0 && scheduledDate.length > 0
+  useEffect(() => {
+    if (auditScope === 'supplier') {
+      listSuppliers({ limit: 100 }).then((r) => setSuppliers(r.rows)).catch(() => undefined)
+    }
+  }, [auditScope])
+
+  const isValid = title.trim().length > 0 && scheduledDate.length > 0 && (auditScope !== 'supplier' || supplierId.length > 0)
 
   const handleSubmit = async () => {
     if (!isValid) return
     setSubmitting(true)
     setError(null)
     try {
-      await createInternalAudit({ title: title.trim(), scope: scope.trim() || undefined, scheduledDate })
+      await createInternalAudit({
+        title: title.trim(),
+        scope: scope.trim() || undefined,
+        scheduledDate,
+        auditScope,
+        supplierId: auditScope === 'supplier' ? supplierId : undefined,
+      })
       onScheduled()
     } catch (err) {
       setError(getErrorMessage(err, 'Could not schedule this audit.'))
@@ -240,7 +269,31 @@ function ScheduleAuditModal({ onClose, onScheduled }: { onClose: () => void; onS
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Q3 GVP Audit" className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Scope</label>
+          <label className={labelClass}>Audit Scope *</label>
+          <select value={auditScope} onChange={(e) => setAuditScope(e.target.value as AuditScope)} className={inputClass}>
+            {Object.entries(AUDIT_SCOPE_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {auditScope === 'internal' && 'A self-inspection of your own site/processes.'}
+            {auditScope === 'supplier' && 'You are auditing/qualifying one of your own suppliers.'}
+            {auditScope === 'regulatory' && 'A regulator (e.g. PPB) is inspecting you.'}
+          </p>
+        </div>
+        {auditScope === 'supplier' && (
+          <div>
+            <label className={labelClass}>Supplier *</label>
+            <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className={inputClass}>
+              <option value="">Select a supplier…</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div>
+          <label className={labelClass}>Scope Notes</label>
           <textarea value={scope} onChange={(e) => setScope(e.target.value)} rows={2} className={inputClass} />
         </div>
         <div>

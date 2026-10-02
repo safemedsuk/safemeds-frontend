@@ -1,5 +1,12 @@
 import { get, patch, post, type PaginationMeta } from './client'
 
+export type AuditScope = 'internal' | 'supplier' | 'regulatory'
+export const AUDIT_SCOPE_LABELS: Record<AuditScope, string> = {
+  internal: 'Internal',
+  supplier: 'Supplier',
+  regulatory: 'Regulatory',
+}
+
 export type InternalAuditStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
 export type AuditFindingSeverity = 'critical' | 'major' | 'minor' | 'observation'
 export type AuditFindingStatus = 'open' | 'capa_assigned' | 'closed'
@@ -32,6 +39,8 @@ export interface InternalAudit {
   companyId: string
   title: string
   scope: string | null
+  auditScope: AuditScope
+  supplierId: string | null
   scheduledDate: string
   status: InternalAuditStatus
   leadAuditorUserId: string | null
@@ -60,12 +69,24 @@ export interface Capa {
   id: string
   companyId: string
   findingId: string | null
+  sourceRecordType: string | null
+  sourceRecordId: string | null
   title: string
+  correction: string | null
   correctiveAction: string
   preventiveAction: string | null
+  rootCauseCategory: string | null
   ownerUserId: string | null
   dueDate: string | null
   status: CapaStatus
+  approvedBy: string | null
+  approvedAt: string | null
+  implementedAt: string | null
+  requiresRegulatoryApproval: boolean
+  regulatoryApprovedBy: string | null
+  regulatoryApprovedAt: string | null
+  flaggedRecurring: boolean
+  recurringFlagReason: string | null
   effectivenessCheckDueAt: string | null
   effectivenessCheckedAt: string | null
   effectivenessCheckedBy: string | null
@@ -82,6 +103,8 @@ export interface CreateInternalAuditInput {
   scope?: string
   scheduledDate: string
   leadAuditorUserId?: string
+  auditScope?: AuditScope
+  supplierId?: string
 }
 
 export async function createInternalAudit(input: CreateInternalAuditInput): Promise<InternalAudit> {
@@ -131,9 +154,12 @@ export async function listAuditFindings(page = 1, limit = 10): Promise<ListAudit
 
 export interface CreateCapaInput {
   findingId?: string
+  sourceRecordType?: string
+  sourceRecordId?: string
   title: string
   correctiveAction: string
   preventiveAction?: string
+  rootCauseCategory?: string
   ownerUserId?: string
   dueDate?: string
 }
@@ -178,5 +204,117 @@ export async function recordCapaEffectivenessCheck(id: string, result: CapaEffec
 
 export async function closeCapa(id: string): Promise<Capa> {
   const { data } = await post<Capa>(`/capas/${id}/close`, {})
+  return data
+}
+
+export interface AssignCapaActionInput {
+  correction?: string
+  correctiveAction?: string
+  preventiveAction?: string
+  rootCauseCategory?: string
+}
+
+export async function assignCapaAction(id: string, input: AssignCapaActionInput): Promise<Capa> {
+  const { data } = await post<Capa>(`/capas/${id}/action`, input)
+  return data
+}
+
+export async function approveCapa(id: string, requiresRegulatoryApproval?: boolean): Promise<Capa> {
+  const { data } = await post<Capa>(`/capas/${id}/approve`, { requiresRegulatoryApproval })
+  return data
+}
+
+export async function regulatoryApproveCapa(id: string): Promise<Capa> {
+  const { data } = await post<Capa>(`/capas/${id}/regulatory-approve`, {})
+  return data
+}
+
+export async function implementCapa(id: string): Promise<Capa> {
+  const { data } = await post<Capa>(`/capas/${id}/implement`, {})
+  return data
+}
+
+// ── QualCloud Stage 9 — conduct-mode checklist ──────────────────────────
+
+export type ChecklistResponseStatus = 'not_reviewed' | 'compliant' | 'non_compliant' | 'not_applicable'
+export const CHECKLIST_RESPONSE_STATUS_LABELS: Record<ChecklistResponseStatus, string> = {
+  not_reviewed: 'Not Reviewed',
+  compliant: 'Compliant',
+  non_compliant: 'Non-Compliant',
+  not_applicable: 'Not Applicable',
+}
+
+export interface InternalAuditChecklistResponse {
+  id: string
+  auditId: string
+  checklistTemplateId: string
+  status: ChecklistResponseStatus
+  observations: string | null
+  reviewedBy: string | null
+  reviewedAt: string | null
+  checklistTemplate: { title: string; description: string | null; sortOrder: number }
+}
+
+export async function startAuditConduct(auditId: string): Promise<InternalAuditChecklistResponse[]> {
+  const { data } = await post<InternalAuditChecklistResponse[]>(`/internal-audits/${auditId}/checklist/start`)
+  return data
+}
+
+export async function listAuditChecklist(auditId: string): Promise<InternalAuditChecklistResponse[]> {
+  const { data } = await get<InternalAuditChecklistResponse[]>(`/internal-audits/${auditId}/checklist`)
+  return data
+}
+
+export async function respondToChecklistItem(
+  auditId: string,
+  responseId: string,
+  input: { status: ChecklistResponseStatus; observations?: string },
+): Promise<InternalAuditChecklistResponse> {
+  const { data } = await patch<InternalAuditChecklistResponse>(
+    `/internal-audits/${auditId}/checklist/${responseId}`,
+    input,
+  )
+  return data
+}
+
+// ── QualCloud Stage 9 — regulatory-scope inspection responses ───────────
+
+export interface RegulatoryInspectionResponse {
+  id: string
+  auditId: string
+  findingId: string | null
+  responseDueDate: string | null
+  responseText: string | null
+  evidenceDocumentId: string | null
+  submittedAt: string | null
+  submittedBy: string | null
+}
+
+export async function listRegulatoryInspectionResponses(auditId: string): Promise<RegulatoryInspectionResponse[]> {
+  const { data } = await get<RegulatoryInspectionResponse[]>(`/internal-audits/${auditId}/regulatory-responses`)
+  return data
+}
+
+export async function createRegulatoryInspectionResponse(
+  auditId: string,
+  input: { findingId?: string; responseDueDate?: string },
+): Promise<RegulatoryInspectionResponse> {
+  const { data } = await post<RegulatoryInspectionResponse>(`/internal-audits/${auditId}/regulatory-responses`, input)
+  return data
+}
+
+export async function submitRegulatoryInspectionResponse(
+  auditId: string,
+  responseId: string,
+  responseText: string,
+  file?: File,
+): Promise<RegulatoryInspectionResponse> {
+  const formData = new FormData()
+  formData.append('responseText', responseText)
+  if (file) formData.append('file', file)
+  const { data } = await post<RegulatoryInspectionResponse>(
+    `/internal-audits/${auditId}/regulatory-responses/${responseId}/submit`,
+    formData,
+  )
   return data
 }

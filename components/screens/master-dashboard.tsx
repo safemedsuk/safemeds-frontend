@@ -221,13 +221,57 @@ export function MasterDashboard() {
             <ProductComplianceTable rows={dashboard.productCompliance} />
           </div>
 
-          <div className="rounded-lg border border-dashed border-border bg-muted/20 p-6 text-center">
-            <Construction className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-            <p className="text-sm font-medium text-foreground">QualCloud (Quality) — Coming Soon</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Deviations, CAPAs, and batch release aren&apos;t built yet — this section will fill in once QualCloud exists as its own module.
-            </p>
-          </div>
+          {dashboard.qualcloud.available ? (
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                QualCloud (Quality)
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{dashboard.qualcloud.capasOverdue}</p>
+                  <p className="text-xs text-muted-foreground">CAPAs overdue</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{dashboard.qualcloud.changeControlsInProgress}</p>
+                  <p className="text-xs text-muted-foreground">Changes in progress</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{dashboard.qualcloud.documentsPendingApproval}</p>
+                  <p className="text-xs text-muted-foreground">Docs pending approval</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{dashboard.qualcloud.trainingOverdue}</p>
+                  <p className="text-xs text-muted-foreground">Training overdue</p>
+                </div>
+              </div>
+              {dashboard.qualcloud.deviationsOpenBySeverity.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {dashboard.qualcloud.deviationsOpenBySeverity.map((d) => (
+                    <span key={d.severity} className="rounded-full bg-muted px-2.5 py-1 text-xs text-foreground">
+                      {d.count} {d.severity} deviation(s)
+                    </span>
+                  ))}
+                </div>
+              )}
+              {dashboard.qualcloud.metrics && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Right-first-time:{' '}
+                  {dashboard.qualcloud.metrics.rightFirstTimeRate === null
+                    ? 'n/a'
+                    : `${dashboard.qualcloud.metrics.rightFirstTimeRate}%`}{' '}
+                  · {dashboard.qualcloud.metrics.openTrendFlags} open trend flag(s)
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border bg-muted/20 p-6 text-center">
+              <Construction className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+              <p className="text-sm font-medium text-foreground">QualCloud (Quality) — Module Access Not Yet On</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                QualCloud is fully built — this section fills in once the module is entitled for this company.
+              </p>
+            </div>
+          )}
         </>
       )}
 

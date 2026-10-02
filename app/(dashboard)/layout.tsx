@@ -30,6 +30,19 @@ import {
   Microscope,
   AlertTriangle,
   Wand2,
+  AlertOctagon,
+  Wrench,
+  GitCommit,
+  MessageSquareText,
+  MessageSquareWarning,
+  TestTube2,
+  Trash2,
+  ClipboardCheck,
+  Wind,
+  Thermometer,
+  ListChecks,
+  CalendarClock,
+  LayoutDashboard,
 } from 'lucide-react'
 import { TopBar } from '@/components/layout/top-bar'
 import { Sidebar, type SidebarSection } from '@/components/layout/sidebar'
@@ -37,6 +50,7 @@ import { IdleTimeoutGuard } from '@/components/auth/idle-timeout-guard'
 import { useAuthStore } from '@/lib/store/auth-store'
 import { logout as apiLogout } from '@/lib/api/auth'
 import { getSecurityPolicy } from '@/lib/api/security-policy'
+import { getMyEntitlements } from '@/lib/api/entitlements'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -45,6 +59,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { currentUser, isAuthenticated, hasHydrated, setCurrentUser, setIsAuthenticated } = useAuthStore()
   const { has } = usePermissions()
   const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState<number | null>(null)
+  /**
+   * Real-usage request, 22 Sep 2026 — "the VigiCloud sidebar section
+   * should only show when the PSMF file is available and approved."
+   * The backend's own `EntitlementsService.grant()` already refuses to
+   * switch VigiCloud on for a company with no active PSMF (Stage 16.1's
+   * onboarding gate) — so "VigiCloud module access is enabled" *is*
+   * "PSMF approved," by construction, and checking the real entitlement
+   * here is both the precise and the honest way to gate this (a stale
+   * `null` — not yet loaded, or the fetch failed — deliberately keeps
+   * the section hidden rather than flashing it and yanking it away).
+   */
+  const [vigicloudEnabled, setVigicloudEnabled] = useState(false)
 
   useEffect(() => {
     // Wait for the persisted store to rehydrate from localStorage before
@@ -67,6 +93,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         // Best-effort — if this fails, the idle-timeout warning simply
         // never shows for this session; the backend backstop still applies.
       })
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    // Platform staff (companyId: null) have no tenant entitlements at
+    // all — this call is tenant-only, best-effort for everyone else.
+    getMyEntitlements()
+      .then((entitlements) => {
+        setVigicloudEnabled(entitlements.some((e) => e.moduleKey === 'vigicloud' && e.featureKey === '*' && e.enabled))
+      })
+      .catch(() => setVigicloudEnabled(false))
   }, [isAuthenticated])
 
   const isLoading = !hasHydrated
@@ -92,6 +129,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           href: '/master-dashboard',
           isActive: pathname === '/master-dashboard',
         },
+        // QualCloud (Phase 13) Stage 20 — the Unified Cross-Module
+        // Executive Dashboard and its two supporting cross-cutting
+        // views, the real capstone now that VigiCloud/RegCloud/QualCloud
+        // all have their own dashboard-shaped data to compose.
+        {
+          label: 'Executive Dashboard',
+          icon: <LayoutDashboard className="h-4 w-4" />,
+          href: '/executive-dashboard',
+          isActive: pathname === '/executive-dashboard',
+        },
+        {
+          label: 'Inspection Readiness (All Modules)',
+          icon: <ListChecks className="h-4 w-4" />,
+          href: '/cross-module-readiness',
+          isActive: pathname === '/cross-module-readiness',
+        },
+        {
+          label: 'Deadlines & Obligations',
+          icon: <CalendarClock className="h-4 w-4" />,
+          href: '/obligations-feed',
+          isActive: pathname === '/obligations-feed',
+        },
         {
           label: 'Task Inbox',
           icon: <CheckCircle2 className="h-4 w-4" />,
@@ -100,7 +159,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         },
       ],
     },
-    ...(has('pv.capture_case') || has('pv.view_all')
+    ...(vigicloudEnabled && (has('pv.capture_case') || has('pv.view_all'))
       ? [
           {
             title: 'Pharmacovigilance',
@@ -237,6 +296,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 href: '/reg-dossiers',
                 isActive: pathname === '/reg-dossiers' || pathname?.startsWith('/reg-dossiers/'),
               },
+              // CEO feedback, 30 Sep 2026 — "Register view: all queries
+              // across products and markets, filterable by market,
+              // product, owner and status, with overdue queries
+              // highlighted." A distinct, directly discoverable entry —
+              // the dossier-scoped correspondence panel stays where it
+              // is, but this is the cross-dossier register the CEO's own
+              // email specifically asked for.
+              {
+                label: 'Query Register',
+                icon: <MessageSquareText className="h-4 w-4" />,
+                href: '/reg-queries',
+                isActive: pathname === '/reg-queries',
+              },
             ]
           : []),
         ...(has('reports.view')
@@ -268,6 +340,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 icon: <AlertTriangle className="h-4 w-4" />,
                 href: '/recalls',
                 isActive: pathname === '/recalls' || pathname?.startsWith('/recalls/'),
+              },
+              // QualCloud (Phase 13) Stage 10.7 — reuses the same
+              // Recall Cases list/detail screens with `mode: mock`
+              // filtering rather than a parallel screen family; its own
+              // nav entry only for direct discoverability.
+              {
+                label: 'Mock Recalls',
+                icon: <ShieldAlert className="h-4 w-4" />,
+                href: '/mock-recalls',
+                isActive: pathname === '/mock-recalls',
               },
             ]
           : []),
@@ -335,6 +417,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 href: '/internal-audits',
                 isActive: pathname === '/internal-audits' || pathname?.startsWith('/internal-audits/'),
               },
+              // QualCloud (Phase 13) Stage 9 — "the single most valuable
+              // screen in the platform" (Build Priority doc), directly
+              // discoverable alongside Internal Audits since it extends
+              // that same record type.
+              {
+                label: 'Inspection Readiness',
+                icon: <ShieldCheck className="h-4 w-4" />,
+                href: '/inspection-readiness',
+                isActive: pathname === '/inspection-readiness',
+              },
+            ]
+          : []),
+        // QualCloud (Phase 13) Stage 8 — Metrics, Trending & Management Review.
+        ...(has('quality.view_metrics')
+          ? [
+              {
+                label: 'Quality Metrics & Trends',
+                icon: <BarChart3 className="h-4 w-4" />,
+                href: '/quality-metrics',
+                isActive: pathname === '/quality-metrics',
+              },
             ]
           : []),
         ...(has('qppv.manage_nomination') || has('governance.view')
@@ -381,6 +484,115 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           : []),
       ],
     },
+    // QualCloud (Phase 13) Stage 0 — Foundation Layer. Each entry gates
+    // independently on its own permission, same as every other section.
+    ...(has('quality.view_all')
+      ? [
+          {
+            title: 'Quality',
+            items: [
+              {
+                label: 'Quality Entities',
+                icon: <FlaskConical className="h-4 w-4" />,
+                href: '/quality-entities',
+                isActive: pathname === '/quality-entities',
+              },
+              {
+                label: 'Controlled Documents',
+                icon: <ClipboardList className="h-4 w-4" />,
+                href: '/quality-documents',
+                isActive: pathname === '/quality-documents',
+              },
+              {
+                label: 'Deviations',
+                icon: <AlertOctagon className="h-4 w-4" />,
+                href: '/quality-deviations',
+                isActive: pathname === '/quality-deviations' || pathname?.startsWith('/quality-deviations/'),
+              },
+              {
+                label: 'CAPAs',
+                icon: <Wrench className="h-4 w-4" />,
+                href: '/quality-capas',
+                isActive: pathname === '/quality-capas',
+              },
+              {
+                label: 'Change Control',
+                icon: <GitCommit className="h-4 w-4" />,
+                href: '/quality-change-controls',
+                isActive: pathname === '/quality-change-controls' || pathname?.startsWith('/quality-change-controls/'),
+              },
+              {
+                label: 'Complaints',
+                icon: <MessageSquareWarning className="h-4 w-4" />,
+                href: '/quality-complaints',
+                isActive: pathname === '/quality-complaints' || pathname?.startsWith('/quality-complaints/'),
+              },
+              {
+                label: 'OOS/OOT Investigations',
+                icon: <TestTube2 className="h-4 w-4" />,
+                href: '/quality-oos',
+                isActive: pathname === '/quality-oos' || pathname?.startsWith('/quality-oos/'),
+              },
+              // QualCloud (Phase 13) Stage 15 — Pharmaceutical Waste Management.
+              {
+                label: 'Waste Disposal',
+                icon: <Trash2 className="h-4 w-4" />,
+                href: '/quality-waste-disposal',
+                isActive: pathname === '/quality-waste-disposal',
+              },
+              // QualCloud (Phase 13) Stage 16 — Falsified & Substandard Product Handling.
+              {
+                label: 'Falsified Product Reports',
+                icon: <AlertTriangle className="h-4 w-4" />,
+                href: '/quality-falsified-reports',
+                isActive: pathname === '/quality-falsified-reports',
+              },
+              // QualCloud (Phase 13) Stage 18 — Validation / CSV. (Stage 17's
+              // Batch Release gate lives on the Batch Detail page itself,
+              // reachable from Master Data's Batches tab — not a separate
+              // nav entry, matching Stage 7's own BatchRecordReview precedent.)
+              {
+                label: 'Validation & CSV',
+                icon: <ClipboardCheck className="h-4 w-4" />,
+                href: '/quality-validation',
+                isActive: pathname === '/quality-validation',
+              },
+              // QualCloud (Phase 13) Stage 19 — Environmental Monitoring &
+              // Stability Programme. One screen for both, matching Stage
+              // 0's own "Quality Entities"/"Controlled Documents"
+              // precedent for closely-related concepts.
+              {
+                label: 'Environmental Monitoring & Stability',
+                icon: <Wind className="h-4 w-4" />,
+                href: '/quality-environmental-stability',
+                isActive: pathname === '/quality-environmental-stability',
+              },
+              // QualCloud (Phase 13) Stage 13 — Product Quality Review.
+              ...(has('quality.view_pqr')
+                ? [
+                    {
+                      label: 'Product Quality Reviews',
+                      icon: <ClipboardList className="h-4 w-4" />,
+                      href: '/quality-pqr',
+                      isActive: pathname === '/quality-pqr',
+                    },
+                  ]
+                : []),
+              // QualCloud (Phase 13) Stage 12 — Training & Competency Management.
+              ...(has('training.view')
+                ? [
+                    {
+                      label: 'Training Compliance',
+                      icon: <ClipboardList className="h-4 w-4" />,
+                      href: '/training-compliance',
+                      isActive: pathname === '/training-compliance',
+                    },
+                  ]
+                : []),
+            ],
+          },
+        ]
+      : []),
     {
       title: 'Administration',
       // A page whose entire purpose a user can't act on (or, for Users &

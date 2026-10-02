@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CalendarClock, Download, FileCheck2, Loader2, Plus, Upload } from 'lucide-react'
+import { ArrowLeft, CalendarClock, Download, FileCheck2, Loader2, Plus, ShieldCheck, Upload } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import { uploadDocument } from '@/lib/api/documents'
 import {
@@ -12,6 +12,9 @@ import {
   type RegPostMarketObligation,
 } from '@/lib/api/reg-post-market-obligations'
 import { getRegistrationArchive, downloadRegistrationArchiveCsv, type RegistrationArchive } from '@/lib/api/registration-archive'
+import { listRegRetentions, createRegRetention, classifyRegistration, type RegRetention } from '@/lib/api/reg-dossiers'
+import { type RequiredDocumentDefinition } from '@/lib/api/regulatory-config'
+import { getRegistration } from '@/lib/api/master-data'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { Modal } from '@/components/ui/modal'
 
@@ -37,21 +40,30 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
   const { has } = usePermissions()
   const canManageObligations = has('regulatory.manage_obligations')
 
+  const canManageRetentions = has('regulatory.manage_retentions')
+
   const [archive, setArchive] = useState<RegistrationArchive | null>(null)
   const [obligations, setObligations] = useState<RegPostMarketObligation[]>([])
+  const [retentions, setRetentions] = useState<RegRetention[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [showLogObligation, setShowLogObligation] = useState(false)
   const [fulfilling, setFulfilling] = useState<RegPostMarketObligation | null>(null)
+  const [showLogRetention, setShowLogRetention] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
-    Promise.all([getRegistrationArchive(productRegistrationId), listRegPostMarketObligations({ productRegistrationId, limit: 50 })])
-      .then(([archiveData, obligationPage]) => {
+    Promise.all([
+      getRegistrationArchive(productRegistrationId),
+      listRegPostMarketObligations({ productRegistrationId, limit: 50 }),
+      listRegRetentions(productRegistrationId),
+    ])
+      .then(([archiveData, obligationPage, retentionRows]) => {
         setArchive(archiveData)
         setObligations(obligationPage.rows)
+        setRetentions(retentionRows)
       })
       .catch((err) => setError(getErrorMessage(err, 'Could not load this registration.')))
       .finally(() => setLoading(false))
@@ -155,6 +167,48 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
         </div>
       </div>
 
+      {/* testing-correction-explanation.md §3.3/§3.7 — Retention */}
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
+        <div className="p-5 border-b border-[var(--border)] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
+              <ShieldCheck className="h-5 w-5 text-[var(--primary)]" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--text)]">Retentions</h2>
+              <p className="text-xs text-[var(--text-muted)]">Proof this registration&apos;s annual retention was paid and logged, every year — every registration must be retained by 31 December.</p>
+            </div>
+          </div>
+          {canManageRetentions && archive.registration.status === 'active' && new Date(archive.registration.expiresOn) > new Date() && (
+            <button onClick={() => setShowLogRetention(true)} className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-white">
+              <Plus className="h-3.5 w-3.5" /> Log Retention
+            </button>
+          )}
+        </div>
+        <div className="p-2">
+          {archive.registration.status !== 'active' || new Date(archive.registration.expiresOn) <= new Date() ? (
+            <p className="py-4 px-3 text-xs text-status-warning">
+              This registration is {archive.registration.status !== 'active' ? archive.registration.status : 'expired'} — retention no longer applies.
+            </p>
+          ) : null}
+          {retentions.length === 0 ? (
+            <p className="py-8 text-center text-sm text-[var(--text-muted)]">No retention logged yet.</p>
+          ) : (
+            <ul className="divide-y divide-[var(--border)]">
+              {retentions.map((r) => (
+                <li key={r.id} className="p-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-[var(--ok-bg)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--ok)]">{r.status}</span>
+                    <span className="text-sm text-[var(--text)]">{r.year}</span>
+                    <span className="text-xs text-[var(--text-muted)]">{r.displayCode} · paid {formatDate(r.paidAt)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
       {/* Stage 9 — Archive & Custody */}
       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
         <div className="p-5 border-b border-[var(--border)] flex items-center justify-between">
@@ -228,6 +282,16 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
           onClose={() => setFulfilling(null)}
           onFulfilled={() => {
             setFulfilling(null)
+            load()
+          }}
+        />
+      )}
+      {showLogRetention && (
+        <LogRetentionModal
+          productRegistrationId={productRegistrationId}
+          onClose={() => setShowLogRetention(false)}
+          onLogged={() => {
+            setShowLogRetention(false)
             load()
           }}
         />
@@ -341,6 +405,109 @@ function FulfillObligationModal({ obligation, onClose, onFulfilled }: { obligati
           <button onClick={submit} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Fulfill
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+/** testing-correction-explanation.md §3.3 — two files (invoice + proof of payment) in one request; a real certificate is generated automatically the moment this succeeds. */
+function LogRetentionModal({ productRegistrationId, onClose, onLogged }: { productRegistrationId: string; onClose: () => void; onLogged: () => void }) {
+  const currentYear = new Date().getFullYear()
+  const [year, setYear] = useState(String(currentYear))
+  const [paidAt, setPaidAt] = useState('')
+  const [invoice, setInvoice] = useState<File | null>(null)
+  const [proofOfPayment, setProofOfPayment] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [guidanceDocs, setGuidanceDocs] = useState<RequiredDocumentDefinition[]>([])
+
+  // testing-correction-explanation.md §3.7 — the same country/authority/
+  // product-class checklist Completeness Check resolves, shown here as
+  // pure guidance text (never a blocking requirement — Retention isn't a
+  // RegDossier and has no completeness gate at all).
+  useEffect(() => {
+    getRegistration(productRegistrationId)
+      .then((registration) =>
+        registration.productClass
+          ? classifyRegistration({ authorityId: registration.authorityId, productClass: registration.productClass })
+          : null,
+      )
+      .then((preview) => setGuidanceDocs(preview?.requirement?.documentDefinitions ?? []))
+      .catch(() => setGuidanceDocs([]))
+  }, [productRegistrationId])
+
+  const canSubmit = year.trim().length > 0 && paidAt.trim().length > 0 && invoice && proofOfPayment
+
+  const submit = async () => {
+    if (!canSubmit || !invoice || !proofOfPayment) return
+    setSaving(true)
+    setError(null)
+    try {
+      await createRegRetention({
+        productRegistrationId,
+        year: Number(year),
+        paidAt,
+        invoice,
+        proofOfPayment,
+      })
+      onLogged()
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not log this retention.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title="Log Retention" onClose={onClose}>
+      <div className="space-y-4">
+        <p className="text-xs text-[var(--text-muted)]">
+          Upload the invoice and proof of payment together — a real certificate is generated automatically once both are in.
+        </p>
+        {guidanceDocs.length > 0 && (
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-3">
+            <p className="mb-1.5 text-xs font-medium text-[var(--text)]">Documents commonly required for this product class (guidance only — not enforced here):</p>
+            <ul className="space-y-0.5 text-xs text-[var(--text-muted)]">
+              {guidanceDocs.map((d) => (
+                <li key={d.id}>• {d.name}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Retention year</label>
+            <input type="number" value={year} onChange={(e) => setYear(e.target.value)} className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Paid on</label>
+            <input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]" />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Invoice</label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-xs text-[var(--text-muted)]">
+            <Upload className="h-3.5 w-3.5" /> {invoice ? invoice.name : 'Upload the retention invoice'}
+            <input type="file" className="hidden" onChange={(e) => setInvoice(e.target.files?.[0] ?? null)} />
+          </label>
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Proof of Payment</label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-xs text-[var(--text-muted)]">
+            <Upload className="h-3.5 w-3.5" /> {proofOfPayment ? proofOfPayment.name : 'Upload proof of payment'}
+            <input type="file" className="hidden" onChange={(e) => setProofOfPayment(e.target.files?.[0] ?? null)} />
+          </label>
+        </div>
+        {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-xs text-status-error">{error}</div>}
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)]">
+            Cancel
+          </button>
+          <button onClick={submit} disabled={!canSubmit || saving} className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Log Retention
           </button>
         </div>
       </div>

@@ -14,6 +14,10 @@ export interface Company {
   whatsappBusinessPhoneNumberId: string | null
   /** RegCloud (Phase 12) Stage 15 — the company's default engagement model: `full_service | dossier_review_only | client_handles_queries`. An individual dossier can override this via its own `engagementType`. */
   engagementType: string
+  /** testing-correction-explanation.md decision #4 — "every company must have an email" so renewal/retention reminders have somewhere to go. Nullable at the DB level (existing companies predate this), but required going forward — see the registration wizard's own `companyEmail` field. */
+  regulatoryContactEmail: string | null
+  /** QualCloud (Phase 13) Stage 10.7 — the mock-recall (self-inspection drill) cadence, in months. `null` means "use the default" (12, WHO GMP's own commonly-cited annual convention). */
+  mockRecallCadenceMonths: number | null
   createdAt: string
   updatedAt: string
 }
@@ -24,10 +28,17 @@ export const ENGAGEMENT_TYPE_LABELS: Record<string, string> = {
   client_handles_queries: 'Client Handles Queries',
 }
 
+// SafeMeds is the software platform only — it never performs consulting
+// or regulatory-affairs work on a tenant's behalf. These descriptions
+// previously read "SafeMeds (or your consultant) handles...", wrongly
+// implying SafeMeds itself does the work; real-usage correction, 1 Oct
+// 2026 — rewritten to refer only to the tenant's own consultant (or
+// in-house regulatory team) doing the work, with SafeMeds as the system
+// of record they do it through.
 export const ENGAGEMENT_TYPE_DESCRIPTIONS: Record<string, string> = {
-  full_service: 'SafeMeds (or your consultant) handles the whole regulatory lifecycle end to end, including submitting to the regulator.',
-  dossier_review_only: 'SafeMeds (or your consultant) compiles and reviews the dossier, but you submit it to the regulator yourselves.',
-  client_handles_queries: 'SafeMeds (or your consultant) compiles and submits, but you field the regulator’s follow-up questions directly.',
+  full_service: 'Your consultant (or in-house regulatory team) handles the whole regulatory lifecycle end to end, including submitting to the regulator, recorded here in SafeMeds.',
+  dossier_review_only: 'Your consultant compiles and reviews the dossier in SafeMeds, but you submit it to the regulator yourselves.',
+  client_handles_queries: 'Your consultant compiles and submits the dossier, but you field the regulator’s follow-up questions directly.',
 }
 
 export interface CompanyMarket {
@@ -68,7 +79,7 @@ export async function getCompany(): Promise<Company> {
   return data
 }
 
-export async function updateCompany(payload: { name?: string; engagementType?: string }): Promise<Company> {
+export async function updateCompany(payload: { name?: string; engagementType?: string; regulatoryContactEmail?: string; mockRecallCadenceMonths?: number }): Promise<Company> {
   const { data } = await patch<Company>('/company', payload)
   return data
 }

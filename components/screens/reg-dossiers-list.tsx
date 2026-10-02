@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { FolderOpen, Plus, ShieldAlert } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
-import { listRegDossiers, type RegDossier } from '@/lib/api/reg-dossiers'
+import { listRegDossiers, type RegDossierKind, type RegDossierListRow } from '@/lib/api/reg-dossiers'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
 import { NewDossierModal } from '@/components/reg-dossiers/new-dossier-modal'
@@ -12,7 +12,27 @@ import { NewDossierModal } from '@/components/reg-dossiers/new-dossier-modal'
 const STATUS_STYLES: Record<string, string> = {
   planning: 'bg-status-info/10 text-status-info',
   compiling: 'bg-status-warning/10 text-status-warning',
-  completeness_check: 'bg-status-success/10 text-status-success',
+  completeness_check: 'bg-status-info/10 text-status-info',
+  variation_application: 'bg-status-info/10 text-status-info',
+  renewal_requested: 'bg-status-info/10 text-status-info',
+  submitted: 'bg-status-info/10 text-status-info',
+  query_received: 'bg-status-warning/10 text-status-warning',
+  responding: 'bg-status-warning/10 text-status-warning',
+  resubmitted_for_review: 'bg-status-info/10 text-status-info',
+  approved: 'bg-status-success/10 text-status-success',
+  rejected: 'bg-status-error/10 text-status-error',
+}
+
+/** testing-correction-explanation.md §2.5 — the dossier list's "Kind" column, distinguishing a fresh registration from a variation/renewal of an existing one. */
+const KIND_LABELS: Record<RegDossierKind, string> = {
+  registration: 'Registration',
+  variation: 'Variation',
+  renewal: 'Renewal',
+}
+const KIND_STYLES: Record<RegDossierKind, string> = {
+  registration: 'bg-muted text-muted-foreground',
+  variation: 'bg-status-info/10 text-status-info',
+  renewal: 'bg-status-warning/10 text-status-warning',
 }
 
 function statusLabel(status: string): string {
@@ -37,7 +57,7 @@ export function RegDossiersList() {
   const { hasAny } = usePermissions()
   const canView = hasAny('regulatory.view_all', 'records.view_all')
 
-  const [dossiers, setDossiers] = useState<RegDossier[]>([])
+  const [dossiers, setDossiers] = useState<RegDossierListRow[]>([])
   const [page, setPage] = useState(1)
   const [limit] = useState(25)
   const [totalPages, setTotalPages] = useState(1)
@@ -74,7 +94,21 @@ export function RegDossiersList() {
     )
   }
 
-  const columns: DataTableColumn<RegDossier>[] = [
+  const columns: DataTableColumn<RegDossierListRow>[] = [
+    {
+      key: 'product',
+      label: 'Product',
+      render: (_v, row) => <span className="text-sm text-foreground">{row.product.brandName}</span>,
+    },
+    {
+      key: 'kind',
+      label: 'Kind',
+      render: (v) => (
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${KIND_STYLES[v as RegDossierKind]}`}>
+          {KIND_LABELS[v as RegDossierKind]}
+        </span>
+      ),
+    },
     { key: 'productClass', label: 'Product Class', render: (v) => <span className="font-mono text-sm text-foreground">{v as string}</span> },
     { key: 'route', label: 'Route' },
     {

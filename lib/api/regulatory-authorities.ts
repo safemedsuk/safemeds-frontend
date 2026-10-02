@@ -41,7 +41,8 @@ export interface UpdateRegulatoryAuthorityInput {
   emblemAssetKey?: string
 }
 
-export async function listRegulatoryAuthorities(countryId?: string): Promise<RegulatoryAuthority[]> {
+/** testing-correction-explanation.md §1.4 — pass every one of a company's own operating-market country IDs to scope the list to authorities that actually operate somewhere the company does business; a single string or no value at all behaves exactly as before. */
+export async function listRegulatoryAuthorities(countryId?: string | string[]): Promise<RegulatoryAuthority[]> {
   const { data } = await get<RegulatoryAuthority[]>('/regulatory-authorities', countryId ? { countryId } : undefined)
   return data
 }

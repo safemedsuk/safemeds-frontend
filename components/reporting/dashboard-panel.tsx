@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { AlertTriangle, CalendarClock, ClipboardList, FileClock, Loader2, MessageSquare, Radar, ShieldAlert } from 'lucide-react'
-import { getReportingDashboard, ReportingDashboard } from '@/lib/api/reporting-dashboard'
+import { getReportingDashboard, ReportingDashboard, RegOpenItem } from '@/lib/api/reporting-dashboard'
 
 /**
  * Real-usage content, 11 Sep 2026 ("more colors on the dashboards, and
@@ -24,6 +26,8 @@ interface CardProps {
   label: string
   value: number
   hue?: Hue
+  /** Real-usage request, 1 Oct 2026 — a stat tile should link to the real underlying list, pre-filtered to match what it's counting, not just be a dead-end number. Omitted entirely for a tile with no single corresponding filtered list (e.g. a "this month" activity count). */
+  href?: string
 }
 
 const HUE_STYLES: Record<Hue, { chip: string; icon: string; value: string }> = {
@@ -36,17 +40,25 @@ const HUE_STYLES: Record<Hue, { chip: string; icon: string; value: string }> = {
   danger: { chip: 'bg-status-error/15', icon: 'text-status-error', value: 'text-status-error' },
 }
 
-function Card({ icon, label, value, hue = 'slate' }: CardProps) {
+function Card({ icon, label, value, hue = 'slate', href }: CardProps) {
   const style = HUE_STYLES[hue]
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
+  const content = (
+    <>
       <div className="flex items-center gap-2">
         <span className={`flex h-7 w-7 items-center justify-center rounded-full ${style.chip} ${style.icon}`}>{icon}</span>
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       </div>
       <p className={`mt-2 text-2xl font-display font-bold ${style.value}`}>{value}</p>
-    </div>
+    </>
   )
+  if (href) {
+    return (
+      <Link href={href} className="block rounded-lg border border-border bg-card p-4 transition-colors hover:border-[var(--primary)] hover:bg-muted/50">
+        {content}
+      </Link>
+    )
+  }
+  return <div className="rounded-lg border border-border bg-card p-4">{content}</div>
 }
 
 /** A rotating, stable-by-index palette for a category with no fixed semantic hue of its own (e.g. one bar segment per workflow stage) — cycles through the same 5 chart tokens every dashboard already uses. */
@@ -65,6 +77,173 @@ function StageBar({ stages }: { stages: { stage: string; count: number }[] }) {
         if (pct === 0) return null
         return <div key={s.stage} className={`${STAGE_PALETTE[i % STAGE_PALETTE.length]} h-full`} style={{ width: `${pct}%` }} title={`${s.stage.replace(/_/g, ' ')}: ${s.count}`} />
       })}
+    </div>
+  )
+}
+
+/**
+ * testing-correction-explanation.md §4.2 — "Registrations by Status,"
+ * a real donut chart. The exact same dependency-free SVG technique
+ * `master-dashboard.tsx`'s own `CaseStatusDonut` already established
+ * (segments rotated via a `<g>`, never the whole `<svg>`, so the center
+ * total `<text>` stays unrotated) — copied rather than imported, since
+ * that component is scoped to case-state labels/palette specifically.
+ */
+function StatusDonut({ byStatus }: { byStatus: { status: string; count: number }[] }) {
+  const total = byStatus.reduce((sum, s) => sum + s.count, 0)
+  if (total === 0) {
+    return <p className="text-sm text-muted-foreground">No registrations yet.</p>
+  }
+
+  const radius = 55
+  const circumference = 2 * Math.PI * radius
+  let offset = 0
+
+  return (
+    <div className="flex items-center gap-6">
+      <svg width={140} height={140} viewBox="0 0 140 140" className="flex-shrink-0">
+        <g transform="rotate(-90 70 70)">
+          <circle cx="70" cy="70" r={radius} fill="none" stroke="var(--muted)" strokeWidth={16} />
+          {byStatus.map((s, i) => {
+            const fraction = s.count / total
+            const dash = fraction * circumference
+            const el = (
+              <circle
+                key={s.status}
+                cx="70"
+                cy="70"
+                r={radius}
+                fill="none"
+                className={STAGE_PALETTE[i % STAGE_PALETTE.length].replace('bg-', 'stroke-')}
+                strokeWidth={16}
+                strokeDasharray={`${dash} ${circumference - dash}`}
+                strokeDashoffset={-offset}
+              />
+            )
+            offset += dash
+            return el
+          })}
+        </g>
+        <text x="70" y="70" textAnchor="middle" dominantBaseline="middle" fill="var(--foreground)" fontSize="24" fontWeight="700">
+          {total}
+        </text>
+      </svg>
+      <div className="space-y-1.5">
+        {byStatus.map((s, i) => (
+          <div key={s.status} className="flex items-center gap-2 text-sm">
+            <span className={`h-2.5 w-2.5 rounded-full ${STAGE_PALETTE[i % STAGE_PALETTE.length]}`} />
+            <span className="capitalize text-foreground">{s.status}</span>
+            <span className="text-muted-foreground">{s.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const KIND_LABELS: Record<'registration' | 'variation' | 'renewal', string> = {
+  registration: 'Registrations',
+  variation: 'Variations',
+  renewal: 'Renewals',
+}
+
+/** testing-correction-explanation.md §4.2 — "Dossiers in Flight by Kind": one `StageBar` per kind (Registration/Variation/Renewal), each with its own real stage breakdown — clearer than one combined chart, and reuses `StageBar` exactly as-is. */
+function DossiersByKindSection({ rows }: { rows: { kind: 'registration' | 'variation' | 'renewal'; stage: string; count: number }[] }) {
+  const kinds: ('registration' | 'variation' | 'renewal')[] = ['registration', 'variation', 'renewal']
+  const anyRows = rows.length > 0
+  if (!anyRows) return null
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dossiers in Flight by Kind</p>
+      {kinds.map((kind) => {
+        const stages = rows.filter((r) => r.kind === kind).map((r) => ({ stage: r.stage, count: r.count }))
+        const total = stages.reduce((sum, s) => sum + s.count, 0)
+        if (total === 0) return null
+        return (
+          <div key={kind} className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium text-foreground">{KIND_LABELS[kind]}</span>
+              <span className="text-muted-foreground">{total}</span>
+            </div>
+            <StageBar stages={stages} />
+            <div className="flex flex-wrap gap-2">
+              {stages.map((s, i) => (
+                <span key={s.stage} className="flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                  <span className={`h-1.5 w-1.5 rounded-full ${STAGE_PALETTE[i % STAGE_PALETTE.length]}`} />
+                  <span className={STAGE_TEXT_PALETTE[i % STAGE_TEXT_PALETTE.length]}>{s.stage.replace(/_/g, ' ')}</span>
+                  <span className="text-muted-foreground">{s.count}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function hrefForOpenItem(item: RegOpenItem): string {
+  return item.recordType === 'reg_dossier' ? `/reg-dossiers/${item.recordId}` : `/registrations/${item.recordId}`
+}
+
+/**
+ * testing-correction-explanation.md §4.2 — "Open Items Needing Action
+ * Right Now": a single ranked list across all four categories, each row
+ * clickable straight to its own record. Deliberately flat, not grouped
+ * into four sub-lists — the point is one place to scan everything that
+ * needs a human's attention, in the order it was resolved server-side
+ * (each category is itself already ordered by urgency).
+ */
+function OpenItemsSection({ openItems }: { openItems: ReportingDashboard['regulatory']['openItems'] }) {
+  const router = useRouter()
+  const rows: { item: RegOpenItem; hue: string }[] = [
+    ...openItems.overduePostMarketObligations.map((item) => ({ item, hue: 'text-status-error' })),
+    ...openItems.longOpenQueries.map((item) => ({ item, hue: 'text-status-warning' })),
+    ...openItems.registrationsExpiringSoonWithNoRenewalStarted.map((item) => ({ item, hue: 'text-status-warning' })),
+    ...openItems.retentionsDueNotLogged.map((item) => ({ item, hue: 'text-status-warning' })),
+  ]
+
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Open Items Needing Action</p>
+        <p className="text-sm text-muted-foreground">Nothing needs action right now.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Open Items Needing Action ({rows.length})</p>
+      <ul className="divide-y divide-border">
+        {rows.map(({ item, hue }, i) => (
+          <li key={`${item.recordType}-${item.recordId}-${i}`}>
+            <button
+              onClick={() => router.push(hrefForOpenItem(item))}
+              className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-muted/50 rounded-md px-1 -mx-1"
+            >
+              <AlertTriangle className={`h-3.5 w-3.5 flex-shrink-0 ${hue}`} />
+              <span className="text-foreground">{item.label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** testing-correction-explanation.md §4.2 — "This Month's Activity": a simple count strip, reusing the existing `Card` component's own hue system. */
+function ThisMonthActivitySection({ activity }: { activity: ReportingDashboard['regulatory']['thisMonthActivity'] }) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">This Month&apos;s Activity</p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Card icon={<FileClock className="h-3.5 w-3.5" />} label="Dossiers Submitted" value={activity.dossiersSubmitted} hue="purple" />
+        <Card icon={<ClipboardList className="h-3.5 w-3.5" />} label="Approvals Received" value={activity.approvalsReceived} hue="teal" />
+        <Card icon={<MessageSquare className="h-3.5 w-3.5" />} label="Queries Logged" value={activity.queriesLogged} hue="amber" />
+        <Card icon={<ShieldAlert className="h-3.5 w-3.5" />} label="Retentions Certified" value={activity.retentionsCertified} hue="gold" />
+      </div>
     </div>
   )
 }
@@ -111,11 +290,12 @@ export function ReportingDashboardPanel() {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Card icon={<ClipboardList className="h-3.5 w-3.5" />} label="Open Cases" value={dashboard.cases.totalOpen} hue="teal" />
+        {/* "Open" here means "not in a terminal workflow state" — PV Cases has no single matching list-screen status value (its own filter is per-stage, e.g. intake/triage/...), so this links to the unfiltered list rather than a query string that would silently match nothing. */}
+        <Card icon={<ClipboardList className="h-3.5 w-3.5" />} label="Open Cases" value={dashboard.cases.totalOpen} hue="teal" href="/pv-cases" />
         <Card icon={<AlertTriangle className="h-3.5 w-3.5" />} label="Deadlines Breached" value={dashboard.deadlines.breached} hue={dashboard.deadlines.breached > 0 ? 'danger' : 'slate'} />
         <Card icon={<FileClock className="h-3.5 w-3.5" />} label="Due Within 72h" value={dashboard.deadlines.approaching72h} hue={dashboard.deadlines.approaching72h > 0 ? 'warning' : 'slate'} />
         <Card icon={<Radar className="h-3.5 w-3.5" />} label="Open Signals" value={dashboard.signals.open} hue="gold" />
-        <Card icon={<ShieldAlert className="h-3.5 w-3.5" />} label="Safety Alerts Open" value={dashboard.safetyAlertsOpen} hue={dashboard.safetyAlertsOpen > 0 ? 'warning' : 'slate'} />
+        <Card icon={<ShieldAlert className="h-3.5 w-3.5" />} label="Safety Alerts Open" value={dashboard.safetyAlertsOpen} hue={dashboard.safetyAlertsOpen > 0 ? 'warning' : 'slate'} href="/safety-alerts?status=open" />
         <Card icon={<ClipboardList className="h-3.5 w-3.5" />} label="RMP Renewals Due" value={dashboard.rmpRenewalsDue} hue={dashboard.rmpRenewalsDue > 0 ? 'warning' : 'slate'} />
       </div>
       {(dashboard.periodicReportsDue > 0 || dashboard.lineListingsDue > 0) && (
@@ -129,7 +309,7 @@ export function ReportingDashboardPanel() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Card icon={<CalendarClock className="h-3.5 w-3.5" />} label="Renewals Due (30d)" value={dashboard.regulatory.upcomingRenewals30d} hue={dashboard.regulatory.upcomingRenewals30d > 0 ? 'warning' : 'purple'} />
         <Card icon={<CalendarClock className="h-3.5 w-3.5" />} label="Renewals Due (90d)" value={dashboard.regulatory.upcomingRenewals90d} hue={dashboard.regulatory.upcomingRenewals90d > 0 ? 'warning' : 'purple'} />
-        <Card icon={<MessageSquare className="h-3.5 w-3.5" />} label="Open Regulator Queries" value={dashboard.regulatory.openQueries} hue={dashboard.regulatory.openQueries > 0 ? 'warning' : 'amber'} />
+        <Card icon={<MessageSquare className="h-3.5 w-3.5" />} label="Open Regulator Queries" value={dashboard.regulatory.openQueries} hue={dashboard.regulatory.openQueries > 0 ? 'warning' : 'amber'} href="/reg-queries?status=open" />
       </div>
       {dashboard.regulatory.dossiersByStage.length > 0 && (
         <div className="rounded-lg border border-border bg-card p-3">
@@ -146,6 +326,19 @@ export function ReportingDashboardPanel() {
           </div>
         </div>
       )}
+
+      {/* testing-correction-explanation.md §4.2 — the RegCloud dashboard, properly. */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registrations by Status</p>
+          <StatusDonut byStatus={dashboard.regulatory.registrationsByStatus} />
+        </div>
+        <DossiersByKindSection rows={dashboard.regulatory.dossiersByKindAndStage} />
+      </div>
+
+      <OpenItemsSection openItems={dashboard.regulatory.openItems} />
+
+      <ThisMonthActivitySection activity={dashboard.regulatory.thisMonthActivity} />
     </div>
   )
 }

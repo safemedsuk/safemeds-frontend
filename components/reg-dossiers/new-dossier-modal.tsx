@@ -5,8 +5,8 @@ import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import { classifyRegistration, createRegDossier, type ClassificationPreview } from '@/lib/api/reg-dossiers'
 import { listRegulatoryAuthorities, type RegulatoryAuthority } from '@/lib/api/regulatory-authorities'
-import { type Product } from '@/lib/api/master-data'
-import { ENGAGEMENT_TYPE_LABELS } from '@/lib/api/company'
+import { listProducts, type Product } from '@/lib/api/master-data'
+import { ENGAGEMENT_TYPE_LABELS, getCompanyMarkets } from '@/lib/api/company'
 import { ProductPicker } from '@/components/pv-cases/product-picker'
 import { ProductClassPicker } from '@/components/regulatory/product-class-picker'
 import { Modal } from '@/components/ui/modal'
@@ -25,21 +25,51 @@ const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-
  * free-text fallback the way a PV case's suspect product has) — the
  * Create button stays disabled until one is actually selected.
  */
-export function NewDossierModal({ onClose, onCreated }: { onClose: () => void; onCreated: (dossierId: string) => void }) {
+/** testing-correction-explanation.md §3.5 — pre-fills the wizard from an expired registration's own product/authority/product class so "Start Re-Registration" is a real one-click action, not a bare label pointing at an empty form. */
+export interface NewDossierPrefill {
+  productId: string
+  productBrandName: string
+  authorityId: string
+  productClass: string
+  route?: string
+}
+
+export function NewDossierModal({
+  onClose,
+  onCreated,
+  prefill,
+}: {
+  onClose: () => void
+  onCreated: (dossierId: string) => void
+  prefill?: NewDossierPrefill
+}) {
   const [product, setProduct] = useState<Product | null>(null)
   const [authorities, setAuthorities] = useState<RegulatoryAuthority[]>([])
-  const [authorityId, setAuthorityId] = useState('')
-  const [productClass, setProductClass] = useState('')
-  const [route, setRoute] = useState('')
+  const [authorityId, setAuthorityId] = useState(prefill?.authorityId ?? '')
+  const [productClass, setProductClass] = useState(prefill?.productClass ?? '')
+  const [route, setRoute] = useState(prefill?.route ?? '')
   const [engagementType, setEngagementType] = useState('')
+
+  useEffect(() => {
+    if (!prefill) return
+    listProducts({ q: prefill.productBrandName, limit: 10 })
+      .then(({ rows }) => {
+        const match = rows.find((p) => p.id === prefill.productId)
+        if (match) setProduct(match)
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [preview, setPreview] = useState<ClassificationPreview | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // testing-correction-explanation.md §1.4 — scoped to the company's own operating markets, not every seeded country.
   useEffect(() => {
-    listRegulatoryAuthorities()
+    getCompanyMarkets()
+      .then((markets) => listRegulatoryAuthorities(markets.map((m) => m.countryId)))
       .then(setAuthorities)
       .catch(() => setAuthorities([]))
   }, [])
@@ -92,8 +122,14 @@ export function NewDossierModal({ onClose, onCreated }: { onClose: () => void; o
   }
 
   return (
-    <Modal title="Start a new registration dossier" onClose={onClose} maxWidth="max-w-2xl">
+    <Modal title={prefill ? 'Start Re-Registration' : 'Start a new registration dossier'} onClose={onClose} maxWidth="max-w-2xl">
       <div className="space-y-4">
+        {prefill && (
+          <div className="rounded-lg border border-status-warning/30 bg-status-warning/5 p-3 text-xs text-muted-foreground">
+            The expired registration&apos;s product, authority, and product class are pre-filled below — this starts a genuinely
+            new registration filing, not a continuation of the expired one.
+          </div>
+        )}
         <div>
           <label className="mb-1.5 block text-xs font-medium text-foreground">Product</label>
           <ProductPicker linkedProduct={product} onSelect={setProduct} onClear={() => setProduct(null)} />

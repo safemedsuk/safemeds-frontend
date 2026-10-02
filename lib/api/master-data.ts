@@ -50,6 +50,9 @@ export interface ProductInput {
   internationalBirthDate?: string
 }
 
+/** QualCloud (Phase 13) Stage 7 — the real, standard pharma batch-status lifecycle. Set only by `BatchRecordReviewService.recordDisposition()` (released/rejected/reworked), `OosService.recordPhase2()` (rejected/reworked on batch impact), or the Recall module (recalled) — never directly editable. */
+export type BatchQualityStatus = 'quarantine' | 'under_test' | 'released' | 'rejected' | 'reworked' | 'returned' | 'recalled'
+
 export interface Batch {
   id: string
   companyId: string
@@ -58,9 +61,36 @@ export interface Batch {
   manufacturedOn: string
   expiresOn: string
   isActive: boolean
+  batchSize: string | null
+  unit: string | null
+  /** Real genealogy — the upstream batch/lot references this batch was made from. Not every entry resolves to a catalog batch (a supplier's own external lot number is a valid, honest, permanently-unresolved entry). */
+  parentBatchIds: string[]
+  manufacturingSiteId: string | null
+  qualityStatus: BatchQualityStatus
   createdAt: string
   updatedAt: string
   product: { brandName: string }
+}
+
+export interface CreateBatchInput {
+  productId: string
+  batchNumber: string
+  manufacturedOn: string
+  expiresOn: string
+  batchSize?: string
+  unit?: string
+  parentBatchIds?: string[]
+  manufacturingSiteId?: string
+}
+
+export interface UpdateBatchInput {
+  batchNumber?: string
+  manufacturedOn?: string
+  expiresOn?: string
+  batchSize?: string
+  unit?: string
+  parentBatchIds?: string[]
+  manufacturingSiteId?: string
 }
 
 export type ProductRegistrationStatus = 'active' | 'expired' | 'withdrawn' | 'suspended'
@@ -84,6 +114,11 @@ export interface ProductRegistration {
   mahName: string | null
   mahCountry: string | null
   productClass: string | null
+  /** testing-correction-explanation.md §3.6 — set only once withdrawn. */
+  withdrawnAt: string | null
+  withdrawnReason: string | null
+  withdrawnBy: string | null
+  withdrawalDocumentId: string | null
 }
 
 export interface MasterDataPage<T> {
@@ -126,8 +161,18 @@ export async function listBatches(params: ListParams & { productId?: string } = 
   return { rows: data, meta: meta! }
 }
 
-export async function createBatch(payload: { productId: string; batchNumber: string; manufacturedOn: string; expiresOn: string }): Promise<Batch> {
+export async function createBatch(payload: CreateBatchInput): Promise<Batch> {
   const { data } = await post<Batch>('/batches', payload)
+  return data
+}
+
+export async function updateBatch(id: string, payload: UpdateBatchInput): Promise<Batch> {
+  const { data } = await patch<Batch>(`/batches/${id}`, payload)
+  return data
+}
+
+export async function getBatch(id: string): Promise<Batch> {
+  const { data } = await get<Batch>(`/batches/${id}`)
   return data
 }
 
@@ -137,6 +182,12 @@ export async function deactivateBatch(id: string): Promise<Batch> {
 }
 
 // ── Product registrations ────────────────────────────────────────────────────
+
+/** testing-correction-explanation.md §3.7 — the one place the Retention modal can get this registration's own authority/product class to resolve its guidance document checklist. */
+export async function getRegistration(id: string): Promise<ProductRegistration> {
+  const { data } = await get<ProductRegistration>(`/registrations/${id}`)
+  return data
+}
 
 export async function listRegistrations(
   params: ListParams & { productId?: string; expiringWithinDays?: number } = {},
@@ -161,7 +212,11 @@ export async function createRegistration(payload: {
   return data
 }
 
-export async function deactivateRegistration(id: string): Promise<ProductRegistration> {
-  const { data } = await post<ProductRegistration>(`/registrations/${id}/deactivate`)
+/** testing-correction-explanation.md §3.6 — signature-gated; replaces the old bare status flip. */
+export async function withdrawRegistration(
+  id: string,
+  payload: { reason: string; documentId?: string; intentStatement: string; signatureToken: string },
+): Promise<ProductRegistration> {
+  const { data } = await post<ProductRegistration>(`/registrations/${id}/withdraw`, payload)
   return data
 }

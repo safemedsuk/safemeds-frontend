@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, Circle, FileText, Loader2, Send, Upload } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import { listDocuments } from '@/lib/api/documents'
-import { attachRegSubmissionEvidence, generateRegSubmission, listRegSubmissions, type RegSubmission } from '@/lib/api/reg-dossiers'
+import { attachRegSubmissionEvidence, generateRegSubmission, listRegSubmissions, removeRegSubmissionEvidence, type RegSubmission } from '@/lib/api/reg-dossiers'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { DocumentPreviewModal } from '@/components/ui/document-preview-modal'
 
@@ -73,6 +73,21 @@ export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierI
       onGenerated()
     } catch (err) {
       setError(getErrorMessage(err, 'Could not attach dispatch evidence.'))
+    } finally {
+      setUploadingFor(null)
+    }
+  }
+
+  /** testing-correction-explanation.md §1.3 — the wrong file could have been attached; clear it so a correct one can be uploaded. */
+  const handleRemoveEvidence = async (submissionId: string) => {
+    setUploadingFor(submissionId)
+    setError(null)
+    try {
+      await removeRegSubmissionEvidence(dossierId, submissionId)
+      await load()
+      onGenerated()
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not remove the attached evidence.'))
     } finally {
       setUploadingFor(null)
     }
@@ -147,12 +162,23 @@ export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierI
                     <FileText className="h-3.5 w-3.5" /> Cover Sheet
                   </button>
                   {s.evidenceDocumentId ? (
-                    <button
-                      onClick={() => previewDocument(s.id, s.evidenceDocumentId!, `Submission #${s.submissionNumber} Evidence`)}
-                      className="flex items-center gap-1 text-xs font-medium text-[var(--primary)] hover:underline"
-                    >
-                      <FileText className="h-3.5 w-3.5" /> Evidence
-                    </button>
+                    <>
+                      <button
+                        onClick={() => previewDocument(s.id, s.evidenceDocumentId!, `Submission #${s.submissionNumber} Evidence`)}
+                        className="flex items-center gap-1 text-xs font-medium text-[var(--primary)] hover:underline"
+                      >
+                        <FileText className="h-3.5 w-3.5" /> Evidence
+                      </button>
+                      {canSubmit && (
+                        <button
+                          onClick={() => handleRemoveEvidence(s.id)}
+                          disabled={uploadingFor !== null}
+                          className="text-xs font-medium text-status-error hover:underline disabled:opacity-50"
+                        >
+                          {uploadingFor === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Remove'}
+                        </button>
+                      )}
+                    </>
                   ) : (
                     canSubmit && (
                       <label className="flex cursor-pointer items-center gap-1 text-xs font-medium text-status-warning hover:underline">

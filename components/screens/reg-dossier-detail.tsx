@@ -11,23 +11,70 @@ import {
   addRegDossierSlot,
   getRegDossier,
   type RegDossierDetail as RegDossierDetailData,
+  type RegDossierKind,
 } from '@/lib/api/reg-dossiers'
 import { type AvailableTransition } from '@/lib/api/workflow'
 import { ENGAGEMENT_TYPE_LABELS } from '@/lib/api/company'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { Modal } from '@/components/ui/modal'
 import { DecisionHistoryCard } from '@/components/ui/decision-history-card'
+import { CaseStageTracker, type StageTrackerStage } from '@/components/ui/case-stage-tracker'
 import { DocumentsPanel } from '@/components/documents/documents-panel'
 import { RecordTasksPanel } from '@/components/tasks/record-tasks-panel'
 import { WorkflowActionsPanel } from '@/components/pv-cases/workflow-actions-panel'
 import { RegulatorySubmissionPanel } from '@/components/reg-dossiers/regulatory-submission-panel'
 import { RegQueryPanel } from '@/components/reg-dossiers/reg-query-panel'
 import { ApproveRegistrationModal } from '@/components/reg-dossiers/approve-registration-modal'
+import { VariationApplicationPanel } from '@/components/reg-dossiers/variation-application-panel'
+
+/**
+ * testing-correction-explanation.md §2.3 — a real dossier lifecycle
+ * tracker, reusing `CaseStageTracker` (built for the PV case detail page)
+ * as-is rather than a second, parallel component. Kind-specific because
+ * a fresh registration's own entry state (`planning`) never applies to a
+ * variation/renewal, which is fast-forwarded straight to its own entry
+ * state instead (see `RegVariationService.create()`'s own doc comment).
+ * The regulator-query loop (`query_received`/`responding`/
+ * `resubmitted_for_review`) is a real detour every kind can take, so it's
+ * included in all three lists; `rejected` is deliberately left out of
+ * the forward-progress track (it's a bad-outcome terminal, not a step
+ * toward one — the status pill above already carries that in red).
+ */
+const REG_DOSSIER_STAGES: Record<RegDossierKind, StageTrackerStage[]> = {
+  registration: [
+    { key: 'planning', label: 'Planning' },
+    { key: 'compiling', label: 'Compile' },
+    { key: 'completeness_check', label: 'Completeness' },
+    { key: 'submitted', label: 'Submitted' },
+    { key: 'query_received', label: 'Query' },
+    { key: 'responding', label: 'Responding' },
+    { key: 'resubmitted_for_review', label: 'Resubmitted' },
+    { key: 'approved', label: 'Approved' },
+  ],
+  variation: [
+    { key: 'variation_application', label: 'Variation App.' },
+    { key: 'submitted', label: 'Submitted' },
+    { key: 'query_received', label: 'Query' },
+    { key: 'responding', label: 'Responding' },
+    { key: 'resubmitted_for_review', label: 'Resubmitted' },
+    { key: 'approved', label: 'Approved' },
+  ],
+  renewal: [
+    { key: 'renewal_requested', label: 'Renewal Req.' },
+    { key: 'submitted', label: 'Submitted' },
+    { key: 'query_received', label: 'Query' },
+    { key: 'responding', label: 'Responding' },
+    { key: 'resubmitted_for_review', label: 'Resubmitted' },
+    { key: 'approved', label: 'Approved' },
+  ],
+}
 
 const STATUS_STYLES: Record<string, string> = {
   planning: 'bg-status-info/10 text-status-info',
   compiling: 'bg-status-warning/10 text-status-warning',
   completeness_check: 'bg-status-info/10 text-status-info',
+  variation_application: 'bg-status-info/10 text-status-info',
+  renewal_requested: 'bg-status-info/10 text-status-info',
   submitted: 'bg-status-info/10 text-status-info',
   query_received: 'bg-status-warning/10 text-status-warning',
   responding: 'bg-status-warning/10 text-status-warning',
@@ -221,6 +268,12 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
 
       {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-sm text-status-error">{error}</div>}
 
+      <CaseStageTracker stages={REG_DOSSIER_STAGES[dossier.kind]} currentKey={dossier.status} />
+
+      {dossier.variation && dossier.status === 'variation_application' && (
+        <VariationApplicationPanel variationId={dossier.variation.id} onChanged={refresh} />
+      )}
+
       {/* Stage 6 — `key` forces a clean remount (and re-fetch of available
           transitions) whenever the dossier's own status changes, including
           via the custom approve trigger below, which transitions the
@@ -240,12 +293,26 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
 
       <Section
         title="Completeness Check"
-        subtitle="Every checklist item resolved for this country/authority/product class — the flagship gate blocks Compiling → Completeness Check until every mandatory one has a document attached"
+        subtitle={
+          dossier.completeness.guidanceOnly
+            ? 'Documents commonly required for this country/authority/product class — shown as guidance, never blocking'
+            : 'Every checklist item resolved for this country/authority/product class — the flagship gate blocks Compiling → Completeness Check until every mandatory one has a document attached'
+        }
       >
         <InfoNote>
-          <strong className="text-foreground">Mandatory</strong> items must have a document attached before this
-          dossier can pass the completeness gate. An <strong className="text-foreground">optional</strong> item, or
-          one you added yourself as an extra, is shown for visibility but never blocks progress.
+          {dossier.completeness.guidanceOnly ? (
+            <>
+              This checklist is configured for a fresh <strong className="text-foreground">registration</strong>, so
+              it's shown here for guidance only — nothing below is required to proceed with this variation/renewal.
+              Upload whatever the regulator actually asks for.
+            </>
+          ) : (
+            <>
+              <strong className="text-foreground">Mandatory</strong> items must have a document attached before this
+              dossier can pass the completeness gate. An <strong className="text-foreground">optional</strong> item, or
+              one you added yourself as an extra, is shown for visibility but never blocks progress.
+            </>
+          )}
         </InfoNote>
 
         {dossier.completeness.slots.length === 0 ? (
@@ -257,17 +324,21 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
             {dossier.documentSlots.map((slot) => {
               const status = dossier.completeness.slots.find((s) => s.slotId === slot.id)
               if (!status) return null
+              const done = dossier.completeness.guidanceOnly ? status.attached : status.met
               return (
                 <li key={slot.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3">
                   <div className="flex items-center gap-2 min-w-0">
-                    {status.met ? (
+                    {done ? (
                       <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-status-success" />
                     ) : (
                       <Circle className="h-4 w-4 flex-shrink-0 text-muted-foreground/40" />
                     )}
-                    <span className={`truncate text-sm ${status.met ? 'text-foreground' : 'text-muted-foreground'}`}>{status.label}</span>
+                    <span className={`truncate text-sm ${done ? 'text-foreground' : 'text-muted-foreground'}`}>{status.label}</span>
                     {status.isMandatory && (
                       <span className="rounded-full bg-status-error/10 px-2 py-0.5 text-[10px] font-medium text-status-error whitespace-nowrap">Mandatory</span>
+                    )}
+                    {dossier.completeness.guidanceOnly && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground whitespace-nowrap">Suggested</span>
                     )}
                     {status.ctdModule && <span className="text-xs text-muted-foreground whitespace-nowrap">{status.ctdModule}</span>}
                   </div>
@@ -337,6 +408,7 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
       {approving && dossier.workflowInstanceId && (
         <ApproveRegistrationModal
           workflowInstanceId={dossier.workflowInstanceId}
+          dossierId={dossier.id}
           toStateName={approving.toStateName}
           isVariation={Boolean(dossier.variation)}
           onClose={() => setApproving(null)}

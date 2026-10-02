@@ -36,6 +36,7 @@ export default function RegisterPage() {
 
   // Company details (Step 1)
   const [companyName, setCompanyName] = useState('')
+  const [companyEmail, setCompanyEmail] = useState('')
   const [companyType, setCompanyType] = useState<CompanyType | ''>('')
   const [countryId, setCountryId] = useState('')
   const [licenceNumber, setLicenceNumber] = useState('')
@@ -84,7 +85,8 @@ export default function RegisterPage() {
   const isPasswordValid = passwordStrength.length === passwordRequirements.length
   const passwordsMatch = adminPassword === adminPasswordConfirm && adminPassword.length > 0
 
-  const canProceedStep1 = companyName && companyType && countryId && licenceNumber && licenseFile
+  const isCompanyEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(companyEmail)
+  const canProceedStep1 = companyName && isCompanyEmailValid && companyType && countryId && licenceNumber && licenseFile
   const canProceedStep2 =
     adminName &&
     adminEmail &&
@@ -117,6 +119,7 @@ export default function RegisterPage() {
         if (!draft) {
           draft = await registerCompany({
             companyName,
+            companyEmail: companyEmail.trim(),
             companyType: companyType as CompanyType,
             countryId,
             licenceNumber,
@@ -230,6 +233,20 @@ export default function RegisterPage() {
                 placeholder="PharmaTech Solutions Ltd"
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">Company Email</label>
+              <input
+                type="email"
+                value={companyEmail}
+                onChange={e => setCompanyEmail(e.target.value)}
+                placeholder="regulatory@pharmatech.co.ke"
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
+              />
+              <p className="mt-1.5 text-xs text-[var(--text-muted)]">
+                A company-level contact address, separate from your own login — where renewal and other deadline reminders will be sent.
+              </p>
             </div>
 
             <div>

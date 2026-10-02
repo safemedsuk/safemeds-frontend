@@ -1,14 +1,29 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Upload } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
+import { uploadDocument } from '@/lib/api/documents'
 import { listLocalRepresentatives, listManufacturingSites, type LocalRepresentative, type ManufacturingSite } from '@/lib/api/regulatory'
 import { postTransition } from '@/lib/api/workflow'
 import { Modal } from '@/components/ui/modal'
 import { SignatureModal } from '@/components/ui/signature-modal'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
+
+function FileField({ label, file, onChange }: { label: string; file: File | null; onChange: (f: File | null) => void }) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-medium text-foreground">
+        {label} <span className="text-status-error">*</span>
+      </label>
+      <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-input px-3 py-2 text-xs text-muted-foreground">
+        <Upload className="h-3.5 w-3.5" /> {file ? file.name : `Upload ${label.toLowerCase()}`}
+        <input type="file" className="hidden" onChange={(e) => onChange(e.target.files?.[0] ?? null)} />
+      </label>
+    </div>
+  )
+}
 
 /**
  * RegCloud (Phase 12) Stage 6 — the custom trigger for the `→ approved`
@@ -19,15 +34,29 @@ const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-
  * generic `payload` mechanism, then reuses `SignatureModal` exactly as
  * every other signature-gated transition on this app does — this is a
  * two-step flow (collect data, then sign) not a bespoke approval engine.
+ *
+ * testing-correction-explanation.md §2.2 — "approval should also require
+ * uploading a proof of payment / invoice / success/approval document" —
+ * `RegWorkflowGuards.requireApprovalData` now unconditionally requires a
+ * real `approvalEvidenceDocumentId` (the regulator's own approval/success
+ * letter), and — only for a brand-new registration, never a
+ * variation/renewal, which was already approved once — also
+ * `approvalPaymentProofDocumentId`/`approvalInvoiceDocumentId`. All three
+ * are uploaded here against the dossier itself (the same
+ * `(reg_dossier, dossierId)` holding pair `DocumentsPanel` already uses on
+ * this same page) before signing, then threaded through as document-id
+ * fields on the same `payload` the registration-number fields already use.
  */
 export function ApproveRegistrationModal({
   workflowInstanceId,
+  dossierId,
   toStateName,
   isVariation,
   onClose,
   onApproved,
 }: {
   workflowInstanceId: string
+  dossierId: string
   toStateName: string
   isVariation: boolean
   onClose: () => void
@@ -40,6 +69,9 @@ export function ApproveRegistrationModal({
   const [localRepresentativeId, setLocalRepresentativeId] = useState('')
   const [sites, setSites] = useState<ManufacturingSite[]>([])
   const [reps, setReps] = useState<LocalRepresentative[]>([])
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null)
+  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null)
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null)
   const [showSignature, setShowSignature] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -49,14 +81,28 @@ export function ApproveRegistrationModal({
     listLocalRepresentatives().then(({ rows }) => setReps(rows)).catch(() => setReps([]))
   }, [])
 
-  const canContinue = isVariation || registrationNumber.trim().length > 0
+  const canContinue =
+    (isVariation || registrationNumber.trim().length > 0) && evidenceFile !== null && (isVariation || (paymentProofFile !== null && invoiceFile !== null))
 
-  const buildPayload = () => ({
-    ...(isVariation ? {} : { registrationNumber: registrationNumber.trim(), issuedOn }),
-    ...(expiresOn ? { expiresOn } : {}),
-    ...(manufacturingSiteId ? { manufacturingSiteId } : {}),
-    ...(localRepresentativeId ? { localRepresentativeId } : {}),
-  })
+  const buildPayload = async () => {
+    const evidence = await uploadDocument('reg_dossier', dossierId, evidenceFile!, { title: 'Approval Evidence' })
+    const extra: Record<string, string> = { approvalEvidenceDocumentId: evidence.documentId }
+    if (!isVariation) {
+      const [paymentProof, invoice] = await Promise.all([
+        uploadDocument('reg_dossier', dossierId, paymentProofFile!, { title: 'Approval Proof of Payment' }),
+        uploadDocument('reg_dossier', dossierId, invoiceFile!, { title: 'Approval Invoice' }),
+      ])
+      extra.approvalPaymentProofDocumentId = paymentProof.documentId
+      extra.approvalInvoiceDocumentId = invoice.documentId
+    }
+    return {
+      ...(isVariation ? {} : { registrationNumber: registrationNumber.trim(), issuedOn }),
+      ...(expiresOn ? { expiresOn } : {}),
+      ...(manufacturingSiteId ? { manufacturingSiteId } : {}),
+      ...(localRepresentativeId ? { localRepresentativeId } : {}),
+      ...extra,
+    }
+  }
 
   return (
     <>
@@ -105,6 +151,13 @@ export function ApproveRegistrationModal({
                 ))}
               </select>
             </div>
+            <FileField label="Approval / success document" file={evidenceFile} onChange={setEvidenceFile} />
+            {!isVariation && (
+              <>
+                <FileField label="Proof of payment" file={paymentProofFile} onChange={setPaymentProofFile} />
+                <FileField label="Invoice" file={invoiceFile} onChange={setInvoiceFile} />
+              </>
+            )}
             {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-xs text-status-error">{error}</div>}
             <div className="flex justify-end gap-2">
               <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
@@ -132,7 +185,8 @@ export function ApproveRegistrationModal({
             setBusy(true)
             setError(null)
             try {
-              await postTransition(workflowInstanceId, 'approved', { signatureToken, intentStatement }, undefined, buildPayload())
+              const payload = await buildPayload()
+              await postTransition(workflowInstanceId, 'approved', { signatureToken, intentStatement }, undefined, payload)
               onApproved()
             } catch (err) {
               setError(getErrorMessage(err, 'Could not approve this registration.'))

@@ -21,11 +21,59 @@ export interface ReportingDashboard {
     upcomingRenewals30d: number
     upcomingRenewals90d: number
     openQueries: number
+    /** testing-correction-explanation.md §4.2 — "dossiers in flight by kind" (Registration/Variation/Renewal), for the stacked-bar-per-kind chart. */
+    dossiersByKindAndStage: { kind: 'registration' | 'variation' | 'renewal'; stage: string; count: number }[]
+    /** "Open items needing action right now" — each row links straight to its own record via `recordType`/`recordId`. */
+    openItems: {
+      overduePostMarketObligations: RegOpenItem[]
+      /** Honest approximation, not a real regulatory deadline — `RegQuery` has no response-due-date field in this schema. */
+      longOpenQueries: RegOpenItem[]
+      registrationsExpiringSoonWithNoRenewalStarted: RegOpenItem[]
+      /** Only ever populated 1 Oct – 31 Dec, matching the real weekly retention-reminder job's own definition of "due." */
+      retentionsDueNotLogged: RegOpenItem[]
+    }
+    /** "This month's activity" — a count strip, calendar month to date. */
+    thisMonthActivity: {
+      dossiersSubmitted: number
+      approvalsReceived: number
+      queriesLogged: number
+      retentionsCertified: number
+    }
   }
   /** Real-usage request, 11 Sep 2026 — "every product's live compliance status, what's at risk, what's overdue." */
   productCompliance: ProductComplianceRow[]
-  /** Real-usage request, 11 Sep 2026 — QualCloud has no schema yet; `available: false` is the honest signal, not a silent gap. */
-  qualcloud: { available: false }
+  /**
+   * QualCloud (Phase 13) Stage 20 — real data, replacing the
+   * `available: false` placeholder this carried since 11 Sep 2026.
+   * `available` is false whenever the `qualcloud` entitlement isn't
+   * granted yet — every other field is zeroed/empty in that case,
+   * matching the backend's own honest-degradation shape.
+   */
+  qualcloud: QualCloudDashboard
+}
+
+export interface QualCloudDashboard {
+  available: boolean
+  deviationsOpenBySeverity: { severity: string; count: number }[]
+  capasDue: number
+  capasOverdue: number
+  effectivenessChecksDue: number
+  changeControlsInProgress: number
+  documentsPendingApproval: number
+  periodicReviewsDue: number
+  readAndUnderstandOutstanding: number
+  openFindingsByClassification: { classification: string; count: number }[]
+  findingsToCapaClosureRate: number | null
+  supplierAuditsDue: number
+  trainingDue: number
+  trainingOverdue: number
+  metrics: { rightFirstTimeRate: number | null; recurringIssueCount: number; openTrendFlags: number } | null
+}
+
+export interface RegOpenItem {
+  recordType: 'product_registration' | 'reg_dossier'
+  recordId: string
+  label: string
 }
 
 export interface ProductComplianceRow {

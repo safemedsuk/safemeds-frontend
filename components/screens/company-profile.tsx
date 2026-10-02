@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Building2, Copy, Download, Globe2, Loader2, Mail, MapPin, MessageCircle, Pencil, Plus, PowerOff, QrCode, RefreshCw, ShieldCheck, Users } from 'lucide-react'
+import { AlertCircle, Building2, Copy, Download, Globe2, Loader2, Mail, MapPin, MessageCircle, Pencil, Plus, PowerOff, QrCode, RefreshCw, ShieldCheck, Users } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Modal } from '@/components/ui/modal'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
@@ -10,6 +10,7 @@ import { DocumentsPanel } from '@/components/documents/documents-panel'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { getAllCountries, type Country } from '@/lib/api/countries'
 import { getErrorMessage } from '@/lib/api/client'
+import { defaultAnnualLicenceExpiryOn } from '@/lib/licence-defaults'
 import {
   getCompany,
   updateCompany,
@@ -57,6 +58,14 @@ export function CompanyProfileScreen() {
   const [nameDraft, setNameDraft] = useState('')
   const [savingName, setSavingName] = useState(false)
 
+  const [editingEmail, setEditingEmail] = useState(false)
+  const [emailDraft, setEmailDraft] = useState('')
+  const [savingEmail, setSavingEmail] = useState(false)
+
+  const [editingMockRecallCadence, setEditingMockRecallCadence] = useState(false)
+  const [mockRecallCadenceDraft, setMockRecallCadenceDraft] = useState('')
+  const [savingMockRecallCadence, setSavingMockRecallCadence] = useState(false)
+
   const [showAddMarket, setShowAddMarket] = useState(false)
   const [showFacilityModal, setShowFacilityModal] = useState<Facility | 'new' | null>(null)
   const [licenceModalFacility, setLicenceModalFacility] = useState<Facility | null>(null)
@@ -86,6 +95,8 @@ export function CompanyProfileScreen() {
       setCountries(countriesData)
       setOverview(overviewData)
       setNameDraft(companyData.name)
+      setEmailDraft(companyData.regulatoryContactEmail ?? '')
+      setMockRecallCadenceDraft(String(companyData.mockRecallCadenceMonths ?? 12))
       setWhatsappDraft(companyData.whatsappBusinessPhoneNumberId ?? '')
     } catch (err) {
       setError(getErrorMessage(err, 'Could not load your company profile.'))
@@ -119,6 +130,37 @@ export function CompanyProfileScreen() {
       setError(getErrorMessage(err, 'Could not update the company name.'))
     } finally {
       setSavingName(false)
+    }
+  }
+
+  const handleSaveEmail = async () => {
+    if (!emailDraft.trim()) return
+    setSavingEmail(true)
+    setError(null)
+    try {
+      const updated = await updateCompany({ regulatoryContactEmail: emailDraft.trim() })
+      setCompany(updated)
+      setEditingEmail(false)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not update the company email.'))
+    } finally {
+      setSavingEmail(false)
+    }
+  }
+
+  const handleSaveMockRecallCadence = async () => {
+    const months = Number(mockRecallCadenceDraft)
+    if (!Number.isInteger(months) || months < 1 || months > 60) return
+    setSavingMockRecallCadence(true)
+    setError(null)
+    try {
+      const updated = await updateCompany({ mockRecallCadenceMonths: months })
+      setCompany(updated)
+      setEditingMockRecallCadence(false)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not update the mock-recall cadence.'))
+    } finally {
+      setSavingMockRecallCadence(false)
     }
   }
 
@@ -401,6 +443,55 @@ export function CompanyProfileScreen() {
                 </div>
               )}
             </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Company email</label>
+              <p className="mb-1.5 text-xs text-[var(--text-muted)]">
+                Where renewal, retention, and other deadline reminders are sent — required so nothing gets missed.
+              </p>
+              {editingEmail ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="email"
+                    value={emailDraft}
+                    onChange={(e) => setEmailDraft(e.target.value)}
+                    placeholder="regulatory@yourcompany.com"
+                    className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveEmail}
+                    disabled={savingEmail}
+                    className="px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-xs font-medium disabled:opacity-50"
+                  >
+                    {savingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingEmail(false)
+                      setEmailDraft(company?.regulatoryContactEmail ?? '')
+                    }}
+                    className="px-3 py-2 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text)]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {company?.regulatoryContactEmail ? (
+                    <p className="text-sm text-[var(--text)]">{company.regulatoryContactEmail}</p>
+                  ) : (
+                    <p className="flex items-center gap-1.5 text-sm text-status-warning">
+                      <AlertCircle className="h-3.5 w-3.5" /> Not set — reminder emails have nowhere to go
+                    </p>
+                  )}
+                  {canManage && (
+                    <button onClick={() => setEditingEmail(true)} className="text-[var(--text-muted)] hover:text-[var(--text)]">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Company type</label>
@@ -410,6 +501,51 @@ export function CompanyProfileScreen() {
                 <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Home country</label>
                 <p className="text-sm text-[var(--text)]">{company ? countryName(company.homeCountryId) : '—'}</p>
               </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Mock-recall (self-inspection drill) cadence</label>
+              <p className="mb-1.5 text-xs text-[var(--text-muted)]">
+                How often a drill is expected, in months. Defaults to 12 (WHO GMP&apos;s own commonly-cited annual convention) — a generic default, not a confirmed PPB-specific requirement.
+              </p>
+              {editingMockRecallCadence ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={mockRecallCadenceDraft}
+                    onChange={(e) => setMockRecallCadenceDraft(e.target.value)}
+                    className="w-24 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm"
+                    autoFocus
+                  />
+                  <span className="text-xs text-[var(--text-muted)]">months</span>
+                  <button
+                    onClick={handleSaveMockRecallCadence}
+                    disabled={savingMockRecallCadence}
+                    className="px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-xs font-medium disabled:opacity-50"
+                  >
+                    {savingMockRecallCadence ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingMockRecallCadence(false)
+                      setMockRecallCadenceDraft(String(company?.mockRecallCadenceMonths ?? 12))
+                    }}
+                    className="px-3 py-2 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text)]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-[var(--text)]">Every {company?.mockRecallCadenceMonths ?? 12} months</p>
+                  {canManage && (
+                    <button onClick={() => setEditingMockRecallCadence(true)} className="text-[var(--text-muted)] hover:text-[var(--text)]">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -785,6 +921,16 @@ function FacilityLicenceForm({
   const [licenceStatus, setLicenceStatus] = useState(facility.licenceStatus ?? 'active')
   const [saving, setSaving] = useState(false)
 
+  // Defaults "expires on" to 31 December of the year after issuance
+  // (Kenya's PPB premises licences are real annual licences, always
+  // renewed to the calendar year boundary) the moment "issued on" is
+  // set for the first time — never overwrites an already-set expiry
+  // (e.g. when editing an existing licence), always still editable.
+  const handleLicenceIssuedOnChange = (value: string) => {
+    setLicenceIssuedOn(value)
+    if (!licenceExpiresOn) setLicenceExpiresOn(defaultAnnualLicenceExpiryOn(value))
+  }
+
   const handleSubmit = async () => {
     setSaving(true)
     try {
@@ -823,7 +969,7 @@ function FacilityLicenceForm({
           <input
             type="date"
             value={licenceIssuedOn}
-            onChange={(e) => setLicenceIssuedOn(e.target.value)}
+            onChange={(e) => handleLicenceIssuedOnChange(e.target.value)}
             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm"
           />
         </div>

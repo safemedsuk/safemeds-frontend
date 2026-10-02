@@ -3,8 +3,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Package, Boxes, FileCheck2, Plus, Upload, CalendarClock, Factory, Receipt, GitBranch, Loader2, Plane, Megaphone, Globe2 } from 'lucide-react'
-import { createRegVariation } from '@/lib/api/reg-dossiers'
+import { Package, Boxes, FileCheck2, Plus, Upload, CalendarClock, Factory, Receipt, GitBranch, Loader2, Plane, Megaphone, Globe2, ShieldCheck } from 'lucide-react'
+import {
+  createRegVariation,
+  listAllRegVariations,
+  VARIATION_TYPE_LABELS,
+  type RegVariationType,
+  type RegVariation,
+  listAllRegRetentions,
+  type RegRetention,
+} from '@/lib/api/reg-dossiers'
+import { SignatureModal } from '@/components/ui/signature-modal'
+import { DocumentsPanel } from '@/components/documents/documents-panel'
+import { defaultGmpExpiryOn } from '@/lib/licence-defaults'
 import {
   listImportExportPermits,
   createImportExportPermit,
@@ -28,10 +39,13 @@ import { DataTableV2, DataTableColumn } from '@/components/ui/data-table-v2'
 import { Modal } from '@/components/ui/modal'
 import { DeadlineChip } from '@/components/ui/deadline-chip'
 import { getErrorMessage } from '@/lib/api/client'
-import { getConfiguredCountries, getCountryConfig } from '@/lib/api/country-config'
+import { getCompanyMarkets } from '@/lib/api/company'
+import { listRegulatoryAuthorities } from '@/lib/api/regulatory-authorities'
 import { listTasks, claimTask, type Task } from '@/lib/api/tasks'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { BulkImportProductsModal } from '@/components/master-data/bulk-import-products-modal'
+import { BulkImportRegEntitiesModal } from '@/components/regulatory/bulk-import-reg-entities-modal'
+import { NewDossierModal } from '@/components/reg-dossiers/new-dossier-modal'
 import { ProductClassPicker } from '@/components/regulatory/product-class-picker'
 import {
   Product,
@@ -48,7 +62,7 @@ import {
   deactivateBatch,
   listRegistrations,
   createRegistration,
-  deactivateRegistration,
+  withdrawRegistration,
 } from '@/lib/api/master-data'
 import {
   Manufacturer,
@@ -116,6 +130,9 @@ export function MasterData() {
   const [activeTab, setActiveTab] = useState('products')
   const [error, setError] = useState<string | null>(null)
   const [startingVariationFor, setStartingVariationFor] = useState<ProductRegistration | null>(null)
+  const [startingRenewalFor, setStartingRenewalFor] = useState<ProductRegistration | null>(null)
+  const [withdrawingFor, setWithdrawingFor] = useState<ProductRegistration | null>(null)
+  const [reRegisteringFor, setReRegisteringFor] = useState<ProductRegistration | null>(null)
 
   // Products
   const [products, setProducts] = useState<Product[]>([])
@@ -125,6 +142,7 @@ export function MasterData() {
   const [productsQuery, setProductsQuery] = useState('')
   const [productsLoading, setProductsLoading] = useState(true)
   const [showBulkImportProducts, setShowBulkImportProducts] = useState(false)
+  const [showBulkImportRegEntities, setShowBulkImportRegEntities] = useState(false)
   const [reminderTask, setReminderTask] = useState<Task | null>(null)
   const [showCreateProduct, setShowCreateProduct] = useState(false)
 
@@ -255,13 +273,14 @@ export function MasterData() {
       })
   }
 
+  // testing-correction-explanation.md §1.4 — scoped to the company's own
+  // operating markets (not every configured country platform-wide), the
+  // same "operating markets, not every seeded country" precedent
+  // VigiCloud's Location Access/Facility pickers already established.
   useEffect(() => {
-    getConfiguredCountries()
-      .then(async (countries) => {
-        const trees = await Promise.all(countries.map((c) => getCountryConfig(c.id)));
-        const flat = trees.flat().map((authority) => ({ id: authority.id, name: authority.name, code: authority.code }))
-        setAuthorities(flat)
-      })
+    getCompanyMarkets()
+      .then((markets) => listRegulatoryAuthorities(markets.map((m) => m.countryId)))
+      .then((authorities) => setAuthorities(authorities.map((a) => ({ id: a.id, name: a.name, code: a.code }))))
       .catch(() => setAuthorities([]))
   }, [])
 
@@ -295,6 +314,7 @@ export function MasterData() {
     { key: 'product', label: 'Product', render: (value: Batch['product']) => value.brandName },
     { key: 'manufacturedOn', label: 'Manufactured', render: (value: string) => new Date(value).toLocaleDateString() },
     { key: 'expiresOn', label: 'Expires', render: (value: string) => <DeadlineChip dueAt={value} /> },
+    { key: 'qualityStatus', label: 'Quality Status', render: (value: string) => <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium capitalize text-foreground">{value.replace(/_/g, ' ')}</span> },
     { key: 'isActive', label: 'Status', render: (value: boolean) => <StatusPill active={value} /> },
     {
       key: 'id',
@@ -324,8 +344,27 @@ export function MasterData() {
     {
       key: 'id',
       label: 'Actions',
-      render: (_value, row) =>
-        row.status === 'active' ? (
+      // testing-correction-explanation.md §3.5/§3.6/§2.2/§3.1 — an
+      // expired registration gets none of Variation/Renewal/Withdraw
+      // (only re-registration applies, via Start New Dossier); an active,
+      // non-expired one gets all three as separate, real actions.
+      render: (_value, row) => {
+        if (row.status !== 'active') return null
+        const isExpired = new Date(row.expiresOn) <= new Date()
+        if (isExpired) {
+          return (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setReRegisteringFor(row)
+              }}
+              className="flex items-center gap-1 text-xs font-medium text-status-warning hover:underline"
+            >
+              Expired — Start Re-Registration
+            </button>
+          )
+        }
+        return (
           <div className="flex items-center gap-3">
             {has('regulatory.manage_variations') && (
               <button
@@ -335,22 +374,34 @@ export function MasterData() {
                 }}
                 className="flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline"
               >
-                <GitBranch className="h-3 w-3" /> Variation / Renewal
+                <GitBranch className="h-3 w-3" /> Variation
               </button>
             )}
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                deactivateRegistration(row.id)
-                  .then(loadRegistrations)
-                  .catch((err) => setError(getErrorMessage(err, 'Could not withdraw registration.')))
-              }}
-              className="text-xs font-medium text-status-error hover:underline"
-            >
-              Withdraw
-            </button>
+            {has('regulatory.manage_variations') && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setStartingRenewalFor(row)
+                }}
+                className="flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline"
+              >
+                <CalendarClock className="h-3 w-3" /> Renewal
+              </button>
+            )}
+            {has('master_data.manage') && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setWithdrawingFor(row)
+                }}
+                className="text-xs font-medium text-status-error hover:underline"
+              >
+                Withdraw
+              </button>
+            )}
           </div>
-        ) : null,
+        )
+      },
     },
   ]
 
@@ -475,7 +526,20 @@ export function MasterData() {
       {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error}</div>}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-8">
+        {/*
+          Real root cause of a real-usage report ("Variations"/"Retentions"
+          visually overlapping the quarterly-review banner below): this was
+          `grid grid-cols-8` with the base `TabsList` component's own fixed
+          `h-10` height still in effect — fine for the 8 tabs this screen
+          had when written, but two more (Variations, Retentions) were
+          added later without updating the column count, so the CSS grid
+          wrapped them onto a second row that the fixed-height box clipped
+          straight into whatever rendered below it. `flex flex-wrap h-auto`
+          replaces the hardcoded column count entirely — the row now wraps
+          and grows to fit however many tabs exist, so adding an 11th tab
+          later can't reintroduce this same bug.
+        */}
+        <TabsList className="flex w-full flex-wrap h-auto gap-1">
           <TabsTrigger value="products" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             Products
@@ -507,6 +571,14 @@ export function MasterData() {
           <TabsTrigger value="reliance-applications" className="flex items-center gap-2">
             <Globe2 className="h-4 w-4" />
             Reliance Pathways
+          </TabsTrigger>
+          <TabsTrigger value="variations" className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4" />
+            Variations
+          </TabsTrigger>
+          <TabsTrigger value="retentions" className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            Retentions
           </TabsTrigger>
         </TabsList>
 
@@ -567,6 +639,7 @@ export function MasterData() {
           <DataTableV2
             data={batches}
             columns={batchColumns}
+            onRowClick={(row) => router.push(`/batches/${row.id}`)}
             actions={
               <button
                 onClick={() => setShowCreateBatch(true)}
@@ -609,10 +682,20 @@ export function MasterData() {
         </TabsContent>
 
         <TabsContent value="regulatory-entities" className="space-y-6">
-          <p className="text-sm text-muted-foreground">
-            RegCloud — a product&apos;s manufacturing site, and (for a foreign Marketing Authorization Holder) the local representative
-            handling registration on their behalf. Reused across every registration.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <p className="text-sm text-muted-foreground max-w-2xl">
+              RegCloud — a product&apos;s manufacturing site, and (for a foreign Marketing Authorization Holder) the local representative
+              handling registration on their behalf. Reused across every registration.
+            </p>
+            {has('regulatory.manage_entities') && (
+              <button
+                onClick={() => setShowBulkImportRegEntities(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-safemeds-teal px-3 py-1.5 text-xs font-medium text-safemeds-teal hover:bg-safemeds-teal/10 whitespace-nowrap"
+              >
+                <Upload className="h-3.5 w-3.5" /> Bulk Import
+              </button>
+            )}
+          </div>
           <div>
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">Manufacturers</h3>
@@ -686,6 +769,14 @@ export function MasterData() {
         <TabsContent value="reliance-applications" className="space-y-4">
           <RelianceApplicationsTab products={products} authorities={authorities} />
         </TabsContent>
+
+        <TabsContent value="variations" className="space-y-4">
+          <VariationsTab />
+        </TabsContent>
+
+        <TabsContent value="retentions" className="space-y-4">
+          <RetentionsTab />
+        </TabsContent>
       </Tabs>
 
       {showCreateProduct && (
@@ -702,6 +793,16 @@ export function MasterData() {
           onClose={() => setShowBulkImportProducts(false)}
           onImported={() => {
             loadProducts()
+          }}
+        />
+      )}
+      {showBulkImportRegEntities && (
+        <BulkImportRegEntitiesModal
+          onClose={() => setShowBulkImportRegEntities(false)}
+          onImported={() => {
+            loadManufacturers()
+            loadSites()
+            loadLocalReps()
           }}
         />
       )}
@@ -783,6 +884,41 @@ export function MasterData() {
           onClose={() => setStartingVariationFor(null)}
           onCreated={(regDossierId) => {
             setStartingVariationFor(null)
+            router.push(`/reg-dossiers/${regDossierId}`)
+          }}
+        />
+      )}
+      {startingRenewalFor && (
+        <StartRenewalModal
+          registration={startingRenewalFor}
+          onClose={() => setStartingRenewalFor(null)}
+          onCreated={(regDossierId) => {
+            setStartingRenewalFor(null)
+            router.push(`/reg-dossiers/${regDossierId}`)
+          }}
+        />
+      )}
+      {withdrawingFor && (
+        <WithdrawRegistrationModal
+          registration={withdrawingFor}
+          onClose={() => setWithdrawingFor(null)}
+          onWithdrawn={() => {
+            setWithdrawingFor(null)
+            loadRegistrations()
+          }}
+        />
+      )}
+      {reRegisteringFor && (
+        <NewDossierModal
+          prefill={{
+            productId: reRegisteringFor.productId,
+            productBrandName: reRegisteringFor.product.brandName,
+            authorityId: reRegisteringFor.authorityId,
+            productClass: reRegisteringFor.productClass ?? '',
+          }}
+          onClose={() => setReRegisteringFor(null)}
+          onCreated={(regDossierId) => {
+            setReRegisteringFor(null)
             router.push(`/reg-dossiers/${regDossierId}`)
           }}
         />
@@ -1158,18 +1294,17 @@ function CreateRegistrationModal({
   )
 }
 
-const VARIATION_TYPE_PRESETS = [
-  { value: 'renewal', label: 'Renewal' },
-  { value: 'labeling_change', label: 'Labeling change' },
-  { value: 'manufacturing_site_change', label: 'Manufacturing site change' },
-  { value: 'other', label: 'Other (specify below)' },
-]
+// testing-correction-explanation.md §2.2 — the real, confirmed 4-category
+// taxonomy (real Prisma enum on the backend now) — "renewal" is
+// deliberately excluded here since it has its own separate button/modal
+// (`StartRenewalModal` below), never picked from this list.
+const VARIATION_TYPE_OPTIONS: RegVariationType[] = ['minor', 'major', 'immediate_notification', 'yearly_notification']
 
 /**
- * RegCloud (Phase 12) Stage 7 — starts a real `RegVariation`, which
- * `RegVariationService.create()` pairs atomically with a brand-new
- * `RegDossier` that goes through the exact same reg_registration
- * workflow every fresh registration does (never a special-cased branch).
+ * RegCloud (Phase 12) Stage 7, extended by testing-correction-explanation.md
+ * §2.2 — starts a real `RegVariation`, which `RegVariationService.create()`
+ * pairs atomically with a brand-new `RegDossier` that's fast-forwarded
+ * straight to `variation_application` (never the ordinary Planning start).
  * Defaults product/authority/class from the target registration itself —
  * only override fields the user explicitly changes.
  */
@@ -1182,26 +1317,17 @@ function NewVariationModal({
   onClose: () => void
   onCreated: (regDossierId: string) => void
 }) {
-  const [variationType, setVariationType] = useState('renewal')
-  const [customType, setCustomType] = useState('')
+  const [variationType, setVariationType] = useState<RegVariationType>('minor')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const isRenewal = variationType === 'renewal'
-  const isOther = variationType === 'other'
-
   const handleSubmit = async () => {
-    const resolvedType = isOther ? customType.trim() : variationType
-    if (!resolvedType) {
-      setError('Please specify the variation type.')
-      return
-    }
     setBusy(true)
     setError(null)
     try {
       const result = await createRegVariation({
         productRegistrationId: registration.id,
-        variationType: resolvedType,
+        variationType,
       })
       onCreated(result.regDossier.id)
     } catch (err) {
@@ -1216,31 +1342,19 @@ function NewVariationModal({
       <div className="space-y-3">
         {error && <p className="text-xs text-status-error">{error}</p>}
         <p className="text-xs text-muted-foreground">
-          This opens a new dossier for this registration, reusing the same product, authority, and product class. It goes
-          through the same submission and approval lifecycle as a fresh registration.
+          This opens a new dossier for this registration at its own Variation Application step — you&apos;ll upload proof of
+          payment, the PPB invoice, and the document(s) describing the change before it can be submitted.
         </p>
         <div className="space-y-1">
           <label className="text-xs font-medium text-[var(--text)]">Variation type</label>
-          <select value={variationType} onChange={(e) => setVariationType(e.target.value)} className={inputClass}>
-            {VARIATION_TYPE_PRESETS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
+          <select value={variationType} onChange={(e) => setVariationType(e.target.value as RegVariationType)} className={inputClass}>
+            {VARIATION_TYPE_OPTIONS.map((v) => (
+              <option key={v} value={v}>
+                {VARIATION_TYPE_LABELS[v]}
               </option>
             ))}
           </select>
         </div>
-        {isOther && (
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-[var(--text)]">Specify type</label>
-            <input value={customType} onChange={(e) => setCustomType(e.target.value)} className={inputClass} placeholder="e.g. formulation_change" />
-          </div>
-        )}
-        {isRenewal && (
-          <p className="text-[11px] text-muted-foreground">
-            On approval, this extends the existing registration&apos;s expiry using the configured renewal cadence, rather than
-            creating a duplicate registration.
-          </p>
-        )}
         <button
           onClick={handleSubmit}
           disabled={busy}
@@ -1251,6 +1365,153 @@ function NewVariationModal({
         </button>
       </div>
     </Modal>
+  )
+}
+
+/** testing-correction-explanation.md §3.1 — its own button, no type picker (always `variationType: 'renewal'`); the resulting dossier is fast-forwarded straight to `renewal_requested`, skipping Planning/Compiling/Completeness Check entirely. */
+function StartRenewalModal({
+  registration,
+  onClose,
+  onCreated,
+}: {
+  registration: ProductRegistration
+  onClose: () => void
+  onCreated: (regDossierId: string) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await createRegVariation({ productRegistrationId: registration.id, variationType: 'renewal' })
+      onCreated(result.regDossier.id)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not start a renewal for this registration.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title={`Start Renewal — ${registration.registrationNumber}`} onClose={onClose}>
+      <div className="space-y-3">
+        {error && <p className="text-xs text-status-error">{error}</p>}
+        <p className="text-xs text-muted-foreground">
+          This opens a new dossier that goes straight to Generate Submission — no document checklist blocks it, only guidance.
+          On approval, it extends this registration&apos;s own expiry using the configured renewal cadence, rather than creating a
+          duplicate registration.
+        </p>
+        <button
+          onClick={handleSubmit}
+          disabled={busy}
+          className="flex w-full h-9 items-center justify-center gap-1.5 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium"
+        >
+          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          Start Renewal
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * testing-correction-explanation.md §3.6 — Withdrawal, decision #1:
+ * signature-gated, a required reason, an optional supporting document.
+ * Two steps: this modal collects the reason + optional upload, then opens
+ * `SignatureModal` (reusing its own intent-statement field as the reason,
+ * the same simplification `revealTreatmentArm()` already established) —
+ * only once signed does the real withdrawal call fire.
+ */
+function WithdrawRegistrationModal({
+  registration,
+  onClose,
+  onWithdrawn,
+}: {
+  registration: ProductRegistration
+  onClose: () => void
+  onWithdrawn: () => void
+}) {
+  const [reason, setReason] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [showSign, setShowSign] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const proceedToSign = async () => {
+    if (!reason.trim()) {
+      setError('A reason is required.')
+      return
+    }
+    setError(null)
+    setShowSign(true)
+  }
+
+  return (
+    <>
+      {!showSign && (
+        <Modal title={`Withdraw — ${registration.registrationNumber}`} onClose={onClose}>
+          <div className="space-y-4">
+            <p className="text-xs text-status-warning">
+              This is permanent — a withdrawn registration cannot be renewed, retained, or reactivated. A real electronic
+              signature is required on the next step.
+            </p>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Reason</label>
+              <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]" />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Supporting document (optional)</label>
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-xs text-[var(--text-muted)]">
+                <Upload className="h-3.5 w-3.5" /> {file ? file.name : 'Upload a document'}
+                <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              </label>
+            </div>
+            {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-xs text-status-error">{error}</div>}
+            <div className="flex justify-end gap-2">
+              <button onClick={onClose} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)]">
+                Cancel
+              </button>
+              <button onClick={proceedToSign} disabled={!reason.trim() || uploading} className="flex items-center gap-1.5 rounded-lg bg-status-error px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {uploading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Continue to Sign
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {showSign && (
+        <SignatureModal
+          isOpen={true}
+          onClose={() => setShowSign(false)}
+          documentTitle={`Withdraw registration ${registration.registrationNumber}`}
+          documentId={registration.id}
+          onSigned={async ({ signatureToken, intentStatement }) => {
+            setUploading(true)
+            try {
+              let documentId: string | undefined
+              if (file) {
+                const version = await uploadDocument('product_registration', registration.id, file, { title: 'Withdrawal Evidence' })
+                documentId = version.documentId
+              }
+              await withdrawRegistration(registration.id, {
+                reason,
+                documentId,
+                intentStatement,
+                signatureToken,
+              })
+              onWithdrawn()
+            } catch (err) {
+              setError(getErrorMessage(err, 'Could not withdraw this registration.'))
+              setShowSign(false)
+            } finally {
+              setUploading(false)
+            }
+          }}
+        />
+      )}
+    </>
   )
 }
 
@@ -1544,6 +1805,17 @@ function EditPermitModal({ permit, onClose, onSaved }: { permit: ImportExportPer
         <button onClick={handleSubmit} disabled={busy} className="w-full h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium">
           Save
         </button>
+      </div>
+      {/*
+        The permit itself is issued externally (e.g. via Kenya's KenTrade
+        system) — SafeMeds never generates it, only stores a copy once
+        it's been issued. Reuses the exact same server-proxied
+        DocumentsPanel every other document-bearing record in this app
+        already uses, keyed to this permit's own id, rather than a
+        bespoke single-file upload widget.
+      */}
+      <div className="mt-4">
+        <DocumentsPanel recordType="import_export_permit" recordId={permit.id} />
       </div>
     </Modal>
   )
@@ -2157,7 +2429,22 @@ function CreateManufacturingSiteModal({
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-[var(--text)]">GMP certificate number</label>
-          <input value={gmpCertificateNumber} onChange={(e) => setGmpCertificateNumber(e.target.value)} className={inputClass} />
+          <input
+            value={gmpCertificateNumber}
+            onChange={(e) => {
+              const value = e.target.value
+              setGmpCertificateNumber(value)
+              // This model has no separate "issued on" field — the
+              // moment a certificate number is first entered, default
+              // its expiry to today + 3 years (WHO GMP's own commonly-
+              // cited 2–3-year re-inspection/certificate-validity band),
+              // never overwriting an already-set expiry. Fully editable.
+              if (value.trim() && !gmpCertificateExpiresOn) {
+                setGmpCertificateExpiresOn(defaultGmpExpiryOn())
+              }
+            }}
+            className={inputClass}
+          />
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-[var(--text)]">GMP certificate expires on</label>
@@ -2396,5 +2683,81 @@ function RecordPaymentModal({
         </button>
       </div>
     </Modal>
+  )
+}
+
+/** testing-correction-explanation.md §2.2 — the company-wide "All Variations" list, across every registration, mirroring `ImportExportPermitsTab`'s exact shape. */
+function VariationsTab() {
+  const router = useRouter()
+  type VariationRow = RegVariation & {
+    productRegistration: { registrationNumber: string }
+    regDossier: { product: { brandName: string }; status: string }
+  }
+  const [rows, setRows] = useState<VariationRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    listAllRegVariations()
+      .then(setRows)
+      .catch((err) => setError(getErrorMessage(err, 'Could not load variations.')))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const columns: DataTableColumn<VariationRow>[] = [
+    { key: 'displayCode', label: 'Reference', sortable: true },
+    { key: 'regDossier', label: 'Product', render: (v) => (v as VariationRow['regDossier']).product.brandName },
+    { key: 'productRegistration', label: 'Registration', render: (v) => (v as VariationRow['productRegistration']).registrationNumber },
+    { key: 'variationType', label: 'Type', render: (v) => VARIATION_TYPE_LABELS[v as RegVariationType] ?? (v as string) },
+    { key: 'status', label: 'Status', render: (v) => <span className="capitalize text-xs">{v as string}</span> },
+    { key: 'createdAt', label: 'Started', render: (v) => new Date(v as string).toLocaleDateString() },
+  ]
+
+  return (
+    <div className="space-y-4">
+      {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error}</div>}
+      {loading ? (
+        <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-[var(--text-muted)]" /></div>
+      ) : (
+        <DataTableV2 data={rows} columns={columns} onRowClick={(row) => router.push(`/reg-dossiers/${row.regDossierId}`)} />
+      )}
+    </div>
+  )
+}
+
+/** The company-wide "All Retentions" list, across every registration. */
+function RetentionsTab() {
+  type RetentionRow = RegRetention & { productRegistration: { registrationNumber: string; product: { brandName: string } } }
+  const [rows, setRows] = useState<RetentionRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    listAllRegRetentions()
+      .then(setRows)
+      .catch((err) => setError(getErrorMessage(err, 'Could not load retentions.')))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const columns: DataTableColumn<RetentionRow>[] = [
+    { key: 'displayCode', label: 'Reference', sortable: true },
+    { key: 'productRegistration', label: 'Product', render: (v) => (v as RetentionRow['productRegistration']).product.brandName },
+    { key: 'productRegistration', label: 'Registration', render: (v) => (v as RetentionRow['productRegistration']).registrationNumber },
+    { key: 'year', label: 'Year' },
+    { key: 'status', label: 'Status', render: (v) => <span className="capitalize text-xs">{v as string}</span> },
+    { key: 'paidAt', label: 'Paid', render: (v) => new Date(v as string).toLocaleDateString() },
+  ]
+
+  return (
+    <div className="space-y-4">
+      {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error}</div>}
+      {loading ? (
+        <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-[var(--text-muted)]" /></div>
+      ) : (
+        <DataTableV2 data={rows} columns={columns} />
+      )}
+    </div>
   )
 }

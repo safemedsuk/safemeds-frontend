@@ -18,6 +18,7 @@ import {
 } from '@/lib/api/governance'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -48,6 +49,7 @@ function formatDate(value: string | null): string {
  * from anything typed in this screen.
  */
 export function AuditReadinessScreen() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('governance.manage')
 
@@ -67,8 +69,9 @@ export function AuditReadinessScreen() {
         setDashboard(d)
         setPacks(p)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load the audit-readiness dashboard.')))
+      .catch((err) => setError(getErrorMessage(err, t('auditReadiness.errorLoad'))))
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -80,10 +83,10 @@ export function AuditReadinessScreen() {
     setError(null)
     try {
       await generateAuditPack()
-      setNotice('Audit pack generated.')
+      setNotice(t('auditReadiness.auditPackGenerated'))
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not generate an audit pack.'))
+      setError(getErrorMessage(err, t('auditReadiness.errorGeneratePack')))
     } finally {
       setGenerating(false)
     }
@@ -113,12 +116,12 @@ export function AuditReadinessScreen() {
         <div>
           <div className="flex items-center gap-3">
             <ClipboardList className="h-6 w-6 text-safemeds-teal" />
-            <h1 className="text-3xl font-display font-bold text-foreground">Audit Readiness</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground">{t('auditReadiness.title')}</h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {dashboard.rows.length > 0
-              ? `The ${dashboard.rows.length} ${dashboard.homeCountryName} inspection requirements — most resolved live from your own real data, a few are documents you upload yourself.`
-              : `No inspection requirements are configured for ${dashboard.homeCountryName} yet.`}
+              ? t('auditReadiness.subtitleWithRows', { count: dashboard.rows.length, country: dashboard.homeCountryName })
+              : t('auditReadiness.subtitleNoRows', { country: dashboard.homeCountryName })}
           </p>
         </div>
         <div className="flex gap-2">
@@ -126,7 +129,7 @@ export function AuditReadinessScreen() {
             href={getAeLogExportUrl()}
             className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
           >
-            <Download className="h-4 w-4" /> AE Log CSV
+            <Download className="h-4 w-4" /> {t('auditReadiness.aeLogCsv')}
           </a>
           {canManage && (
             <button
@@ -135,7 +138,7 @@ export function AuditReadinessScreen() {
               className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
             >
               {generating && <Loader2 className="h-4 w-4 animate-spin" />}
-              Generate Audit Pack
+              {t('auditReadiness.generateAuditPack')}
             </button>
           )}
         </div>
@@ -144,12 +147,10 @@ export function AuditReadinessScreen() {
       {dashboard.rows.length > 0 && (
         <div className={`rounded-lg border-2 p-4 flex items-center justify-between ${GAUGE_STYLES[dashboard.overall]}`}>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider">Overall Readiness</p>
+            <p className="text-xs font-semibold uppercase tracking-wider">{t('auditReadiness.overallReadiness')}</p>
             <p className="text-2xl font-display font-bold">{dashboard.overall.toUpperCase()}</p>
           </div>
-          <p className="text-sm">
-            {dashboard.readyCount} / {dashboard.totalMandatory} mandatory requirements ready
-          </p>
+          <p className="text-sm">{t('auditReadiness.mandatoryRequirementsReady', { ready: dashboard.readyCount, total: dashboard.totalMandatory })}</p>
         </div>
       )}
 
@@ -162,13 +163,10 @@ export function AuditReadinessScreen() {
           <div>
             <p className="font-medium">
               {dashboard.authorityConfigured
-                ? `${dashboard.homeCountryName} has a regulatory authority configured, but no inspection requirements yet.`
-                : `${dashboard.homeCountryName} has no regulatory authority configured yet.`}
+                ? t('auditReadiness.authorityConfiguredNoRequirements', { country: dashboard.homeCountryName })
+                : t('auditReadiness.noAuthorityConfigured', { country: dashboard.homeCountryName })}
             </p>
-            <p className="mt-1 text-status-warning/90">
-              This is expected for a market that hasn&apos;t had its regulatory content set up yet — not a bug.
-              Contact SafeMeds support to have {dashboard.homeCountryName}&apos;s regulatory content configured.
-            </p>
+            <p className="mt-1 text-status-warning/90">{t('auditReadiness.contentNotSetUpYet', { country: dashboard.homeCountryName })}</p>
           </div>
         </div>
       ) : (
@@ -176,11 +174,11 @@ export function AuditReadinessScreen() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">#</th>
-                <th className="p-3">Requirement</th>
-                <th className="p-3">Source</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Mandatory</th>
+                <th className="p-3">{t('auditReadiness.columnNumber')}</th>
+                <th className="p-3">{t('auditReadiness.columnRequirement')}</th>
+                <th className="p-3">{t('auditReadiness.columnSource')}</th>
+                <th className="p-3">{t('auditReadiness.columnStatus')}</th>
+                <th className="p-3">{t('auditReadiness.columnMandatory')}</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
@@ -189,12 +187,12 @@ export function AuditReadinessScreen() {
                 <tr key={row.definitionId} className="border-b border-border last:border-0 cursor-pointer hover:bg-muted/50" onClick={() => setSelectedRow(row)}>
                   <td className="p-3 text-muted-foreground">{row.sortOrder}</td>
                   <td className="p-3 font-medium text-foreground">{row.title}</td>
-                  <td className="p-3 text-xs text-muted-foreground">{row.source === 'system_generated' ? 'Live' : 'Upload'}</td>
+                  <td className="p-3 text-xs text-muted-foreground">{row.source === 'system_generated' ? t('auditReadiness.live') : t('auditReadiness.upload')}</td>
                   <td className="p-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${STATUS_STYLES[row.status]}`}>{AUDIT_REQUIREMENT_STATUS_LABELS[row.status]}</span>
                   </td>
-                  <td className="p-3 text-xs text-muted-foreground">{row.isMandatory ? 'Yes' : 'No'}</td>
-                  <td className="p-3 text-right text-xs text-safemeds-teal">View</td>
+                  <td className="p-3 text-xs text-muted-foreground">{row.isMandatory ? t('auditReadiness.yes') : t('auditReadiness.no')}</td>
+                  <td className="p-3 text-right text-xs text-safemeds-teal">{t('auditReadiness.view')}</td>
                 </tr>
               ))}
             </tbody>
@@ -205,17 +203,17 @@ export function AuditReadinessScreen() {
       <div className="rounded-lg border border-border bg-card p-6">
         <div className="flex items-center gap-2 mb-4">
           <FileBarChart className="h-4 w-4 text-safemeds-teal" />
-          <h2 className="text-sm font-semibold text-foreground">Audit Pack History</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('auditReadiness.auditPackHistory')}</h2>
         </div>
         {packs.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">No audit packs generated yet — supports no-notice audits with zero prep time.</p>
+          <p className="text-sm text-muted-foreground text-center py-6">{t('auditReadiness.noPacksYet')}</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="pb-2">Generated</th>
-                <th className="pb-2">Overall</th>
-                <th className="pb-2">Ready</th>
+                <th className="pb-2">{t('auditReadiness.columnGenerated')}</th>
+                <th className="pb-2">{t('auditReadiness.columnOverall')}</th>
+                <th className="pb-2">{t('auditReadiness.columnReady')}</th>
               </tr>
             </thead>
             <tbody>
@@ -242,7 +240,7 @@ export function AuditReadinessScreen() {
           onClose={() => setSelectedRow(null)}
           onSaved={() => {
             setSelectedRow(null)
-            setNotice('Requirement updated.')
+            setNotice(t('auditReadiness.requirementUpdated'))
             load()
           }}
         />
@@ -262,6 +260,7 @@ function RequirementDetailModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  const { t } = useTranslation()
   const [status, setStatus] = useState<AuditRequirementStatus>(row.status)
   const [note, setNote] = useState(row.statusNote ?? '')
   const [uploading, setUploading] = useState(false)
@@ -278,7 +277,7 @@ function RequirementDetailModal({
       const version = await uploadDocument('audit_requirement_record', row.definitionId, file, { title: row.title })
       setDocumentId(version.documentId)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not upload this file.'))
+      setError(getErrorMessage(err, t('auditReadiness.errorUploadFile')))
     } finally {
       setUploading(false)
     }
@@ -295,7 +294,7 @@ function RequirementDetailModal({
       })
       onSaved()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save this requirement.'))
+      setError(getErrorMessage(err, t('auditReadiness.errorSaveRequirement')))
       setSubmitting(false)
     }
   }
@@ -310,11 +309,11 @@ function RequirementDetailModal({
 
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-xs text-muted-foreground">Evidence Type</p>
+            <p className="text-xs text-muted-foreground">{t('auditReadiness.evidenceType')}</p>
             <p className="text-foreground">{row.evidenceArtifactType}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Current Status</p>
+            <p className="text-xs text-muted-foreground">{t('auditReadiness.currentStatus')}</p>
             <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[row.status]}`}>{AUDIT_REQUIREMENT_STATUS_LABELS[row.status]}</span>
           </div>
         </div>
@@ -322,13 +321,13 @@ function RequirementDetailModal({
         {!isPersonUploads && (
           <div className="rounded-lg border border-status-info bg-status-info/10 p-3 text-xs text-status-info flex items-start gap-2">
             <CircleCheck className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            This status is resolved live from your real data — you can add a note below, but the status itself can&apos;t be overridden here.
+            {t('auditReadiness.resolvedLiveHelp')}
           </div>
         )}
 
         {isPersonUploads && canManage && (
           <div>
-            <label className={labelClass}>Status</label>
+            <label className={labelClass}>{t('auditReadiness.status')}</label>
             <select value={status} onChange={(e) => setStatus(e.target.value as AuditRequirementStatus)} className={inputClass}>
               {Object.entries(AUDIT_REQUIREMENT_STATUS_LABELS).map(([key, label]) => (
                 <option key={key} value={key}>
@@ -341,13 +340,13 @@ function RequirementDetailModal({
 
         {canManage && (
           <div>
-            <label className={labelClass}>Evidence Document</label>
+            <label className={labelClass}>{t('auditReadiness.evidenceDocument')}</label>
             {documentId ? (
-              <p className="text-sm text-status-success">Document attached.</p>
+              <p className="text-sm text-status-success">{t('auditReadiness.documentAttached')}</p>
             ) : (
               <label className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted-foreground cursor-pointer hover:bg-muted">
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                Upload evidence
+                {t('auditReadiness.uploadEvidence')}
                 <input
                   type="file"
                   className="hidden"
@@ -363,21 +362,21 @@ function RequirementDetailModal({
 
         {canManage && (
           <div>
-            <label className={labelClass}>Note</label>
+            <label className={labelClass}>{t('auditReadiness.note')}</label>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={inputClass} />
           </div>
         )}
 
         {!canManage && row.statusNote && (
           <div>
-            <p className={labelClass}>Note</p>
+            <p className={labelClass}>{t('auditReadiness.note')}</p>
             <p className="text-sm text-foreground">{row.statusNote}</p>
           </div>
         )}
 
         {!row.isMandatory && (
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <ShieldAlert className="h-3.5 w-3.5" /> Not mandatory — doesn&apos;t affect the overall readiness gauge.
+            <ShieldAlert className="h-3.5 w-3.5" /> {t('auditReadiness.notMandatoryHelp')}
           </p>
         )}
 
@@ -385,7 +384,7 @@ function RequirementDetailModal({
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Close
+            {t('auditReadiness.close')}
           </button>
           {canManage && (
             <button
@@ -394,7 +393,7 @@ function RequirementDetailModal({
               className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save
+              {t('auditReadiness.save')}
             </button>
           )}
         </div>

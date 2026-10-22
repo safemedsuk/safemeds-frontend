@@ -84,7 +84,7 @@ export function getErrorMessage(err: unknown, fallback: string): string {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
   /** An array value repeats the key (`?a=1&a=2`) rather than joining it — matches how Nest's `@Query()` parses a repeated query param into an array. */
   query?: Record<string, string | number | boolean | string[] | undefined>
@@ -277,6 +277,10 @@ export function post<T>(path: string, body?: unknown): Promise<ApiEnvelope<T>> {
 
 export function patch<T>(path: string, body?: unknown): Promise<ApiEnvelope<T>> {
   return apiRequest<T>(path, { method: 'PATCH', body })
+}
+
+export function put<T>(path: string, body?: unknown): Promise<ApiEnvelope<T>> {
+  return apiRequest<T>(path, { method: 'PUT', body })
 }
 
 export function del<T>(path: string): Promise<ApiEnvelope<T>> {

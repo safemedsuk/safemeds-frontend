@@ -6,6 +6,7 @@ import { getErrorMessage } from '@/lib/api/client'
 import { createSignal } from '@/lib/api/signals'
 import { ProductPicker } from '@/components/pv-cases/product-picker'
 import type { Product } from '@/lib/api/master-data'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   onClose: () => void
@@ -23,6 +24,7 @@ const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
  * capture minimal.
  */
 export function NewSignalModal({ onClose, onCreated }: Props) {
+  const { t } = useTranslation()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [productIdentifier, setProductIdentifier] = useState('')
@@ -56,7 +58,7 @@ export function NewSignalModal({ onClose, onCreated }: Props) {
       })
       onCreated(signal.id)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this signal.'))
+      setError(getErrorMessage(err, t('newSignalModal.errorCreate')))
     } finally {
       setSubmitting(false)
     }
@@ -66,30 +68,27 @@ export function NewSignalModal({ onClose, onCreated }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="text-lg font-display font-bold text-foreground">Raise a Signal</h2>
+          <h2 className="text-lg font-display font-bold text-foreground">{t('newSignalModal.title')}</h2>
           <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="space-y-4 px-5 py-4">
-          <p className="text-xs text-muted-foreground">
-            A signal is information suggesting a new, or changed, potential causal association between a product and an event (GVP Module IX). Evidence cases can be linked once
-            the signal exists.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('newSignalModal.explainer')}</p>
 
           <div>
-            <label className={labelClass}>Title *</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Depo-Provera injection-site reaction cluster" className={inputClass} />
+            <label className={labelClass}>{t('newSignalModal.titleField')}</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('newSignalModal.titlePlaceholder')} className={inputClass} />
           </div>
 
           <div>
-            <label className={labelClass}>Description *</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="What pattern was observed, and why does it merit review?" className={inputClass} />
+            <label className={labelClass}>{t('newSignalModal.description')}</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder={t('newSignalModal.descriptionPlaceholder')} className={inputClass} />
           </div>
 
           <div>
-            <label className={labelClass}>Match against your product catalog</label>
+            <label className={labelClass}>{t('newSignalModal.matchCatalog')}</label>
             <ProductPicker
               linkedProduct={linkedProduct}
               onSelect={handlePickProduct}
@@ -99,12 +98,12 @@ export function NewSignalModal({ onClose, onCreated }: Props) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}>Product *</label>
-              <input value={productIdentifier} onChange={(e) => setProductIdentifier(e.target.value)} placeholder="Product name" className={inputClass} />
+              <label className={labelClass}>{t('newSignalModal.product')}</label>
+              <input value={productIdentifier} onChange={(e) => setProductIdentifier(e.target.value)} placeholder={t('newSignalModal.productPlaceholder')} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Batch number</label>
-              <input value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="Leave blank for all batches" className={inputClass} />
+              <label className={labelClass}>{t('newSignalModal.batchNumber')}</label>
+              <input value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder={t('newSignalModal.batchNumberPlaceholder')} className={inputClass} />
             </div>
           </div>
 
@@ -113,7 +112,7 @@ export function NewSignalModal({ onClose, onCreated }: Props) {
 
         <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('newSignalModal.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -121,7 +120,7 @@ export function NewSignalModal({ onClose, onCreated }: Props) {
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Raise Signal
+            {t('newSignalModal.raiseSignal')}
           </button>
         </div>
       </div>

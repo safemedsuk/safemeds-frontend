@@ -6,6 +6,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import type { CompanyType, RegisterCompanyResult, SafeUser, SecurityPolicySummary } from '@/lib/api/auth'
+import { syncLocaleFromUser } from '@/lib/i18n/locale-store'
 
 interface RegistrationFormData {
   // Step 1: Company details
@@ -144,7 +145,13 @@ export const useAuthStore = create<AuthStoreState>()(
           }),
 
         // Login actions
-        setCurrentUser: (user) => set({ currentUser: user }),
+        setCurrentUser: (user) => {
+          // A fresh login/session response is the one place the server's
+          // own record of the user's language preference is authoritative
+          // — reconcile it here, once, rather than at every call site.
+          syncLocaleFromUser(user?.preferredLocale)
+          set({ currentUser: user })
+        },
 
         setSecurityPolicy: (policy) => set({ securityPolicy: policy }),
 

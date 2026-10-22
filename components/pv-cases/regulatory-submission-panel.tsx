@@ -12,10 +12,12 @@ import {
   RegulatorySubmission,
 } from '@/lib/api/pv-cases'
 import { DocumentPreviewModal } from '@/components/ui/document-preview-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
-const ARTIFACT_META: Record<'xml' | 'pdf', { contentType: string; extension: string; label: string }> = {
-  pdf: { contentType: 'application/pdf', extension: 'pdf', label: 'submission PDF' },
-  xml: { contentType: 'application/xml', extension: 'xml', label: 'E2B XML' },
+const ARTIFACT_META: Record<'xml' | 'pdf', { contentType: string; extension: string; labelKey: MessageKey }> = {
+  pdf: { contentType: 'application/pdf', extension: 'pdf', labelKey: 'regulatorySubmissionPanel.submissionPdf' },
+  xml: { contentType: 'application/xml', extension: 'xml', labelKey: 'regulatorySubmissionPanel.e2bXml' },
 }
 
 interface Props {
@@ -37,16 +39,17 @@ function formatDateTime(value: string | null): string {
  * never inferred.
  */
 function FormatSelector({ value, onChange }: { value: E2bFormat; onChange: (f: E2bFormat) => void }) {
+  const { t } = useTranslation()
   return (
     <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      Format
+      {t('regulatorySubmissionPanel.format')}
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as E2bFormat)}
         className="rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground"
       >
-        <option value="R2">E2B(R2) — VigiFlow/PPB default</option>
-        <option value="R3">E2B(R3) — HL7 v3, for non-VigiFlow gateways</option>
+        <option value="R2">{t('regulatorySubmissionPanel.formatR2')}</option>
+        <option value="R3">{t('regulatorySubmissionPanel.formatR3')}</option>
       </select>
     </label>
   )
@@ -62,6 +65,7 @@ function FormatSelector({ value, onChange }: { value: E2bFormat; onChange: (f: E
  * surfaces its real reason there if clicked too early.
  */
 export function RegulatorySubmissionPanel({ caseId, canGenerate, canAttachEvidence }: Props) {
+  const { t } = useTranslation()
   const [submissions, setSubmissions] = useState<RegulatorySubmission[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -92,7 +96,7 @@ export function RegulatorySubmissionPanel({ caseId, canGenerate, canAttachEviden
       await generateRegulatorySubmission(caseId, format)
       await load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not generate a submission for this case.'))
+      setError(getErrorMessage(err, t('regulatorySubmissionPanel.errorGenerate')))
     } finally {
       setGenerating(false)
     }
@@ -119,7 +123,7 @@ export function RegulatorySubmissionPanel({ caseId, canGenerate, canAttachEviden
       // rather than leaving the user to guess. The file selection itself
       // isn't cleared on failure, so retrying is just clicking the button
       // again.
-      const fallback = `Could not attach this evidence file (${file.name}, ${(file.size / (1024 * 1024)).toFixed(1)}MB) — this usually means a dropped connection during upload. Check your network and try again.`
+      const fallback = t('regulatorySubmissionPanel.errorAttachEvidenceFallback', { name: file.name, size: (file.size / (1024 * 1024)).toFixed(1) })
       setError(getErrorMessage(err, fallback))
     } finally {
       setBusySubmissionId(null)
@@ -136,7 +140,7 @@ export function RegulatorySubmissionPanel({ caseId, canGenerate, canAttachEviden
 
       {submissions.length === 0 ? (
         <div className="rounded-lg border border-border p-4 flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">No submission generated for this case yet.</p>
+          <p className="text-sm text-muted-foreground">{t('regulatorySubmissionPanel.noSubmissionYet')}</p>
           {canGenerate && (
             <div className="flex items-center gap-2">
               <FormatSelector value={format} onChange={setFormat} />
@@ -146,7 +150,7 @@ export function RegulatorySubmissionPanel({ caseId, canGenerate, canAttachEviden
                 className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50 whitespace-nowrap"
               >
                 {generating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Generate submission
+                {t('regulatorySubmissionPanel.generateSubmission')}
               </button>
             </div>
           )}
@@ -162,7 +166,7 @@ export function RegulatorySubmissionPanel({ caseId, canGenerate, canAttachEviden
                 className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
               >
                 {generating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Generate resubmission
+                {t('regulatorySubmissionPanel.generateResubmission')}
               </button>
             </div>
           )}
@@ -181,7 +185,7 @@ export function RegulatorySubmissionPanel({ caseId, canGenerate, canAttachEviden
 
       {previewing && (
         <DocumentPreviewModal
-          title={`${ARTIFACT_META[previewing.artifact].label} — submission ${previewing.submissionNumber}`}
+          title={`${t(ARTIFACT_META[previewing.artifact].labelKey)} — submission ${previewing.submissionNumber}`}
           filename={`submission-${previewing.submissionNumber}.${ARTIFACT_META[previewing.artifact].extension}`}
           contentType={ARTIFACT_META[previewing.artifact].contentType}
           getUrl={() => getRegulatorySubmissionDownloadUrl(previewing.submissionId, previewing.artifact)}
@@ -205,31 +209,32 @@ function SubmissionCard({
   onDownload: (artifact: 'xml' | 'pdf') => void
   onAttachEvidence: (file: File) => void
 }) {
+  const { t } = useTranslation()
   return (
     <div className="rounded-lg border border-border p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-foreground">
-            {submission.submissionNumber === 1 ? 'Initial submission' : `Resubmission ${submission.submissionNumber}`}
+            {submission.submissionNumber === 1 ? t('regulatorySubmissionPanel.initialSubmission') : t('regulatorySubmissionPanel.resubmission', { n: submission.submissionNumber })}
           </span>
-          <span className="text-xs text-muted-foreground">to {submission.authority.name} ({submission.authority.code})</span>
+          <span className="text-xs text-muted-foreground">{t('regulatorySubmissionPanel.toAuthority', { name: submission.authority.name, code: submission.authority.code })}</span>
           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
             E2B({submission.format})
           </span>
         </div>
         {submission.reportable ? (
           <span className="flex items-center gap-1 rounded-full bg-status-success/10 px-2.5 py-0.5 text-xs font-medium text-status-success">
-            <CheckCircle2 className="h-3 w-3" /> Reportable
+            <CheckCircle2 className="h-3 w-3" /> {t('regulatorySubmissionPanel.reportable')}
           </span>
         ) : (
           <span className="flex items-center gap-1 rounded-full bg-status-warning/10 px-2.5 py-0.5 text-xs font-medium text-status-warning">
-            <ShieldAlert className="h-3 w-3" /> Not individually reportable
+            <ShieldAlert className="h-3 w-3" /> {t('regulatorySubmissionPanel.notReportable')}
           </span>
         )}
       </div>
 
       <p className="text-xs text-muted-foreground">{submission.reportabilityReason}</p>
-      <p className="text-xs text-muted-foreground">Generated {formatDateTime(submission.generatedAt)}</p>
+      <p className="text-xs text-muted-foreground">{t('regulatorySubmissionPanel.generated', { date: formatDateTime(submission.generatedAt) })}</p>
 
       <div className="flex flex-wrap gap-2">
         <button
@@ -237,14 +242,14 @@ function SubmissionCard({
           disabled={busy}
           className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
         >
-          <FileText className="h-3.5 w-3.5" /> View submission PDF
+          <FileText className="h-3.5 w-3.5" /> {t('regulatorySubmissionPanel.viewSubmissionPdf')}
         </button>
         <button
           onClick={() => onDownload('xml')}
           disabled={busy}
           className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
         >
-          <Download className="h-3.5 w-3.5" /> Download E2B XML
+          <Download className="h-3.5 w-3.5" /> {t('regulatorySubmissionPanel.downloadE2bXml')}
         </button>
       </div>
 
@@ -252,15 +257,15 @@ function SubmissionCard({
         {submission.evidenceDocumentId ? (
           <div className="flex items-center justify-between gap-2 text-xs">
             <span className="flex items-center gap-1.5 text-status-success">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Submission evidence attached
+              <CheckCircle2 className="h-3.5 w-3.5" /> {t('regulatorySubmissionPanel.evidenceAttached')}
             </span>
-            <span className="text-muted-foreground">Submitted {formatDateTime(submission.submittedAt)}</span>
+            <span className="text-muted-foreground">{t('regulatorySubmissionPanel.submitted', { date: formatDateTime(submission.submittedAt) })}</span>
           </div>
         ) : canAttachEvidence ? (
           <EvidenceUploadControl busy={busy} onUpload={onAttachEvidence} />
         ) : (
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Clock className="h-3.5 w-3.5" /> Awaiting upload confirmation from the authority&apos;s own portal
+            <Clock className="h-3.5 w-3.5" /> {t('regulatorySubmissionPanel.awaitingUploadConfirmation')}
           </span>
         )}
       </div>
@@ -269,13 +274,12 @@ function SubmissionCard({
 }
 
 function EvidenceUploadControl({ busy, onUpload }: { busy: boolean; onUpload: (file: File) => void }) {
+  const { t } = useTranslation()
   const [file, setFile] = useState<File | null>(null)
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        Once this has actually been uploaded to the authority&apos;s own portal (VigiFlow/PvERS — outside this system), attach the confirmation/acknowledgement here.
-      </p>
+      <p className="text-xs text-muted-foreground">{t('regulatorySubmissionPanel.uploadHelp')}</p>
       <div className="flex items-center gap-2">
         <input
           type="file"
@@ -288,7 +292,7 @@ function EvidenceUploadControl({ busy, onUpload }: { busy: boolean; onUpload: (f
           className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50 whitespace-nowrap"
         >
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
-          Attach evidence
+          {t('regulatorySubmissionPanel.attachEvidence')}
         </button>
       </div>
     </div>

@@ -25,16 +25,14 @@ import { GenerateLineListingModal } from '@/components/reporting/generate-line-l
 import { GeneratePeriodicReportModal } from '@/components/reporting/generate-periodic-report-modal'
 import { BenefitRiskModal } from '@/components/reporting/benefit-risk-modal'
 import { GenerateRegReportModal } from '@/components/reporting/generate-reg-report-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
-const MODULE_OPTIONS = [
-  { key: 'pv', label: 'Pharmacovigilance (VigiCloud)' },
-  { key: 'qualcloud', label: 'Quality (QualCloud)' },
-  { key: 'regcloud', label: 'Regulatory (RegCloud)' },
+const MODULE_OPTIONS: { key: string; labelKey: MessageKey }[] = [
+  { key: 'pv', labelKey: 'reports.moduleLabelPv' },
+  { key: 'qualcloud', labelKey: 'reports.moduleLabelQualcloud' },
+  { key: 'regcloud', labelKey: 'reports.moduleLabelRegcloud' },
 ]
-
-function moduleLabel(key: string): string {
-  return MODULE_OPTIONS.find((m) => m.key === key)?.label ?? key
-}
 
 /** Real-usage request, 11 Sep 2026 — these report types drive their own lifecycle through a real workflow instance (QC review, QPPV sign-off+submit), so the generic row-level Finalize/Submit quick actions (which have no such gating) are hidden for them — open the report's own detail view for the real Workflow Actions panel instead. */
 const PERIODIC_REPORT_TYPE_KEYS = new Set(['psur', 'pbrer', 'dsur', 'pader', 'cioms_ii'])
@@ -46,11 +44,11 @@ const STATUS_STYLES: Record<GeneratedReportStatus, string> = {
   submitted: 'bg-status-success/10 text-status-success',
 }
 
-const STATUS_LABELS: Record<GeneratedReportStatus, string> = {
-  draft: 'Draft',
-  final: 'Final',
-  qc_reviewed: 'QC Reviewed',
-  submitted: 'Submitted',
+const STATUS_LABEL_KEYS: Record<GeneratedReportStatus, MessageKey> = {
+  draft: 'reports.statusDraft',
+  final: 'reports.statusFinal',
+  qc_reviewed: 'reports.statusQcReviewed',
+  submitted: 'reports.statusSubmitted',
 }
 
 function formatDate(value: string | null): string {
@@ -58,6 +56,11 @@ function formatDate(value: string | null): string {
 }
 
 export function Reports() {
+  const { t } = useTranslation()
+  const moduleLabel = (key: string): string => {
+    const found = MODULE_OPTIONS.find((m) => m.key === key)
+    return found ? t(found.labelKey) : key
+  }
   const { has } = usePermissions()
   const canView = has('reports.view')
   const canManage = has('reports.manage')
@@ -108,7 +111,7 @@ export function Reports() {
         setTotal(meta.total)
       })
       .catch((err) => {
-        if (!cancelled) setError(getErrorMessage(err, 'Could not load reports.'))
+        if (!cancelled) setError(getErrorMessage(err, t('reports.errorLoad')))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -146,7 +149,7 @@ export function Reports() {
       refreshRow(await attachPeriodicReportEvidence(report.id, file))
       setEvidenceFile(null)
     } catch (err) {
-      setActionError(getErrorMessage(err, 'Could not attach this evidence file.'))
+      setActionError(getErrorMessage(err, t('reports.errorAttachEvidence')))
     } finally {
       setAttachingEvidence(false)
     }
@@ -158,20 +161,20 @@ export function Reports() {
     try {
       refreshRow(await finalizeGeneratedReport(report.id))
     } catch (err) {
-      setActionError(getErrorMessage(err, 'Could not finalize this report.'))
+      setActionError(getErrorMessage(err, t('reports.errorFinalize')))
     } finally {
       setBusyId(null)
     }
   }
 
   const handleSubmit = async (report: GeneratedReport) => {
-    if (!window.confirm(`Mark "${report.title}" as submitted? This records the submission date and can't be undone from here.`)) return
+    if (!window.confirm(t('reports.confirmSubmit', { title: report.title }))) return
     setBusyId(report.id)
     setActionError(null)
     try {
       refreshRow(await submitGeneratedReport(report.id))
     } catch (err) {
-      setActionError(getErrorMessage(err, 'Could not submit this report.'))
+      setActionError(getErrorMessage(err, t('reports.errorSubmit')))
     } finally {
       setBusyId(null)
     }
@@ -180,12 +183,10 @@ export function Reports() {
   if (!canView) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Reports</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('reports.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">
-            You don&apos;t have permission to view reports. Contact your System Administrator.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('reports.noPermission')}</p>
         </div>
       </div>
     )
@@ -194,7 +195,7 @@ export function Reports() {
   const columns: DataTableColumn<GeneratedReport>[] = [
     {
       key: 'title',
-      label: 'Report',
+      label: t('reports.columnReport'),
       render: (_v, row) => (
         <div className="min-w-0">
           <p className="font-medium text-foreground truncate">{row.title}</p>
@@ -202,21 +203,21 @@ export function Reports() {
         </div>
       ),
     },
-    { key: 'moduleKey', label: 'Module', render: (v) => moduleLabel(v as string) },
+    { key: 'moduleKey', label: t('reports.columnModule'), render: (v) => moduleLabel(v as string) },
     {
       key: 'status',
-      label: 'Status',
+      label: t('reports.columnStatus'),
       render: (v) => (
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${STATUS_STYLES[v as GeneratedReportStatus]}`}>
-          {STATUS_LABELS[v as GeneratedReportStatus]}
+          {t(STATUS_LABEL_KEYS[v as GeneratedReportStatus])}
         </span>
       ),
     },
-    { key: 'dueAt', label: 'Due', render: (v) => formatDate(v as string | null) },
-    { key: 'createdAt', label: 'Created', render: (v) => formatDate(v as string) },
+    { key: 'dueAt', label: t('reports.columnDue'), render: (v) => formatDate(v as string | null) },
+    { key: 'createdAt', label: t('reports.columnCreated'), render: (v) => formatDate(v as string) },
     {
       key: 'id',
-      label: 'Actions',
+      label: t('reports.columnActions'),
       align: 'right',
       render: (_v, row) => (
         <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
@@ -224,7 +225,7 @@ export function Reports() {
             <button
               onClick={() => handleFinalize(row)}
               disabled={busyId === row.id}
-              title="Finalize this report"
+              title={t('reports.finalizeThisReport')}
               className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
             >
               {busyId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
@@ -234,7 +235,7 @@ export function Reports() {
             <button
               onClick={() => handleSubmit(row)}
               disabled={busyId === row.id}
-              title="Mark as submitted"
+              title={t('reports.markAsSubmitted')}
               className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
             >
               {busyId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -249,9 +250,9 @@ export function Reports() {
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Reports</h1>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('reports.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {total} {total === 1 ? 'report' : 'reports'} · PSURs, line listings, and other generated outputs, across every module
+            {total === 1 ? t('reports.reportCountSingular', { count: total }) : t('reports.reportCountPlural', { count: total })} · {t('reports.subtitleSuffix')}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -260,7 +261,7 @@ export function Reports() {
             className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
           >
             <BarChart3 className="h-4 w-4" />
-            Benefit-Risk View
+            {t('reports.benefitRiskView')}
           </button>
           {canManage && (
             <>
@@ -269,28 +270,28 @@ export function Reports() {
                 className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
               >
                 <FileSpreadsheet className="h-4 w-4" />
-                Line Listing
+                {t('reports.lineListing')}
               </button>
               <button
                 onClick={() => setPeriodicReportOpen(true)}
                 className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
               >
                 <FileText className="h-4 w-4" />
-                Periodic Report
+                {t('reports.periodicReport')}
               </button>
               <button
                 onClick={() => setRegReportOpen(true)}
                 className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
               >
                 <ClipboardCheck className="h-4 w-4" />
-                Regulatory Report
+                {t('reports.regulatoryReport')}
               </button>
               <button
                 onClick={() => setCreateOpen(true)}
                 className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
               >
                 <Plus className="h-4 w-4" />
-                New Report
+                {t('reports.newReport')}
               </button>
             </>
           )}
@@ -302,31 +303,31 @@ export function Reports() {
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Module</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('reports.module')}</label>
             <select
               value={moduleFilter}
               onChange={(e) => setModuleFilter(e.target.value)}
               className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
             >
-              <option value="all">All Modules</option>
+              <option value="all">{t('reports.allModules')}</option>
               {MODULE_OPTIONS.map((m) => (
                 <option key={m.key} value={m.key}>
-                  {m.label}
+                  {t(m.labelKey)}
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('reports.status')}</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
             >
-              <option value="all">All Statuses</option>
-              <option value="draft">Draft</option>
-              <option value="final">Final</option>
-              <option value="submitted">Submitted</option>
+              <option value="all">{t('reports.allStatuses')}</option>
+              <option value="draft">{t('reports.statusDraft')}</option>
+              <option value="final">{t('reports.statusFinal')}</option>
+              <option value="submitted">{t('reports.statusSubmitted')}</option>
             </select>
           </div>
         </div>
@@ -355,11 +356,11 @@ export function Reports() {
         <div className="rounded-lg border border-dashed border-border p-12 text-center">
           <FileText className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
           <p className="text-sm text-muted-foreground">
-            {moduleFilter !== 'all' || statusFilter !== 'all' ? 'No reports match these filters.' : 'No reports yet.'}
+            {moduleFilter !== 'all' || statusFilter !== 'all' ? t('reports.noReportsMatchFilters') : t('reports.noReportsYet')}
           </p>
           {canManage && moduleFilter === 'all' && statusFilter === 'all' && (
             <button onClick={() => setCreateOpen(true)} className="mt-3 text-sm font-medium text-safemeds-teal hover:underline">
-              Create your first report
+              {t('reports.createFirstReport')}
             </button>
           )}
         </div>
@@ -404,7 +405,7 @@ export function Reports() {
       )}
 
       {createOpen && (
-        <Modal title="New Report" onClose={() => setCreateOpen(false)}>
+        <Modal title={t('reports.newReportTitle')} onClose={() => setCreateOpen(false)}>
           <CreateReportForm
             onCreated={(created) => {
               setReports((prev) => [created, ...prev])
@@ -420,35 +421,35 @@ export function Reports() {
         <Modal title={detail.title} onClose={() => setDetail(null)} maxWidth="max-w-2xl">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[detail.status]}`}>{STATUS_LABELS[detail.status]}</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[detail.status]}`}>{t(STATUS_LABEL_KEYS[detail.status])}</span>
               <span className="text-xs text-muted-foreground">{moduleLabel(detail.moduleKey)}</span>
               <span className="text-xs text-muted-foreground">· {detail.reportTypeKey.replace(/_/g, ' ')}</span>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
               <div>
-                <p className="text-xs text-muted-foreground">Period</p>
+                <p className="text-xs text-muted-foreground">{t('reports.period')}</p>
                 <p className="text-foreground">
                   {detail.periodStart || detail.periodEnd ? `${formatDate(detail.periodStart)} – ${formatDate(detail.periodEnd)}` : '—'}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Due</p>
+                <p className="text-xs text-muted-foreground">{t('reports.due')}</p>
                 <p className="text-foreground">{formatDate(detail.dueAt)}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Created</p>
+                <p className="text-xs text-muted-foreground">{t('reports.created')}</p>
                 <p className="text-foreground">{formatDate(detail.createdAt)}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Submitted</p>
+                <p className="text-xs text-muted-foreground">{t('reports.submitted')}</p>
                 <p className="text-foreground">{formatDate(detail.submittedAt)}</p>
               </div>
             </div>
 
             {'workflowInstanceId' in detail && detail.workflowInstanceId ? (
               <div className="pt-1">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workflow: Author → QC Review → QPPV Sign-off &amp; Submit</p>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('reports.workflowCaption')}</p>
                 <WorkflowActionsPanel
                   workflowInstanceId={detail.workflowInstanceId}
                   onTransitioned={() => {
@@ -468,7 +469,7 @@ export function Reports() {
                       className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-2 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
                     >
                       {busyId === detail.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                      Finalize
+                      {t('reports.finalize')}
                     </button>
                   )}
                   {detail.status === 'final' && (
@@ -478,7 +479,7 @@ export function Reports() {
                       className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-2 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
                     >
                       {busyId === detail.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                      Mark Submitted
+                      {t('reports.markSubmitted')}
                     </button>
                   )}
                 </div>
@@ -487,16 +488,14 @@ export function Reports() {
 
             {'workflowInstanceId' in detail && detail.workflowInstanceId && detail.status === 'submitted' && canManage && (
               <div className="pt-2 border-t border-[var(--border)]">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Submission Evidence</p>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('reports.submissionEvidence')}</p>
                 {detail.evidenceDocumentId ? (
                   <p className="flex items-center gap-1.5 text-xs text-status-success">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Evidence attached
+                    <CheckCircle2 className="h-3.5 w-3.5" /> {t('reports.evidenceAttached')}
                   </p>
                 ) : (
                   <>
-                    <p className="mb-2 text-xs text-muted-foreground">
-                      Once this has actually been dispatched (a portal upload, an email), attach the confirmation/receipt here.
-                    </p>
+                    <p className="mb-2 text-xs text-muted-foreground">{t('reports.evidenceHelp')}</p>
                     <div className="flex items-center gap-2">
                       <input
                         type="file"
@@ -509,7 +508,7 @@ export function Reports() {
                         className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50 whitespace-nowrap"
                       >
                         {attachingEvidence && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                        Attach evidence
+                        {t('reports.attachEvidence')}
                       </button>
                     </div>
                   </>
@@ -518,7 +517,7 @@ export function Reports() {
             )}
 
             <div className="pt-2 border-t border-[var(--border)]">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Report file</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('reports.reportFile')}</p>
               <DocumentsPanel recordType="generated_report" recordId={detail.id} />
             </div>
           </div>
@@ -529,6 +528,7 @@ export function Reports() {
 }
 
 function CreateReportForm({ onCreated, onCancel }: { onCreated: (report: GeneratedReport) => void; onCancel: () => void }) {
+  const { t } = useTranslation()
   const [moduleKey, setModuleKey] = useState('pv')
   const [reportTypes, setReportTypes] = useState<ReportType[]>([])
   const [reportTypeKey, setReportTypeKey] = useState('')
@@ -565,7 +565,7 @@ function CreateReportForm({ onCreated, onCancel }: { onCreated: (report: Generat
       })
       onCreated(created)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this report.'))
+      setError(getErrorMessage(err, t('reports.errorCreate')))
     } finally {
       setSubmitting(false)
     }
@@ -574,7 +574,7 @@ function CreateReportForm({ onCreated, onCancel }: { onCreated: (report: Generat
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Module</label>
+        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('reports.moduleFormLabel')}</label>
         <select
           value={moduleKey}
           onChange={(e) => setModuleKey(e.target.value)}
@@ -582,21 +582,21 @@ function CreateReportForm({ onCreated, onCancel }: { onCreated: (report: Generat
         >
           {MODULE_OPTIONS.map((m) => (
             <option key={m.key} value={m.key}>
-              {m.label}
+              {t(m.labelKey)}
             </option>
           ))}
         </select>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Report type</label>
+        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('reports.reportTypeFormLabel')}</label>
         {reportTypes.length > 0 ? (
           <select
             value={reportTypeKey}
             onChange={(e) => setReportTypeKey(e.target.value)}
             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm"
           >
-            <option value="">Select a report type…</option>
+            <option value="">{t('reports.selectReportType')}</option>
             {reportTypes.map((rt) => (
               <option key={rt.typeKey} value={rt.typeKey}>
                 {rt.name}
@@ -607,25 +607,25 @@ function CreateReportForm({ onCreated, onCancel }: { onCreated: (report: Generat
           <input
             value={customReportTypeKey}
             onChange={(e) => setCustomReportTypeKey(e.target.value)}
-            placeholder="e.g. psur, line_listing, batch_release"
+            placeholder={t('reports.reportTypeCustomPlaceholder')}
             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm"
           />
         )}
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Title</label>
+        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('reports.titleLabel')}</label>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. Q1 2026 PSUR"
+          placeholder={t('reports.titlePlaceholder')}
           className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm"
         />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Period start</label>
+          <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('reports.periodStart')}</label>
           <input
             type="date"
             value={periodStart}
@@ -634,7 +634,7 @@ function CreateReportForm({ onCreated, onCancel }: { onCreated: (report: Generat
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Period end</label>
+          <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('reports.periodEnd')}</label>
           <input
             type="date"
             value={periodEnd}
@@ -645,7 +645,7 @@ function CreateReportForm({ onCreated, onCancel }: { onCreated: (report: Generat
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Due date</label>
+        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('reports.dueDate')}</label>
         <input
           type="date"
           value={dueAt}
@@ -658,7 +658,7 @@ function CreateReportForm({ onCreated, onCancel }: { onCreated: (report: Generat
 
       <div className="flex justify-end gap-2 pt-2">
         <button onClick={onCancel} className="px-3 py-2 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text)]">
-          Cancel
+          {t('reports.cancel')}
         </button>
         <button
           onClick={handleSubmit}
@@ -666,7 +666,7 @@ function CreateReportForm({ onCreated, onCancel }: { onCreated: (report: Generat
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-xs font-medium disabled:opacity-50"
         >
           {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          Create Report
+          {t('reports.createReport')}
         </button>
       </div>
     </div>

@@ -21,18 +21,20 @@ import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { DocumentsPanel } from '@/components/documents/documents-panel'
 import { Modal } from '@/components/ui/modal'
 import type { GeneratedReport } from '@/lib/api/reports'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'mb-1 block text-xs font-medium text-muted-foreground'
 
-const OPERATOR_LABELS: Record<ReportBuilderFilterOperator, string> = {
-  eq: 'is',
-  neq: 'is not',
-  gt: 'is after / greater than',
-  lt: 'is before / less than',
-  gte: 'is on/after / at least',
-  lte: 'is on/before / at most',
-  contains: 'contains',
+const OPERATOR_LABEL_KEYS: Record<ReportBuilderFilterOperator, MessageKey> = {
+  eq: 'reportBuilder.operatorIs',
+  neq: 'reportBuilder.operatorIsNot',
+  gt: 'reportBuilder.operatorGt',
+  lt: 'reportBuilder.operatorLt',
+  gte: 'reportBuilder.operatorGte',
+  lte: 'reportBuilder.operatorLte',
+  contains: 'reportBuilder.operatorContains',
 }
 
 function formatValue(v: unknown): string {
@@ -52,6 +54,7 @@ function formatValue(v: unknown): string {
  * materially larger future feature).
  */
 export function ReportBuilder() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('reports.manage')
 
@@ -96,7 +99,7 @@ export function ReportBuilder() {
         setDataSources(sources)
         setDefinitions(defs)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load the report builder.')))
+      .catch((err) => setError(getErrorMessage(err, t('reportBuilder.errorLoad'))))
       .finally(() => setLoading(false))
   }
 
@@ -160,7 +163,7 @@ export function ReportBuilder() {
     try {
       setResult(await previewReportBuilderQuery({ dataSource: dataSourceKey as 'pv_case' | 'reg_dossier', fields: selectedFields, filters, groupByField: groupByField || undefined }))
     } catch (err) {
-      setFormError(getErrorMessage(err, 'Could not run this preview.'))
+      setFormError(getErrorMessage(err, t('reportBuilder.errorPreview')))
     } finally {
       setPreviewing(false)
     }
@@ -183,7 +186,7 @@ export function ReportBuilder() {
       resetBuilder()
       load()
     } catch (err) {
-      setFormError(getErrorMessage(err, 'Could not save this report.'))
+      setFormError(getErrorMessage(err, t('reportBuilder.errorSave')))
     } finally {
       setSaving(false)
     }
@@ -197,21 +200,21 @@ export function ReportBuilder() {
       load()
       setViewingExport(report)
     } catch (err) {
-      setError(getErrorMessage(err, `Could not export "${def.name}".`))
+      setError(getErrorMessage(err, t('reportBuilder.errorExport', { name: def.name })))
     } finally {
       setBusyId(null)
     }
   }
 
   const handleDelete = async (def: ReportDefinition) => {
-    if (!window.confirm(`Delete the saved report "${def.name}"? This can't be undone.`)) return
+    if (!window.confirm(t('reportBuilder.confirmDelete', { name: def.name }))) return
     setBusyId(def.id)
     setError(null)
     try {
       await deleteReportDefinition(def.id)
       setDefinitions((prev) => prev.filter((d) => d.id !== def.id))
     } catch (err) {
-      setError(getErrorMessage(err, `Could not delete "${def.name}".`))
+      setError(getErrorMessage(err, t('reportBuilder.errorDelete', { name: def.name })))
     } finally {
       setBusyId(null)
     }
@@ -221,13 +224,13 @@ export function ReportBuilder() {
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Report Builder</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Pick the fields, filter, group, save, schedule and export your own custom reports.</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('reportBuilder.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('reportBuilder.subtitle')}</p>
         </div>
         {canManage && (
           <button onClick={openNewBuilder} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-3 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors">
             <Plus className="h-4 w-4" />
-            New Report
+            {t('reportBuilder.newReport')}
           </button>
         )}
       </div>
@@ -239,7 +242,7 @@ export function ReportBuilder() {
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Wand2 className="h-4 w-4 text-safemeds-teal" />
-              {editingId ? 'Save as new report' : 'Build a report'}
+              {editingId ? t('reportBuilder.saveAsNewReport') : t('reportBuilder.buildAReport')}
             </p>
             <button onClick={() => setBuilderOpen(false)} className="rounded-lg p-1 text-muted-foreground hover:bg-muted">
               <X className="h-4 w-4" />
@@ -248,11 +251,11 @@ export function ReportBuilder() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Report name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="e.g. Serious cases this quarter" />
+              <label className={labelClass}>{t('reportBuilder.reportName')}</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder={t('reportBuilder.reportNamePlaceholder')} />
             </div>
             <div>
-              <label className={labelClass}>Data source</label>
+              <label className={labelClass}>{t('reportBuilder.dataSource')}</label>
               <select
                 value={dataSourceKey}
                 onChange={(e) => {
@@ -264,7 +267,7 @@ export function ReportBuilder() {
                 }}
                 className={inputClass}
               >
-                <option value="">Choose a data source…</option>
+                <option value="">{t('reportBuilder.chooseDataSource')}</option>
                 {dataSources.map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label}
@@ -277,7 +280,7 @@ export function ReportBuilder() {
           {source && (
             <>
               <div>
-                <label className={labelClass}>Fields to include</label>
+                <label className={labelClass}>{t('reportBuilder.fieldsToInclude')}</label>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {source.fields.map((f) => (
                     <label key={f.key} className="flex items-center gap-2 text-sm text-foreground">
@@ -290,9 +293,9 @@ export function ReportBuilder() {
 
               <div>
                 <div className="mb-1 flex items-center justify-between">
-                  <label className={labelClass}>Filters</label>
+                  <label className={labelClass}>{t('reportBuilder.filters')}</label>
                   <button onClick={addFilter} className="text-xs font-medium text-safemeds-teal hover:underline">
-                    + Add filter
+                    {t('reportBuilder.addFilter')}
                   </button>
                 </div>
                 <div className="space-y-2">
@@ -311,26 +314,26 @@ export function ReportBuilder() {
                         <select value={f.operator} onChange={(e) => updateFilter(i, { operator: e.target.value as ReportBuilderFilterOperator })} className={`${inputClass} w-44`}>
                           {operators.map((op) => (
                             <option key={op} value={op}>
-                              {OPERATOR_LABELS[op]}
+                              {t(OPERATOR_LABEL_KEYS[op])}
                             </option>
                           ))}
                         </select>
-                        <input value={f.value} onChange={(e) => updateFilter(i, { value: e.target.value })} className={`${inputClass} flex-1`} placeholder={field?.kind === 'date' ? 'YYYY-MM-DD' : 'Value'} />
+                        <input value={f.value} onChange={(e) => updateFilter(i, { value: e.target.value })} className={`${inputClass} flex-1`} placeholder={field?.kind === 'date' ? t('reportBuilder.dateValuePlaceholder') : t('reportBuilder.valuePlaceholder')} />
                         <button onClick={() => removeFilter(i)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     )
                   })}
-                  {filters.length === 0 && <p className="text-xs text-muted-foreground">No filters — every record is included.</p>}
+                  {filters.length === 0 && <p className="text-xs text-muted-foreground">{t('reportBuilder.noFilters')}</p>}
                 </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label className={labelClass}>Group by (optional)</label>
+                  <label className={labelClass}>{t('reportBuilder.groupByOptional')}</label>
                   <select value={groupByField} onChange={(e) => setGroupByField(e.target.value)} className={inputClass}>
-                    <option value="">No grouping — list every record</option>
+                    <option value="">{t('reportBuilder.noGrouping')}</option>
                     {source.fields.map((f) => (
                       <option key={f.key} value={f.key}>
                         {f.label}
@@ -339,12 +342,12 @@ export function ReportBuilder() {
                   </select>
                 </div>
                 <div>
-                  <label className={labelClass}>Auto-schedule (optional)</label>
+                  <label className={labelClass}>{t('reportBuilder.autoScheduleOptional')}</label>
                   <select value={scheduleCadenceDays} onChange={(e) => setScheduleCadenceDays(e.target.value)} className={inputClass}>
-                    <option value="">Never — export on demand only</option>
-                    <option value="1">Daily</option>
-                    <option value="7">Weekly</option>
-                    <option value="30">Monthly</option>
+                    <option value="">{t('reportBuilder.neverOnDemandOnly')}</option>
+                    <option value="1">{t('reportBuilder.daily')}</option>
+                    <option value="7">{t('reportBuilder.weekly')}</option>
+                    <option value="30">{t('reportBuilder.monthly')}</option>
                   </select>
                 </div>
               </div>
@@ -358,7 +361,7 @@ export function ReportBuilder() {
                   className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
                 >
                   {previewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                  Preview
+                  {t('reportBuilder.preview')}
                 </button>
                 {canManage && (
                   <button
@@ -367,7 +370,7 @@ export function ReportBuilder() {
                     className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-2 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
                   >
                     {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                    Save Report
+                    {t('reportBuilder.saveReport')}
                   </button>
                 )}
               </div>
@@ -375,8 +378,10 @@ export function ReportBuilder() {
               {result && (
                 <div className="rounded-lg border border-border p-3">
                   <p className="mb-2 text-xs text-muted-foreground">
-                    {result.totalMatched} matching record{result.totalMatched === 1 ? '' : 's'}
-                    {result.truncated ? ' (showing the first 200 — export for the full set)' : ''}
+                    {result.totalMatched === 1
+                      ? t('reportBuilder.matchingRecordSingular', { count: result.totalMatched })
+                      : t('reportBuilder.matchingRecordPlural', { count: result.totalMatched })}
+                    {result.truncated ? t('reportBuilder.truncatedNote') : ''}
                   </p>
                   {result.groups ? (
                     <div className="space-y-1.5">
@@ -423,11 +428,11 @@ export function ReportBuilder() {
         </div>
       )}
 
-      <CollapsibleSection title={`Saved Reports (${definitions.length})`} defaultOpen icon={<Wand2 className="h-4 w-4 text-muted-foreground" />}>
+      <CollapsibleSection title={t('reportBuilder.savedReportsTitle', { count: definitions.length })} defaultOpen icon={<Wand2 className="h-4 w-4 text-muted-foreground" />}>
         {loading ? (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         ) : definitions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No saved reports yet — build one above.</p>
+          <p className="text-sm text-muted-foreground">{t('reportBuilder.noSavedReportsYet')}</p>
         ) : (
           <div className="space-y-2">
             {definitions.map((def) => (
@@ -436,20 +441,20 @@ export function ReportBuilder() {
                   <p className="truncate text-sm font-medium text-foreground">{def.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {dataSources.find((s) => s.key === def.dataSource)?.label ?? def.dataSource}
-                    {def.scheduleCadenceDays && ` · Auto-exports every ${def.scheduleCadenceDays} day(s)`}
-                    {def.lastRunAt && ` · Last exported ${new Date(def.lastRunAt).toLocaleDateString()}`}
+                    {def.scheduleCadenceDays && t('reportBuilder.autoExportsEvery', { n: def.scheduleCadenceDays })}
+                    {def.lastRunAt && t('reportBuilder.lastExported', { date: new Date(def.lastRunAt).toLocaleDateString() })}
                   </p>
                 </div>
                 <div className="flex flex-shrink-0 gap-1">
-                  <button onClick={() => loadDefinitionIntoBuilder(def)} title="Open in builder" className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted">
+                  <button onClick={() => loadDefinitionIntoBuilder(def)} title={t('reportBuilder.openInBuilder')} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted">
                     <Wand2 className="h-4 w-4" />
                   </button>
                   {canManage && (
                     <>
-                      <button onClick={() => handleExport(def)} disabled={busyId === def.id} title="Export now" className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-50">
+                      <button onClick={() => handleExport(def)} disabled={busyId === def.id} title={t('reportBuilder.exportNow')} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-50">
                         {busyId === def.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                       </button>
-                      <button onClick={() => handleDelete(def)} disabled={busyId === def.id} title="Delete" className="rounded-lg p-1.5 text-status-error hover:bg-status-error/10 disabled:opacity-50">
+                      <button onClick={() => handleDelete(def)} disabled={busyId === def.id} title={t('reportBuilder.delete')} className="rounded-lg p-1.5 text-status-error hover:bg-status-error/10 disabled:opacity-50">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </>
@@ -463,14 +468,11 @@ export function ReportBuilder() {
 
       <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
         <ShieldAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-        <p>
-          Each report covers one data source at a time — PV Cases or RegCloud Dossiers. Quality (QualCloud) has no data yet, and joining several
-          modules into one report is a larger feature planned for later.
-        </p>
+        <p>{t('reportBuilder.scopeNote')}</p>
       </div>
 
       {viewingExport && (
-        <Modal title={`Export ready — ${viewingExport.title}`} onClose={() => setViewingExport(null)}>
+        <Modal title={t('reportBuilder.exportReadyTitle', { title: viewingExport.title })} onClose={() => setViewingExport(null)}>
           <DocumentsPanel recordType="generated_report" recordId={viewingExport.id} />
         </Modal>
       )}

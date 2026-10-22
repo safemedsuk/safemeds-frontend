@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { AlertCircle, Loader2, X } from 'lucide-react'
 import { ApiRequestError } from '@/lib/api/client'
 import { createInvitation } from '@/lib/api/invitations'
-import { TENANT_ROLES } from '@/lib/tenant-roles'
+import { TENANT_ROLES, tenantRoleLabel } from '@/lib/tenant-roles'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   onClose: () => void
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function InviteUserModal({ onClose, onInvited }: Props) {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [isExternal, setIsExternal] = useState(false)
@@ -36,13 +38,13 @@ export function InviteUserModal({ onClose, onInvited }: Props) {
       if (err instanceof ApiRequestError) {
         setError(
           err.code === 'EMAIL_ALREADY_REGISTERED'
-            ? 'An account already exists for this email address.'
+            ? t('users.inviteModal.errorEmailAlreadyRegistered')
             : err.code === 'INVITATION_ALREADY_PENDING'
-              ? 'An invitation is already pending for this email address.'
+              ? t('users.inviteModal.errorAlreadyPending')
               : err.message,
         )
       } else {
-        setError('Could not send the invitation. Please try again.')
+        setError(t('users.inviteModal.errorGeneric'))
       }
     } finally {
       setLoading(false)
@@ -53,7 +55,7 @@ export function InviteUserModal({ onClose, onInvited }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-xl bg-[var(--surface)] border border-[var(--border)] shadow-xl">
         <div className="p-5 border-b border-[var(--border)] flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[var(--text)]">Invite a team member</h2>
+          <h2 className="text-sm font-semibold text-[var(--text)]">{t('users.inviteModal.title')}</h2>
           <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text)]">
             <X className="h-4 w-4" />
           </button>
@@ -68,7 +70,7 @@ export function InviteUserModal({ onClose, onInvited }: Props) {
           )}
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-[var(--text)]">Email address</label>
+            <label className="block text-xs font-medium text-[var(--text)]">{t('users.inviteModal.emailAddress')}</label>
             <input
               type="email"
               value={email}
@@ -79,7 +81,7 @@ export function InviteUserModal({ onClose, onInvited }: Props) {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-[var(--text)]">Roles</label>
+            <label className="block text-xs font-medium text-[var(--text)]">{t('users.inviteModal.roles')}</label>
             <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
               {TENANT_ROLES.map((role) => (
                 <label
@@ -92,7 +94,7 @@ export function InviteUserModal({ onClose, onInvited }: Props) {
                     onChange={() => toggleRole(role.key)}
                     className="h-4 w-4 rounded border-[var(--border)]"
                   />
-                  <span className="text-[var(--text)]">{role.label}</span>
+                  <span className="text-[var(--text)]">{tenantRoleLabel(role.key, t)}</span>
                 </label>
               ))}
             </div>
@@ -101,8 +103,8 @@ export function InviteUserModal({ onClose, onInvited }: Props) {
           <label className="flex items-start gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-sm cursor-pointer">
             <input type="checkbox" checked={isExternal} onChange={(e) => setIsExternal(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-[var(--border)]" />
             <span>
-              <span className="block text-[var(--text)]">External consultant</span>
-              <span className="block text-xs text-[var(--text-muted)]">An outsourced professional rather than your own direct employee — e.g. a regulatory consultant working across several companies.</span>
+              <span className="block text-[var(--text)]">{t('users.inviteModal.externalConsultant')}</span>
+              <span className="block text-xs text-[var(--text-muted)]">{t('users.inviteModal.externalConsultantHelp')}</span>
             </span>
           </label>
         </div>
@@ -114,13 +116,13 @@ export function InviteUserModal({ onClose, onInvited }: Props) {
             className="flex-1 h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Send invitation
+            {t('users.inviteModal.sendInvitation')}
           </button>
           <button
             onClick={onClose}
             className="px-4 h-9 rounded-lg text-sm font-medium border border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       </div>

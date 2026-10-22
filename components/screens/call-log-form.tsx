@@ -12,6 +12,7 @@ import type { ConsentMethod, CreateAdverseEventInput, CreateSuspectProductInput,
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useAuthStore } from '@/lib/store/auth-store'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 /**
  * Holding `recordType` for a voicemail's audio file, uploaded *before*
@@ -74,6 +75,7 @@ function formatDateTime(value: string): string {
  */
 export function CallLogForm() {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canLog = has('pv.capture_case')
   const companyId = useAuthStore((state) => state.currentUser?.companyId)
@@ -140,10 +142,10 @@ export function CallLogForm() {
   if (!canLog) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Log a Call</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('callLogForm.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to log calls. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('callLogForm.noPermission')}</p>
         </div>
       </div>
     )
@@ -158,7 +160,7 @@ export function CallLogForm() {
       setAudioDocumentId(version.documentId)
       setAudioFilename(file.name)
     } catch (err) {
-      setAudioError(getErrorMessage(err, 'Could not upload the recording.'))
+      setAudioError(getErrorMessage(err, t('callLogForm.errorUpload')))
     } finally {
       setAudioUploading(false)
     }
@@ -224,7 +226,7 @@ export function CallLogForm() {
       setSuccess({ caseId: created.caseId ?? undefined })
       loadRecent()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not log this call.'))
+      setError(getErrorMessage(err, t('callLogForm.errorLog')))
     } finally {
       setSubmitting(false)
     }
@@ -259,15 +261,15 @@ export function CallLogForm() {
   }
 
   const columns: DataTableColumn<CallLog>[] = [
-    { key: 'callerNumber', label: 'Caller' },
+    { key: 'callerNumber', label: t('callLogForm.columnCaller') },
     {
       key: 'occurredAt',
-      label: 'When',
+      label: t('callLogForm.columnWhen'),
       render: (v, row) => (
         <span className="inline-flex items-center gap-1.5">
           {formatDateTime(v as string)}
           {row.isAfterHours && (
-            <span title="Outside business hours (08:00-18:00 Mon-Fri)">
+            <span title={t('callLogForm.afterHoursTitle')}>
               <Clock className="h-3.5 w-3.5 text-status-warning" />
             </span>
           )}
@@ -276,72 +278,72 @@ export function CallLogForm() {
     },
     {
       key: 'outcome',
-      label: 'Outcome',
+      label: t('callLogForm.columnOutcome'),
       render: (v) => <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{CALL_OUTCOME_LABELS[v as CallOutcome]}</span>,
     },
     {
       key: 'isVoicemail',
-      label: 'Type',
+      label: t('callLogForm.columnType'),
       render: (v) =>
         v ? (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <Voicemail className="h-3.5 w-3.5" /> Voicemail
+            <Voicemail className="h-3.5 w-3.5" /> {t('callLogForm.voicemail')}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <Phone className="h-3.5 w-3.5" /> Live
+            <Phone className="h-3.5 w-3.5" /> {t('callLogForm.liveCall')}
           </span>
         ),
     },
     {
       key: 'caseId',
-      label: 'Case',
-      render: (v) => (v ? <span className="font-mono text-xs text-safemeds-teal">Linked</span> : <span className="text-xs text-muted-foreground">—</span>),
+      label: t('callLogForm.columnCase'),
+      render: (v) => (v ? <span className="font-mono text-xs text-safemeds-teal">{t('callLogForm.linked')}</span> : <span className="text-xs text-muted-foreground">—</span>),
     },
   ]
 
   return (
     <div className="space-y-6 p-6 max-w-4xl">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Log a Call</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Record a hotline/phone report and, if it results in a reportable case, capture it here too.</p>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('callLogForm.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('callLogForm.subtitle')}</p>
       </div>
 
       {success ? (
         <div className="rounded-lg border border-status-success/30 bg-status-success/5 p-4 flex items-start gap-3">
           <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-status-success mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-foreground">Call logged{success.caseId ? ' — case created' : ''}</p>
+            <p className="text-sm font-medium text-foreground">{success.caseId ? t('callLogForm.callLoggedCaseCreated') : t('callLogForm.callLogged')}</p>
             <div className="mt-3 flex gap-3">
               {success.caseId && (
                 <button onClick={() => router.push(`/pv-cases/${success.caseId}`)} className="text-sm font-medium text-safemeds-teal hover:underline">
-                  Open the case →
+                  {t('callLogForm.openCase')}
                 </button>
               )}
               <button onClick={resetForm} className="text-sm font-medium text-muted-foreground hover:text-foreground">
-                Log another call
+                {t('callLogForm.logAnotherCall')}
               </button>
             </div>
           </div>
         </div>
       ) : (
         <>
-          <Section title="Call Details">
+          <Section title={t('callLogForm.callDetails')}>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelClass}>Caller number *</label>
-                <input value={callerNumber} onChange={(e) => setCallerNumber(e.target.value)} placeholder="+254700000000" className={inputClass} />
+                <label className={labelClass}>{t('callLogForm.callerNumber')}</label>
+                <input value={callerNumber} onChange={(e) => setCallerNumber(e.target.value)} placeholder={t('callLogForm.callerNumberPlaceholder')} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Date and time *</label>
+                <label className={labelClass}>{t('callLogForm.dateTime')}</label>
                 <input type="datetime-local" value={occurredAt} onChange={(e) => setOccurredAt(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Duration (seconds)</label>
+                <label className={labelClass}>{t('callLogForm.duration')}</label>
                 <input type="number" min={0} value={durationSeconds} onChange={(e) => setDurationSeconds(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Outcome *</label>
+                <label className={labelClass}>{t('callLogForm.outcome')}</label>
                 <select value={outcome} onChange={(e) => setOutcome(e.target.value as CallOutcome)} className={inputClass}>
                   {Object.entries(CALL_OUTCOME_LABELS).map(([value, label]) => (
                     <option key={value} value={value}>
@@ -352,20 +354,20 @@ export function CallLogForm() {
               </div>
             </div>
             <div className="mt-4">
-              <label className={labelClass}>Notes</label>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={inputClass} placeholder="What the caller said, in brief" />
+              <label className={labelClass}>{t('callLogForm.notes')}</label>
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={inputClass} placeholder={t('callLogForm.notesPlaceholder')} />
             </div>
 
             <label className="mt-4 flex items-center gap-2 text-sm text-foreground cursor-pointer w-fit">
               <input type="checkbox" checked={isVoicemail} onChange={(e) => setIsVoicemail(e.target.checked)} className="h-4 w-4 rounded border-input" />
               <Voicemail className="h-4 w-4 text-muted-foreground" />
-              Missed call / voicemail (no one answered live)
+              {t('callLogForm.missedCallVoicemail')}
             </label>
 
             {isVoicemail && (
               <div className="mt-3 rounded-lg border border-border bg-muted/30 p-4 space-y-3">
                 <div>
-                  <label className={labelClass}>Recording (optional)</label>
+                  <label className={labelClass}>{t('callLogForm.recording')}</label>
                   {audioFilename ? (
                     <div className="flex items-center gap-2 text-sm text-foreground">
                       <FileAudio className="h-4 w-4 text-safemeds-teal" />
@@ -378,7 +380,7 @@ export function CallLogForm() {
                         }}
                         className="text-xs text-muted-foreground hover:text-status-error"
                       >
-                        Remove
+                        {t('callLogForm.remove')}
                       </button>
                     </div>
                   ) : (
@@ -395,21 +397,21 @@ export function CallLogForm() {
                   )}
                   {audioUploading && (
                     <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Uploading…
+                      <Loader2 className="h-3 w-3 animate-spin" /> {t('callLogForm.uploading')}
                     </p>
                   )}
                   {audioError && <p className="mt-1 text-xs text-status-error">{audioError}</p>}
                 </div>
                 <div>
-                  <label className={labelClass}>Transcription note (optional)</label>
+                  <label className={labelClass}>{t('callLogForm.transcriptionNote')}</label>
                   <textarea
                     value={transcriptionNote}
                     onChange={(e) => setTranscriptionNote(e.target.value)}
                     rows={2}
                     className={inputClass}
-                    placeholder="What the voicemail said, if you listened to it"
+                    placeholder={t('callLogForm.transcriptionPlaceholder')}
                   />
-                  <p className="mt-1 text-xs text-muted-foreground">Stored encrypted — only ever readable back through this app.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('callLogForm.transcriptionStored')}</p>
                 </div>
               </div>
             )}
@@ -417,12 +419,12 @@ export function CallLogForm() {
 
           {outcome === 'case_created' && !refDataLoading && (
             <>
-              <Section title="Case Information">
+              <Section title={t('callLogForm.caseInformation')}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className={labelClass}>Report type *</label>
+                    <label className={labelClass}>{t('callLogForm.reportType')}</label>
                     <select value={reportTypeId} onChange={(e) => setReportTypeId(e.target.value)} className={inputClass}>
-                      <option value="">Select…</option>
+                      <option value="">{t('callLogForm.select')}</option>
                       {reportTypes.map((rt) => (
                         <option key={rt.id} value={rt.id}>
                           {rt.name}
@@ -432,9 +434,9 @@ export function CallLogForm() {
                   </div>
                   <div />
                   <div>
-                    <label className={labelClass}>Country of occurrence *</label>
+                    <label className={labelClass}>{t('callLogForm.countryOfOccurrence')}</label>
                     <select value={countryOfOccurrenceId} onChange={(e) => setCountryOfOccurrenceId(e.target.value)} className={inputClass}>
-                      <option value="">Select…</option>
+                      <option value="">{t('callLogForm.select')}</option>
                       {countries.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
@@ -443,9 +445,9 @@ export function CallLogForm() {
                     </select>
                   </div>
                   <div>
-                    <label className={labelClass}>Country of report *</label>
+                    <label className={labelClass}>{t('callLogForm.countryOfReport')}</label>
                     <select value={countryOfReportId} onChange={(e) => setCountryOfReportId(e.target.value)} className={inputClass}>
-                      <option value="">Select…</option>
+                      <option value="">{t('callLogForm.select')}</option>
                       {countries.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
@@ -454,67 +456,67 @@ export function CallLogForm() {
                     </select>
                   </div>
                   <div>
-                    <label className={labelClass}>Awareness date *</label>
+                    <label className={labelClass}>{t('callLogForm.awarenessDate')}</label>
                     <input type="date" value={awarenessDate} onChange={(e) => setAwarenessDate(e.target.value)} className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Received date *</label>
+                    <label className={labelClass}>{t('callLogForm.receivedDate')}</label>
                     <input type="date" value={receivedDate} onChange={(e) => setReceivedDate(e.target.value)} className={inputClass} />
                   </div>
                 </div>
               </Section>
 
-              <Section title="Reporter">
+              <Section title={t('callLogForm.reporter')}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className={labelClass}>Reporter type</label>
+                    <label className={labelClass}>{t('callLogForm.reporterType')}</label>
                     <select value={reporterType} onChange={(e) => setReporterType(e.target.value as ReporterType)} className={inputClass}>
-                      <option value="consumer">Consumer / Patient</option>
-                      <option value="healthcare_professional">Healthcare Professional</option>
+                      <option value="consumer">{t('callLogForm.consumerPatient')}</option>
+                      <option value="healthcare_professional">{t('callLogForm.healthcareProfessional')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className={labelClass}>Full name</label>
+                    <label className={labelClass}>{t('callLogForm.fullName')}</label>
                     <input value={reporterFullName} onChange={(e) => setReporterFullName(e.target.value)} className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Phone</label>
-                    <input value={reporterPhone} onChange={(e) => setReporterPhone(e.target.value)} placeholder="Defaults to the caller number" className={inputClass} />
+                    <label className={labelClass}>{t('callLogForm.phone')}</label>
+                    <input value={reporterPhone} onChange={(e) => setReporterPhone(e.target.value)} placeholder={t('callLogForm.phoneDefault')} className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Email</label>
+                    <label className={labelClass}>{t('callLogForm.email')}</label>
                     <input type="email" value={reporterEmail} onChange={(e) => setReporterEmail(e.target.value)} className={inputClass} />
                   </div>
                 </div>
               </Section>
 
-              <Section title="Patient">
+              <Section title={t('callLogForm.patient')}>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
-                    <label className={labelClass}>Initials</label>
-                    <input value={patientInitials} onChange={(e) => setPatientInitials(e.target.value)} placeholder="e.g. J.M." className={inputClass} />
+                    <label className={labelClass}>{t('callLogForm.initials')}</label>
+                    <input value={patientInitials} onChange={(e) => setPatientInitials(e.target.value)} placeholder={t('callLogForm.initialsPlaceholder')} className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Age (years)</label>
+                    <label className={labelClass}>{t('callLogForm.ageYears')}</label>
                     <input type="number" min={0} max={130} value={patientAgeYears} onChange={(e) => setPatientAgeYears(e.target.value)} className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Sex</label>
+                    <label className={labelClass}>{t('callLogForm.sex')}</label>
                     <select value={patientSex} onChange={(e) => setPatientSex(e.target.value as PatientSex)} className={inputClass}>
-                      <option value="unknown">Unknown</option>
-                      <option value="female">Female</option>
-                      <option value="male">Male</option>
+                      <option value="unknown">{t('callLogForm.unknown')}</option>
+                      <option value="female">{t('callLogForm.female')}</option>
+                      <option value="male">{t('callLogForm.male')}</option>
                     </select>
                   </div>
                 </div>
               </Section>
 
-              <Section title="Suspect Products" subtitle="At least one is required">
+              <Section title={t('callLogForm.suspectProducts')} subtitle={t('callLogForm.atLeastOneRequired')}>
                 <div className="space-y-3">
                   {products.map((product, index) => (
                     <div key={product.key} className="rounded-lg border border-border p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product {index + 1}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('callLogForm.product', { n: String(index + 1) })}</p>
                         {products.length > 1 && (
                           <button onClick={() => setProducts((prev) => prev.filter((p) => p.key !== product.key))} className="text-muted-foreground hover:text-status-error">
                             <Trash2 className="h-4 w-4" />
@@ -523,36 +525,36 @@ export function CallLogForm() {
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div>
-                          <label className={labelClass}>Medicinal product *</label>
+                          <label className={labelClass}>{t('callLogForm.medicinalProduct')}</label>
                           <input value={product.medicinalProduct} onChange={(e) => updateProduct(product.key, { medicinalProduct: e.target.value })} className={inputClass} />
                         </div>
                         <div>
-                          <label className={labelClass}>Characterization</label>
+                          <label className={labelClass}>{t('callLogForm.characterization')}</label>
                           <select
                             value={product.drugCharacterization}
                             onChange={(e) => updateProduct(product.key, { drugCharacterization: e.target.value as DrugCharacterization })}
                             className={inputClass}
                           >
-                            <option value="suspect">Suspect</option>
-                            <option value="concomitant">Concomitant</option>
-                            <option value="interacting">Interacting</option>
+                            <option value="suspect">{t('callLogForm.suspect')}</option>
+                            <option value="concomitant">{t('callLogForm.concomitant')}</option>
+                            <option value="interacting">{t('callLogForm.interacting')}</option>
                           </select>
                         </div>
                       </div>
                     </div>
                   ))}
                   <button onClick={() => setProducts((prev) => [...prev, emptyProduct()])} className="flex items-center gap-1.5 text-sm font-medium text-safemeds-teal hover:underline">
-                    <Plus className="h-4 w-4" /> Add another product
+                    <Plus className="h-4 w-4" /> {t('callLogForm.addAnotherProduct')}
                   </button>
                 </div>
               </Section>
 
-              <Section title="Adverse Events" subtitle="At least one is required">
+              <Section title={t('callLogForm.adverseEvents')} subtitle={t('callLogForm.atLeastOneRequired')}>
                 <div className="space-y-3">
                   {events.map((event, index) => (
                     <div key={event.key} className="rounded-lg border border-border p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Event {index + 1}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('callLogForm.event', { n: String(index + 1) })}</p>
                         {events.length > 1 && (
                           <button onClick={() => setEvents((prev) => prev.filter((e) => e.key !== event.key))} className="text-muted-foreground hover:text-status-error">
                             <Trash2 className="h-4 w-4" />
@@ -560,38 +562,38 @@ export function CallLogForm() {
                         )}
                       </div>
                       <div>
-                        <label className={labelClass}>Reported term *</label>
+                        <label className={labelClass}>{t('callLogForm.reportedTerm')}</label>
                         <input value={event.reportedTerm} onChange={(e) => updateEvent(event.key, { reportedTerm: e.target.value })} className={inputClass} />
                       </div>
                       <div>
-                        <label className={labelClass}>Narrative *</label>
+                        <label className={labelClass}>{t('callLogForm.narrative')}</label>
                         <textarea value={event.narrative} onChange={(e) => updateEvent(event.key, { narrative: e.target.value })} rows={2} className={inputClass} />
                       </div>
                     </div>
                   ))}
                   <button onClick={() => setEvents((prev) => [...prev, emptyEvent()])} className="flex items-center gap-1.5 text-sm font-medium text-safemeds-teal hover:underline">
-                    <Plus className="h-4 w-4" /> Add another adverse event
+                    <Plus className="h-4 w-4" /> {t('callLogForm.addAnotherEvent')}
                   </button>
                 </div>
               </Section>
 
-              <Section title="Consent">
+              <Section title={t('callLogForm.consent')}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className={labelClass}>Was consent to report obtained?</label>
+                    <label className={labelClass}>{t('callLogForm.consentQuestion')}</label>
                     <select value={consentGranted} onChange={(e) => setConsentGranted(e.target.value as typeof consentGranted)} className={inputClass}>
-                      <option value="not_captured">Not captured now</option>
-                      <option value="yes">Granted</option>
-                      <option value="no">Declined</option>
+                      <option value="not_captured">{t('callLogForm.notCapturedNow')}</option>
+                      <option value="yes">{t('callLogForm.granted')}</option>
+                      <option value="no">{t('callLogForm.declined')}</option>
                     </select>
                   </div>
                   {consentGranted !== 'not_captured' && (
                     <div>
-                      <label className={labelClass}>Method</label>
+                      <label className={labelClass}>{t('callLogForm.method')}</label>
                       <select value={consentMethod} onChange={(e) => setConsentMethod(e.target.value as ConsentMethod)} className={inputClass}>
-                        <option value="verbal">Verbal</option>
-                        <option value="written">Written</option>
-                        <option value="implied">Implied</option>
+                        <option value="verbal">{t('callLogForm.verbal')}</option>
+                        <option value="written">{t('callLogForm.written')}</option>
+                        <option value="implied">{t('callLogForm.implied')}</option>
                       </select>
                     </div>
                   )}
@@ -613,7 +615,7 @@ export function CallLogForm() {
               className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Log Call
+              {t('callLogForm.logCall')}
             </button>
           </div>
         </>
@@ -622,7 +624,7 @@ export function CallLogForm() {
       <div className="rounded-lg border border-border bg-card overflow-hidden">
         <div className="p-4 border-b border-border flex items-center gap-2">
           <Phone className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold text-foreground">Recent Calls</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('callLogForm.recentCalls')}</h2>
         </div>
         <div className="p-2">
           <DataTableV2 data={recentCalls} columns={columns} searchable={false} exportable={false} showDensityToggle={false} loading={recentLoading} />

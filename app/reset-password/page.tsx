@@ -7,8 +7,10 @@ import { AuthLayout } from '@/components/layout/auth-layout'
 import { ApiRequestError, getErrorMessage } from '@/lib/api/client'
 import { resetPassword } from '@/lib/api/password'
 import { getPasswordRequirements, isPasswordValid } from '@/lib/password-requirements'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 function ResetPasswordForm() {
+  const { t } = useTranslation()
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
@@ -36,11 +38,11 @@ function ResetPasswordForm() {
       if (err instanceof ApiRequestError) {
         setError(
           err.code === 'RESET_TOKEN_INVALID'
-            ? 'This reset link is invalid or has expired. Request a new one.'
-            : getErrorMessage(err, 'Something went wrong. Please try again.'),
+            ? t('auth.resetPassword.tokenInvalidOrExpired')
+            : getErrorMessage(err, t('common.somethingWentWrong')),
         )
       } else {
-        setError('Something went wrong. Please try again.')
+        setError(t('common.somethingWentWrong'))
       }
     } finally {
       setLoading(false)
@@ -51,12 +53,10 @@ function ResetPasswordForm() {
     return (
       <AuthLayout>
         <div className="space-y-4 text-center">
-          <h1 className="text-2xl font-display font-semibold text-[var(--text)]">Invalid reset link</h1>
-          <p className="text-sm text-[var(--text-muted)]">
-            This password reset link is missing its token. Request a new one from the forgot-password page.
-          </p>
+          <h1 className="text-2xl font-display font-semibold text-[var(--text)]">{t('auth.resetPassword.invalidLinkTitle')}</h1>
+          <p className="text-sm text-[var(--text-muted)]">{t('auth.resetPassword.invalidLinkBody')}</p>
           <a href="/forgot-password" className="inline-block text-sm text-[var(--primary)] hover:opacity-90 font-medium">
-            Request a new link
+            {t('auth.resetPassword.requestNewLink')}
           </a>
         </div>
       </AuthLayout>
@@ -73,17 +73,14 @@ function ResetPasswordForm() {
             </div>
           </div>
           <div>
-            <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">Password reset</h1>
-            <p className="text-sm text-[var(--text-muted)]">
-              Your password has been changed and all other sessions have been signed out. You can now sign in with
-              your new password.
-            </p>
+            <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">{t('auth.resetPassword.doneTitle')}</h1>
+            <p className="text-sm text-[var(--text-muted)]">{t('auth.resetPassword.doneBody')}</p>
           </div>
           <button
             onClick={() => router.push('/login')}
             className="w-full h-10 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-medium rounded-lg transition-colors"
           >
-            Go to sign in
+            {t('auth.resetPassword.goToSignIn')}
           </button>
         </div>
       </AuthLayout>
@@ -93,8 +90,8 @@ function ResetPasswordForm() {
   return (
     <AuthLayout>
       <div className="mb-8">
-        <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">Set a new password</h1>
-        <p className="text-sm text-[var(--text-muted)]">Choose a strong password you haven&apos;t used before.</p>
+        <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">{t('auth.resetPassword.title')}</h1>
+        <p className="text-sm text-[var(--text-muted)]">{t('auth.resetPassword.subtitle')}</p>
       </div>
 
       {error && (
@@ -107,7 +104,7 @@ function ResetPasswordForm() {
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
           <label htmlFor="newPassword" className="block text-sm font-medium text-[var(--text)]">
-            New password
+            {t('auth.resetPassword.newPassword')}
           </label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-muted)] pointer-events-none" />
@@ -142,7 +139,9 @@ function ResetPasswordForm() {
                   >
                     {met && <span className="text-white text-[9px]">✓</span>}
                   </div>
-                  <span className={met ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}>{req.label}</span>
+                  <span className={met ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}>
+                    {t(req.labelKey, req.labelParams)}
+                  </span>
                 </div>
               )
             })}
@@ -151,7 +150,7 @@ function ResetPasswordForm() {
 
         <div className="space-y-2">
           <label htmlFor="confirmPassword" className="block text-sm font-medium text-[var(--text)]">
-            Confirm new password
+            {t('auth.resetPassword.confirmNewPassword')}
           </label>
           <input
             id="confirmPassword"
@@ -169,7 +168,9 @@ function ResetPasswordForm() {
             }`}
             placeholder="••••••••••••"
           />
-          {confirmPassword && !passwordsMatch && <p className="text-xs text-status-error">Passwords do not match</p>}
+          {confirmPassword && !passwordsMatch && (
+            <p className="text-xs text-status-error">{t('auth.resetPassword.passwordsDoNotMatch')}</p>
+          )}
         </div>
 
         <button
@@ -178,7 +179,7 @@ function ResetPasswordForm() {
           className="w-full h-10 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          Reset password
+          {t('auth.resetPassword.submit')}
         </button>
       </form>
     </AuthLayout>

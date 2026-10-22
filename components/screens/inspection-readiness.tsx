@@ -141,7 +141,6 @@ export function InspectionReadinessScreen() {
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{row.note}</p>
                   {row.guidelineReference && <p className="mt-1 text-xs text-muted-foreground italic">{row.guidelineReference}</p>}
-                  {row.unverified && <p className="mt-1 text-xs text-status-warning">Structural placeholder — not yet confirmed against a real guideline citation.</p>}
                 </div>
               ))}
             </div>

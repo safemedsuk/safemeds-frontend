@@ -7,6 +7,7 @@ import { AuditEntry, getAuditEntries } from '@/lib/api/audit'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { Modal } from '@/components/ui/modal'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const ACTION_COLORS: Record<string, string> = {
   login: 'bg-status-info/10 text-status-info',
@@ -34,6 +35,7 @@ function actionColor(action: string): string {
 }
 
 export function AuditTrail() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canRead = has('audit.read')
 
@@ -83,7 +85,7 @@ export function AuditTrail() {
         setKnownActions((prev) => Array.from(new Set([...prev, ...rows.map((r) => r.action)])).sort())
       })
       .catch((err) => {
-        if (!cancelled) setError(getErrorMessage(err, 'Could not load the audit trail.'))
+        if (!cancelled) setError(getErrorMessage(err, t('audit.trail.errorLoad')))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -98,12 +100,10 @@ export function AuditTrail() {
   if (!canRead) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Audit Trail</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('audit.trail.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">
-            You don&apos;t have permission to view the audit trail. Contact your System Administrator.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('audit.trail.noPermission')}</p>
         </div>
       </div>
     )
@@ -112,7 +112,7 @@ export function AuditTrail() {
   const columns: DataTableColumn<AuditEntry>[] = [
     {
       key: 'action',
-      label: 'Action',
+      label: t('audit.trail.columnAction'),
       sortable: false,
       render: (value: string) => (
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${actionColor(value)}`}>
@@ -122,7 +122,7 @@ export function AuditTrail() {
     },
     {
       key: 'recordType',
-      label: 'Record',
+      label: t('audit.trail.columnRecord'),
       render: (value: string, row: AuditEntry) => (
         <span className="whitespace-nowrap">
           {value.replace(/_/g, ' ')}
@@ -132,13 +132,13 @@ export function AuditTrail() {
     },
     {
       key: 'actorName',
-      label: 'Actor',
-      render: (value: string | null, row: AuditEntry) => value ?? (row.actorType === 'system' ? 'System' : 'Unknown user'),
+      label: t('audit.trail.columnActor'),
+      render: (value: string | null, row: AuditEntry) => value ?? (row.actorType === 'system' ? t('audit.trail.systemActor') : t('audit.trail.unknownUser')),
     },
-    { key: 'ip', label: 'IP Address', render: (value: string | null) => value ?? '—' },
+    { key: 'ip', label: t('audit.trail.columnIp'), render: (value: string | null) => value ?? '—' },
     {
       key: 'occurredAt',
-      label: 'When',
+      label: t('audit.trail.columnWhen'),
       sortable: false,
       render: (value: string) => (
         <span className="whitespace-nowrap">
@@ -152,10 +152,8 @@ export function AuditTrail() {
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Audit Trail</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {total} entries · Complete, immutable record of every regulated change in your company
-          </p>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('audit.trail.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('audit.trail.subtitle', { count: total })}</p>
         </div>
       </div>
 
@@ -163,20 +161,20 @@ export function AuditTrail() {
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex items-center gap-2 mb-4">
           <Filter className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-semibold text-foreground">Filters</span>
+          <span className="text-sm font-semibold text-foreground">{t('audit.trail.filters')}</span>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
           <div>
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Record Type
+              {t('audit.trail.recordType')}
             </label>
             <select
               value={recordType}
               onChange={(e) => setRecordType(e.target.value)}
               className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
             >
-              <option value="all">All Types</option>
+              <option value="all">{t('audit.trail.allTypes')}</option>
               {RECORD_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {type.replace(/_/g, ' ')}
@@ -186,13 +184,13 @@ export function AuditTrail() {
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Action</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('audit.trail.action')}</label>
             <select
               value={action}
               onChange={(e) => setAction(e.target.value)}
               className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
             >
-              <option value="all">All Actions</option>
+              <option value="all">{t('audit.trail.allActions')}</option>
               {knownActions.map((a) => (
                 <option key={a} value={a}>
                   {formatAction(a)}
@@ -203,17 +201,17 @@ export function AuditTrail() {
 
           <div>
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Time Range
+              {t('audit.trail.timeRange')}
             </label>
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
               className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
             >
-              <option value="24h">Last 24 Hours</option>
-              <option value="7d">Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
-              <option value="all">All Time</option>
+              <option value="24h">{t('audit.trail.last24Hours')}</option>
+              <option value="7d">{t('audit.trail.last7Days')}</option>
+              <option value="30d">{t('audit.trail.last30Days')}</option>
+              <option value="all">{t('audit.trail.allTime')}</option>
             </select>
           </div>
         </div>
@@ -241,7 +239,7 @@ export function AuditTrail() {
       />
 
       <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
-        <span>Rows per page</span>
+        <span>{t('audit.trail.rowsPerPage')}</span>
         {[25, 50, 100].map((size) => (
           <button
             key={size}
@@ -258,15 +256,15 @@ export function AuditTrail() {
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
               {detailEntry.recordType.replace(/_/g, ' ')}
-              {detailEntry.recordId ? ` · ${detailEntry.recordId}` : ''} · By{' '}
-              {detailEntry.actorName ?? (detailEntry.actorType === 'system' ? 'System' : 'Unknown user')} ·{' '}
+              {detailEntry.recordId ? ` · ${detailEntry.recordId}` : ''} · {t('audit.trail.by')}{' '}
+              {detailEntry.actorName ?? (detailEntry.actorType === 'system' ? t('audit.trail.systemActor') : t('audit.trail.unknownUser'))} ·{' '}
               {new Date(detailEntry.occurredAt).toLocaleString()}
               {detailEntry.ip ? ` · ${detailEntry.ip}` : ''}
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               {detailEntry.oldValue && (
                 <div className="rounded-lg bg-status-error/5 p-3">
-                  <p className="text-xs font-semibold text-status-error mb-1">Before</p>
+                  <p className="text-xs font-semibold text-status-error mb-1">{t('audit.trail.before')}</p>
                   <pre className="text-xs text-muted-foreground overflow-x-auto">
                     {JSON.stringify(detailEntry.oldValue, null, 2)}
                   </pre>
@@ -274,7 +272,7 @@ export function AuditTrail() {
               )}
               {detailEntry.newValue && (
                 <div className="rounded-lg bg-status-success/5 p-3">
-                  <p className="text-xs font-semibold text-status-success mb-1">After</p>
+                  <p className="text-xs font-semibold text-status-success mb-1">{t('audit.trail.after')}</p>
                   <pre className="text-xs text-muted-foreground overflow-x-auto">
                     {JSON.stringify(detailEntry.newValue, null, 2)}
                   </pre>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { AlertTriangle, CalendarClock, ClipboardList, FileClock, Loader2, MessageSquare, Radar, ShieldAlert } from 'lucide-react'
 import { getReportingDashboard, ReportingDashboard, RegOpenItem } from '@/lib/api/reporting-dashboard'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 /**
  * Real-usage content, 11 Sep 2026 ("more colors on the dashboards, and
@@ -90,9 +91,10 @@ function StageBar({ stages }: { stages: { stage: string; count: number }[] }) {
  * that component is scoped to case-state labels/palette specifically.
  */
 function StatusDonut({ byStatus }: { byStatus: { status: string; count: number }[] }) {
+  const { t } = useTranslation()
   const total = byStatus.reduce((sum, s) => sum + s.count, 0)
   if (total === 0) {
-    return <p className="text-sm text-muted-foreground">No registrations yet.</p>
+    return <p className="text-sm text-muted-foreground">{t('dashboard.panel.noRegistrationsYet')}</p>
   }
 
   const radius = 55
@@ -141,21 +143,22 @@ function StatusDonut({ byStatus }: { byStatus: { status: string; count: number }
   )
 }
 
-const KIND_LABELS: Record<'registration' | 'variation' | 'renewal', string> = {
-  registration: 'Registrations',
-  variation: 'Variations',
-  renewal: 'Renewals',
+const KIND_LABEL_KEYS: Record<'registration' | 'variation' | 'renewal', 'dashboard.panel.registrations' | 'dashboard.panel.variations' | 'dashboard.panel.renewals'> = {
+  registration: 'dashboard.panel.registrations',
+  variation: 'dashboard.panel.variations',
+  renewal: 'dashboard.panel.renewals',
 }
 
 /** testing-correction-explanation.md §4.2 — "Dossiers in Flight by Kind": one `StageBar` per kind (Registration/Variation/Renewal), each with its own real stage breakdown — clearer than one combined chart, and reuses `StageBar` exactly as-is. */
 function DossiersByKindSection({ rows }: { rows: { kind: 'registration' | 'variation' | 'renewal'; stage: string; count: number }[] }) {
+  const { t } = useTranslation()
   const kinds: ('registration' | 'variation' | 'renewal')[] = ['registration', 'variation', 'renewal']
   const anyRows = rows.length > 0
   if (!anyRows) return null
 
   return (
     <div className="rounded-lg border border-border bg-card p-3 space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dossiers in Flight by Kind</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('dashboard.panel.dossiersInFlightByKind')}</p>
       {kinds.map((kind) => {
         const stages = rows.filter((r) => r.kind === kind).map((r) => ({ stage: r.stage, count: r.count }))
         const total = stages.reduce((sum, s) => sum + s.count, 0)
@@ -163,7 +166,7 @@ function DossiersByKindSection({ rows }: { rows: { kind: 'registration' | 'varia
         return (
           <div key={kind} className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-medium text-foreground">{KIND_LABELS[kind]}</span>
+              <span className="font-medium text-foreground">{t(KIND_LABEL_KEYS[kind])}</span>
               <span className="text-muted-foreground">{total}</span>
             </div>
             <StageBar stages={stages} />
@@ -196,6 +199,7 @@ function hrefForOpenItem(item: RegOpenItem): string {
  * (each category is itself already ordered by urgency).
  */
 function OpenItemsSection({ openItems }: { openItems: ReportingDashboard['regulatory']['openItems'] }) {
+  const { t } = useTranslation()
   const router = useRouter()
   const rows: { item: RegOpenItem; hue: string }[] = [
     ...openItems.overduePostMarketObligations.map((item) => ({ item, hue: 'text-status-error' })),
@@ -207,15 +211,15 @@ function OpenItemsSection({ openItems }: { openItems: ReportingDashboard['regula
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Open Items Needing Action</p>
-        <p className="text-sm text-muted-foreground">Nothing needs action right now.</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{t('dashboard.panel.openItemsNeedingAction')}</p>
+        <p className="text-sm text-muted-foreground">{t('dashboard.panel.nothingNeedsAction')}</p>
       </div>
     )
   }
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Open Items Needing Action ({rows.length})</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{t('dashboard.panel.openItemsNeedingActionCount', { count: rows.length })}</p>
       <ul className="divide-y divide-border">
         {rows.map(({ item, hue }, i) => (
           <li key={`${item.recordType}-${item.recordId}-${i}`}>
@@ -235,14 +239,15 @@ function OpenItemsSection({ openItems }: { openItems: ReportingDashboard['regula
 
 /** testing-correction-explanation.md §4.2 — "This Month's Activity": a simple count strip, reusing the existing `Card` component's own hue system. */
 function ThisMonthActivitySection({ activity }: { activity: ReportingDashboard['regulatory']['thisMonthActivity'] }) {
+  const { t } = useTranslation()
   return (
     <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">This Month&apos;s Activity</p>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('dashboard.panel.thisMonthActivity')}</p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card icon={<FileClock className="h-3.5 w-3.5" />} label="Dossiers Submitted" value={activity.dossiersSubmitted} hue="purple" />
-        <Card icon={<ClipboardList className="h-3.5 w-3.5" />} label="Approvals Received" value={activity.approvalsReceived} hue="teal" />
-        <Card icon={<MessageSquare className="h-3.5 w-3.5" />} label="Queries Logged" value={activity.queriesLogged} hue="amber" />
-        <Card icon={<ShieldAlert className="h-3.5 w-3.5" />} label="Retentions Certified" value={activity.retentionsCertified} hue="gold" />
+        <Card icon={<FileClock className="h-3.5 w-3.5" />} label={t('dashboard.panel.dossiersSubmitted')} value={activity.dossiersSubmitted} hue="purple" />
+        <Card icon={<ClipboardList className="h-3.5 w-3.5" />} label={t('dashboard.panel.approvalsReceived')} value={activity.approvalsReceived} hue="teal" />
+        <Card icon={<MessageSquare className="h-3.5 w-3.5" />} label={t('dashboard.panel.queriesLogged')} value={activity.queriesLogged} hue="amber" />
+        <Card icon={<ShieldAlert className="h-3.5 w-3.5" />} label={t('dashboard.panel.retentionsCertified')} value={activity.retentionsCertified} hue="gold" />
       </div>
     </div>
   )
@@ -257,6 +262,7 @@ function ThisMonthActivitySection({ activity }: { activity: ReportingDashboard['
  * `reports.view` legitimately benefits from seeing the whole picture.
  */
 export function ReportingDashboardPanel() {
+  const { t } = useTranslation()
   const [dashboard, setDashboard] = useState<ReportingDashboard | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -291,29 +297,29 @@ export function ReportingDashboardPanel() {
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {/* "Open" here means "not in a terminal workflow state" — PV Cases has no single matching list-screen status value (its own filter is per-stage, e.g. intake/triage/...), so this links to the unfiltered list rather than a query string that would silently match nothing. */}
-        <Card icon={<ClipboardList className="h-3.5 w-3.5" />} label="Open Cases" value={dashboard.cases.totalOpen} hue="teal" href="/pv-cases" />
-        <Card icon={<AlertTriangle className="h-3.5 w-3.5" />} label="Deadlines Breached" value={dashboard.deadlines.breached} hue={dashboard.deadlines.breached > 0 ? 'danger' : 'slate'} />
-        <Card icon={<FileClock className="h-3.5 w-3.5" />} label="Due Within 72h" value={dashboard.deadlines.approaching72h} hue={dashboard.deadlines.approaching72h > 0 ? 'warning' : 'slate'} />
-        <Card icon={<Radar className="h-3.5 w-3.5" />} label="Open Signals" value={dashboard.signals.open} hue="gold" />
-        <Card icon={<ShieldAlert className="h-3.5 w-3.5" />} label="Safety Alerts Open" value={dashboard.safetyAlertsOpen} hue={dashboard.safetyAlertsOpen > 0 ? 'warning' : 'slate'} href="/safety-alerts?status=open" />
-        <Card icon={<ClipboardList className="h-3.5 w-3.5" />} label="RMP Renewals Due" value={dashboard.rmpRenewalsDue} hue={dashboard.rmpRenewalsDue > 0 ? 'warning' : 'slate'} />
+        <Card icon={<ClipboardList className="h-3.5 w-3.5" />} label={t('dashboard.panel.openCases')} value={dashboard.cases.totalOpen} hue="teal" href="/pv-cases" />
+        <Card icon={<AlertTriangle className="h-3.5 w-3.5" />} label={t('dashboard.panel.deadlinesBreached')} value={dashboard.deadlines.breached} hue={dashboard.deadlines.breached > 0 ? 'danger' : 'slate'} />
+        <Card icon={<FileClock className="h-3.5 w-3.5" />} label={t('dashboard.panel.dueWithin72h')} value={dashboard.deadlines.approaching72h} hue={dashboard.deadlines.approaching72h > 0 ? 'warning' : 'slate'} />
+        <Card icon={<Radar className="h-3.5 w-3.5" />} label={t('dashboard.panel.openSignals')} value={dashboard.signals.open} hue="gold" />
+        <Card icon={<ShieldAlert className="h-3.5 w-3.5" />} label={t('dashboard.panel.safetyAlertsOpen')} value={dashboard.safetyAlertsOpen} hue={dashboard.safetyAlertsOpen > 0 ? 'warning' : 'slate'} href="/safety-alerts?status=open" />
+        <Card icon={<ClipboardList className="h-3.5 w-3.5" />} label={t('dashboard.panel.rmpRenewalsDue')} value={dashboard.rmpRenewalsDue} hue={dashboard.rmpRenewalsDue > 0 ? 'warning' : 'slate'} />
       </div>
       {(dashboard.periodicReportsDue > 0 || dashboard.lineListingsDue > 0) && (
         <div className="rounded-lg border border-status-warning/30 bg-status-warning/5 p-3 text-sm text-foreground">
-          {dashboard.periodicReportsDue > 0 && <span className="mr-4">{dashboard.periodicReportsDue} periodic report(s) due within 30 days.</span>}
-          {dashboard.lineListingsDue > 0 && <span>{dashboard.lineListingsDue} line listing(s) due within 30 days.</span>}
+          {dashboard.periodicReportsDue > 0 && <span className="mr-4">{t('dashboard.panel.periodicReportsDueCount', { count: dashboard.periodicReportsDue })}</span>}
+          {dashboard.lineListingsDue > 0 && <span>{t('dashboard.panel.lineListingsDueCount', { count: dashboard.lineListingsDue })}</span>}
         </div>
       )}
 
       {/* RegCloud (Phase 12) Stage 17 */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Card icon={<CalendarClock className="h-3.5 w-3.5" />} label="Renewals Due (30d)" value={dashboard.regulatory.upcomingRenewals30d} hue={dashboard.regulatory.upcomingRenewals30d > 0 ? 'warning' : 'purple'} />
-        <Card icon={<CalendarClock className="h-3.5 w-3.5" />} label="Renewals Due (90d)" value={dashboard.regulatory.upcomingRenewals90d} hue={dashboard.regulatory.upcomingRenewals90d > 0 ? 'warning' : 'purple'} />
-        <Card icon={<MessageSquare className="h-3.5 w-3.5" />} label="Open Regulator Queries" value={dashboard.regulatory.openQueries} hue={dashboard.regulatory.openQueries > 0 ? 'warning' : 'amber'} href="/reg-queries?status=open" />
+        <Card icon={<CalendarClock className="h-3.5 w-3.5" />} label={t('dashboard.panel.renewalsDue30d')} value={dashboard.regulatory.upcomingRenewals30d} hue={dashboard.regulatory.upcomingRenewals30d > 0 ? 'warning' : 'purple'} />
+        <Card icon={<CalendarClock className="h-3.5 w-3.5" />} label={t('dashboard.panel.renewalsDue90d')} value={dashboard.regulatory.upcomingRenewals90d} hue={dashboard.regulatory.upcomingRenewals90d > 0 ? 'warning' : 'purple'} />
+        <Card icon={<MessageSquare className="h-3.5 w-3.5" />} label={t('dashboard.panel.openRegulatorQueries')} value={dashboard.regulatory.openQueries} hue={dashboard.regulatory.openQueries > 0 ? 'warning' : 'amber'} href="/reg-queries?status=open" />
       </div>
       {dashboard.regulatory.dossiersByStage.length > 0 && (
         <div className="rounded-lg border border-border bg-card p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dossiers by Stage</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('dashboard.panel.dossiersByStage')}</p>
           <StageBar stages={dashboard.regulatory.dossiersByStage} />
           <div className="mt-2 flex flex-wrap gap-2">
             {dashboard.regulatory.dossiersByStage.map((s, i) => (
@@ -330,7 +336,7 @@ export function ReportingDashboardPanel() {
       {/* testing-correction-explanation.md §4.2 — the RegCloud dashboard, properly. */}
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registrations by Status</p>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('dashboard.panel.registrationsByStatus')}</p>
           <StatusDonut byStatus={dashboard.regulatory.registrationsByStatus} />
         </div>
         <DossiersByKindSection rows={dashboard.regulatory.dossiersByKindAndStage} />

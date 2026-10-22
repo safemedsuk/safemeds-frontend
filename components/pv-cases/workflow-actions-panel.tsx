@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { ArrowRight, Loader2, Undo2 } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import { AvailableTransition, getAvailableTransitions, postTransition } from '@/lib/api/workflow'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { SignatureModal } from '@/components/ui/signature-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   workflowInstanceId: string | null
@@ -24,6 +26,8 @@ interface Props {
    * this same panel unaffected.
    */
   requireNote?: boolean | string[]
+  /** Copy for the inline note prompt; defaults to the Signal/GVP wording. */
+  noteHelp?: { title?: (transitionName: string) => string; body?: string; placeholder?: string }
   /**
    * RegCloud Stage 6 — for a transition whose domain action needs more
    * than a role/signature/note (e.g. approving a registration needs a
@@ -36,11 +40,14 @@ interface Props {
   customTriggers?: Record<string, { label?: string; onClick: (transition: AvailableTransition) => void }>
 }
 
-function labelFor(transition: AvailableTransition): string {
+function labelFor(transition: AvailableTransition, t: (key: MessageKey, params?: Record<string, string | number>) => string): string {
   // A handful of transitions read more naturally with a specific verb than
   // a bare "Move to <state>" — everything else falls back to that default.
-  if (transition.toStateKey === 'medical_review') return 'Return to Medical Review'
-  return `Move to ${transition.toStateName}`
+  // `toStateName` itself is backend workflow-definition data, not frontend
+  // chrome — stays as the backend phrases it, per todo-i18n.md's own scope
+  // boundary (seed/reference data displayed as data, not translated).
+  if (transition.toStateKey === 'medical_review') return t('workflowActions.returnToMedicalReview')
+  return t('workflowActions.moveTo', { state: transition.toStateName })
 }
 
 /**
@@ -58,7 +65,8 @@ function labelFor(transition: AvailableTransition): string {
  * clickable and still come back blocked; that's the honest state, not
  * a bug (see `WorkflowService.availableTransitions()`'s own scope).
  */
-export function WorkflowActionsPanel({ workflowInstanceId, onTransitioned, requireNote, customTriggers }: Props) {
+export function WorkflowActionsPanel({ workflowInstanceId, onTransitioned, requireNote, noteHelp, customTriggers }: Props) {
+  const { t } = useTranslation()
   const [allTransitions, setAllTransitions] = useState<AvailableTransition[]>([])
   const [transitions, setTransitions] = useState<AvailableTransition[]>([])
   const [loading, setLoading] = useState(false)
@@ -99,11 +107,11 @@ export function WorkflowActionsPanel({ workflowInstanceId, onTransitioned, requi
     setError(null)
     try {
       await postTransition(workflowInstanceId, toStateKey, signature, note)
-      setNotice(`Moved to "${toStateKey.replace(/_/g, ' ')}".`)
+      setNotice(t('workflowActions.movedTo', { state: toStateKey.replace(/_/g, ' ') }))
       await load()
       onTransitioned()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not perform this transition.'))
+      setError(getErrorMessage(err, t('workflowActions.errorTransition')))
     } finally {
       setBusyToStateKey(null)
       setConfirmedNote(undefined)
@@ -159,32 +167,34 @@ export function WorkflowActionsPanel({ workflowInstanceId, onTransitioned, requi
 
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-4">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workflow Actions</p>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('workflowActions.title')}</p>
       {notice && <p className="mb-2 text-xs text-status-success">{notice}</p>}
       {error && <p className="mb-2 text-xs text-status-error">{error}</p>}
       {roleBlocked && (
         <p className="mb-2 text-xs text-muted-foreground">
-          No workflow action is available to your role right now. This case can move on to{' '}
-          {allTransitions.map((t) => `"${t.toStateName}"`).join(' or ')}, but that requires the{' '}
-          {[...new Set(allTransitions.map((t) => t.requiredRoleKey))].join(' or ')} role.
+          {t('workflowActions.roleBlockedPrefix')}{' '}
+          {allTransitions.map((at) => `"${at.toStateName}"`).join(` ${t('workflowActions.roleBlockedOr')} `)}
+          {t('workflowActions.roleBlockedRequiresRole')}{' '}
+          {[...new Set(allTransitions.map((at) => at.requiredRoleKey))].join(` ${t('workflowActions.roleBlockedOr')} `)}{' '}
+          {t('workflowActions.roleBlockedRoleSuffix')}
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        {transitions.map((t) => (
+        {transitions.map((t2) => (
           <button
-            key={t.id}
-            onClick={() => handleClick(t)}
+            key={t2.id}
+            onClick={() => handleClick(t2)}
             disabled={busyToStateKey !== null}
             className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
           >
-            {busyToStateKey === t.toStateKey ? (
+            {busyToStateKey === t2.toStateKey ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : t.toStateKey === 'medical_review' ? (
+            ) : t2.toStateKey === 'medical_review' ? (
               <Undo2 className="h-3.5 w-3.5" />
             ) : (
               <ArrowRight className="h-3.5 w-3.5" />
             )}
-            {customTriggers?.[t.toStateKey]?.label ?? labelFor(t)}
+            {customTriggers?.[t2.toStateKey]?.label ?? labelFor(t2, t)}
           </button>
         ))}
       </div>
@@ -192,15 +202,20 @@ export function WorkflowActionsPanel({ workflowInstanceId, onTransitioned, requi
       {pendingNote && (
         <div className="mt-3 rounded-lg border border-border bg-card p-3">
           <label className="mb-1.5 block text-xs font-medium text-foreground">
-            Rationale for moving to &quot;{pendingNote.transition.toStateName}&quot; <span className="text-status-error">*</span>
+            {noteHelp?.title
+              ? noteHelp.title(pendingNote.transition.toStateName)
+              : t('workflowActions.rationaleForMovingTo', { state: pendingNote.transition.toStateName })}{' '}
+            <span className="text-status-error">*</span>
           </label>
-          <p className="mb-2 text-xs text-muted-foreground">GVP Module IX requires every signal lifecycle decision to be documented.</p>
+          <p className="mb-2 text-xs text-muted-foreground">
+            {noteHelp?.body ?? t('workflowActions.defaultNoteBody')}
+          </p>
           <textarea
             autoFocus
             value={pendingNote.draft}
             onChange={(e) => setPendingNote({ ...pendingNote, draft: e.target.value })}
             rows={3}
-            placeholder="Why is this decision being made?"
+            placeholder={noteHelp?.placeholder ?? t('workflowActions.defaultNotePlaceholder')}
             className="mb-2 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <div className="flex gap-2">
@@ -209,10 +224,10 @@ export function WorkflowActionsPanel({ workflowInstanceId, onTransitioned, requi
               disabled={pendingNote.draft.trim().length === 0}
               className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
             >
-              Continue
+              {t('workflowActions.continue')}
             </button>
             <button onClick={() => setPendingNote(null)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -225,7 +240,7 @@ export function WorkflowActionsPanel({ workflowInstanceId, onTransitioned, requi
             setPendingSignature(null)
             setConfirmedNote(undefined)
           }}
-          documentTitle={`Approve transition to "${pendingSignature.toStateName}"`}
+          documentTitle={t('workflowActions.approveTransitionTo', { state: pendingSignature.toStateName })}
           documentId={workflowInstanceId}
           onSigned={async ({ signatureToken, intentStatement }) => {
             const transition = pendingSignature

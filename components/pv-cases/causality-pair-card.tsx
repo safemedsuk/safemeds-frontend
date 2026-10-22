@@ -15,6 +15,7 @@ import {
   assessCausality,
   interpretNaranjoScore,
 } from '@/lib/api/pv-cases'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const WHO_UMC_OPTIONS = Object.keys(WHO_UMC_LABELS) as WhoUmcCausality[]
 const DEFAULT_ANSWERS: NaranjoAnswers = { q1: 'unknown', q2: 'unknown', q3: 'unknown', q4: 'unknown', q5: 'unknown', q6: 'unknown', q7: 'unknown', q8: 'unknown', q9: 'unknown', q10: 'unknown' }
@@ -52,6 +53,7 @@ interface Props {
  * project's own established FE quality bar for dense per-item content.
  */
 export function CausalityPairCard({ caseId, assessment, productLabel, eventLabel, canAssess, onAssessed }: Props) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const [whoUmcChoice, setWhoUmcChoice] = useState<WhoUmcCausality | ''>(assessment.whoUmcCategory ?? '')
   const [naranjoAnswers, setNaranjoAnswers] = useState<NaranjoAnswers>(assessment.naranjoAnswers ?? DEFAULT_ANSWERS)
@@ -72,7 +74,7 @@ export function CausalityPairCard({ caseId, assessment, productLabel, eventLabel
       await assessCausality(caseId, assessment.id, { whoUmcCategory: whoUmcChoice })
       onAssessed()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save the WHO-UMC assessment.'))
+      setError(getErrorMessage(err, t('causalityPairCard.errorSaveWhoUmc')))
     } finally {
       setSavingWhoUmc(false)
     }
@@ -85,7 +87,7 @@ export function CausalityPairCard({ caseId, assessment, productLabel, eventLabel
       await assessCausality(caseId, assessment.id, { naranjoAnswers })
       onAssessed()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save the Naranjo assessment.'))
+      setError(getErrorMessage(err, t('causalityPairCard.errorSaveNaranjo')))
     } finally {
       setSavingNaranjo(false)
     }
@@ -106,12 +108,12 @@ export function CausalityPairCard({ caseId, assessment, productLabel, eventLabel
         </div>
         <div className="flex flex-shrink-0 items-center gap-1.5">
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${assessment.whoUmcCategory ? 'bg-status-info/10 text-status-info' : 'bg-muted text-muted-foreground'}`}>
-            {assessment.whoUmcCategory ? WHO_UMC_LABELS[assessment.whoUmcCategory] : 'WHO-UMC: —'}
+            {assessment.whoUmcCategory ? WHO_UMC_LABELS[assessment.whoUmcCategory] : t('causalityPairCard.whoUmcNone')}
           </span>
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${assessment.naranjoScore !== null ? 'bg-status-info/10 text-status-info' : 'bg-muted text-muted-foreground'}`}>
-            {assessment.naranjoScore !== null ? `Naranjo: ${assessment.naranjoScore}` : 'Naranjo: —'}
+            {assessment.naranjoScore !== null ? t('causalityPairCard.naranjoScore', { score: assessment.naranjoScore }) : t('causalityPairCard.naranjoNone')}
           </span>
-          {complete && <span className="rounded-full bg-status-success/10 px-2 py-0.5 text-[10px] font-medium text-status-success">Complete</span>}
+          {complete && <span className="rounded-full bg-status-success/10 px-2 py-0.5 text-[10px] font-medium text-status-success">{t('causalityPairCard.complete')}</span>}
         </div>
       </button>
 
@@ -120,7 +122,7 @@ export function CausalityPairCard({ caseId, assessment, productLabel, eventLabel
           {error && <p className="text-xs text-status-error">{error}</p>}
 
           <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">WHO-UMC Category</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('causalityPairCard.whoUmcCategory')}</p>
             {canAssess ? (
               <div className="space-y-2">
                 <select
@@ -129,7 +131,7 @@ export function CausalityPairCard({ caseId, assessment, productLabel, eventLabel
                   className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
                 >
                   <option value="" disabled>
-                    Choose a category…
+                    {t('causalityPairCard.chooseACategory')}
                   </option>
                   {WHO_UMC_OPTIONS.map((key) => (
                     <option key={key} value={key}>
@@ -150,16 +152,16 @@ export function CausalityPairCard({ caseId, assessment, productLabel, eventLabel
                   className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
                 >
                   {savingWhoUmc && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Save WHO-UMC
+                  {t('causalityPairCard.saveWhoUmc')}
                 </button>
               </div>
             ) : (
-              <p className="text-sm text-foreground">{assessment.whoUmcCategory ? WHO_UMC_LABELS[assessment.whoUmcCategory] : 'Not yet assessed.'}</p>
+              <p className="text-sm text-foreground">{assessment.whoUmcCategory ? WHO_UMC_LABELS[assessment.whoUmcCategory] : t('causalityPairCard.notYetAssessed')}</p>
             )}
           </div>
 
           <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Naranjo Adverse Drug Reaction Probability Scale</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('causalityPairCard.naranjoTitle')}</p>
             {canAssess ? (
               <div className="space-y-2">
                 <div className="space-y-1.5">
@@ -172,15 +174,15 @@ export function CausalityPairCard({ caseId, assessment, productLabel, eventLabel
                         onChange={(e) => setNaranjoAnswers((prev) => ({ ...prev, [q.key]: e.target.value as NaranjoAnswerValue }))}
                         className="flex-shrink-0 rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground"
                       >
-                        <option value="unknown">Don&apos;t know</option>
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
+                        <option value="unknown">{t('causalityPairCard.dontKnow')}</option>
+                        <option value="yes">{t('causalityPairCard.yes')}</option>
+                        <option value="no">{t('causalityPairCard.no')}</option>
                       </select>
                     </div>
                   ))}
                 </div>
                 <div className="flex items-center justify-between rounded-md bg-muted/50 px-2.5 py-1.5 text-xs">
-                  <span className="text-muted-foreground">Live total score</span>
+                  <span className="text-muted-foreground">{t('causalityPairCard.liveTotalScore')}</span>
                   <span className="font-medium text-foreground">
                     {liveScore} — {NARANJO_INTERPRETATION_LABELS[liveInterpretation]}
                   </span>
@@ -191,12 +193,12 @@ export function CausalityPairCard({ caseId, assessment, productLabel, eventLabel
                   className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
                 >
                   {savingNaranjo && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Save Naranjo
+                  {t('causalityPairCard.saveNaranjo')}
                 </button>
               </div>
             ) : (
               <p className="text-sm text-foreground">
-                {assessment.naranjoScore !== null ? `${assessment.naranjoScore} — ${NARANJO_INTERPRETATION_LABELS[interpretNaranjoScore(assessment.naranjoScore)]}` : 'Not yet assessed.'}
+                {assessment.naranjoScore !== null ? `${assessment.naranjoScore} — ${NARANJO_INTERPRETATION_LABELS[interpretNaranjoScore(assessment.naranjoScore)]}` : t('causalityPairCard.notYetAssessed')}
               </p>
             )}
           </div>

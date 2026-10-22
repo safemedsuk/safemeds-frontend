@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, Copy, Loader2, ShieldQuestion, XCircle } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import { confirmDuplicate, dismissDuplicate, DuplicateReview, listDuplicateReviews } from '@/lib/api/pv-cases'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   caseId: string
@@ -24,6 +25,7 @@ function otherCase(review: DuplicateReview, caseId: string) {
  * step. Never auto-resolves anything itself.
  */
 export function DuplicateReviewBanner({ caseId, canTriage, onResolved }: Props) {
+  const { t } = useTranslation()
   const [reviews, setReviews] = useState<DuplicateReview[]>([])
   const [loading, setLoading] = useState(true)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -68,7 +70,7 @@ export function DuplicateReviewBanner({ caseId, canTriage, onResolved }: Props) 
             className="flex w-full items-center gap-1.5 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
           >
             {historyOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            Duplicate review history ({decided.length})
+            {t('duplicateReviewBanner.historyTitle', { count: decided.length })}
           </button>
           {historyOpen && (
             <div className="space-y-1.5 border-t border-border p-3">
@@ -77,12 +79,12 @@ export function DuplicateReviewBanner({ caseId, canTriage, onResolved }: Props) 
                   <span className="text-foreground">
                     {r.status === 'confirmed_duplicate' ? (
                       <>
-                        Confirmed duplicate of <span className="font-mono">{otherCase(r, caseId).referenceNumber}</span> (
+                        {t('duplicateReviewBanner.confirmedDuplicateOf')} <span className="font-mono">{otherCase(r, caseId).referenceNumber}</span> (
                         {r.resolutionPattern})
                       </>
                     ) : (
                       <>
-                        Not a duplicate of <span className="font-mono">{otherCase(r, caseId).referenceNumber}</span>
+                        {t('duplicateReviewBanner.notADuplicateOf')} <span className="font-mono">{otherCase(r, caseId).referenceNumber}</span>
                       </>
                     )}
                   </span>
@@ -98,6 +100,7 @@ export function DuplicateReviewBanner({ caseId, canTriage, onResolved }: Props) 
 }
 
 function PossibleDuplicateCard({ review, caseId, canTriage, onDecided }: { review: DuplicateReview; caseId: string; canTriage: boolean; onDecided: () => Promise<void> }) {
+  const { t } = useTranslation()
   const [mode, setMode] = useState<'idle' | 'confirming' | 'dismissing'>('idle')
   const [pattern, setPattern] = useState<'allocation' | 'creation'>('allocation')
   const [masterCaseId, setMasterCaseId] = useState(caseId)
@@ -116,7 +119,7 @@ function PossibleDuplicateCard({ review, caseId, canTriage, onDecided }: { revie
       setMode('idle')
       await onDecided()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not confirm this duplicate.'))
+      setError(getErrorMessage(err, t('duplicateReviewBanner.errorConfirm')))
     } finally {
       setBusy(false)
     }
@@ -124,7 +127,7 @@ function PossibleDuplicateCard({ review, caseId, canTriage, onDecided }: { revie
 
   const handleDismiss = async () => {
     if (!note.trim()) {
-      setError('Say why these are not duplicates before dismissing.')
+      setError(t('duplicateReviewBanner.errorSayWhy'))
       return
     }
     setBusy(true)
@@ -134,7 +137,7 @@ function PossibleDuplicateCard({ review, caseId, canTriage, onDecided }: { revie
       setMode('idle')
       await onDecided()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not dismiss this duplicate flag.'))
+      setError(getErrorMessage(err, t('duplicateReviewBanner.errorDismiss')))
     } finally {
       setBusy(false)
     }
@@ -146,14 +149,22 @@ function PossibleDuplicateCard({ review, caseId, canTriage, onDecided }: { revie
         <ShieldQuestion className="h-5 w-5 flex-shrink-0 text-status-warning mt-0.5" />
         <div className="flex-1">
           <p className="text-sm font-medium text-foreground">
-            Possible duplicate of <span className="font-mono">{other.referenceNumber}</span>
+            {t('duplicateReviewBanner.possibleDuplicateOf')} <span className="font-mono">{other.referenceNumber}</span>
           </p>
           <p className="text-xs text-muted-foreground">
             {review.matchedFields.citedReferenceNumber
-              ? 'The reporter cited this reference number directly.'
-              : `Matched on ${[review.matchedFields.country && 'country', review.matchedFields.sex && 'sex', review.matchedFields.age && 'age', Array.isArray(review.matchedFields.products) && review.matchedFields.products.length > 0 && 'product', Array.isArray(review.matchedFields.reactions) && review.matchedFields.reactions.length > 0 && 'reaction']
-                  .filter(Boolean)
-                  .join(', ')}.`}
+              ? t('duplicateReviewBanner.citedReferenceDirectly')
+              : t('duplicateReviewBanner.matchedOn', {
+                  fields: [
+                    review.matchedFields.country && t('duplicateReviewBanner.matchCountry'),
+                    review.matchedFields.sex && t('duplicateReviewBanner.matchSex'),
+                    review.matchedFields.age && t('duplicateReviewBanner.matchAge'),
+                    Array.isArray(review.matchedFields.products) && review.matchedFields.products.length > 0 && t('duplicateReviewBanner.matchProduct'),
+                    Array.isArray(review.matchedFields.reactions) && review.matchedFields.reactions.length > 0 && t('duplicateReviewBanner.matchReaction'),
+                  ]
+                    .filter(Boolean)
+                    .join(', '),
+                })}
           </p>
 
           {canTriage && mode === 'idle' && (
@@ -162,13 +173,13 @@ function PossibleDuplicateCard({ review, caseId, canTriage, onDecided }: { revie
                 onClick={() => setMode('confirming')}
                 className="flex items-center gap-1.5 rounded-lg bg-status-warning px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
               >
-                <Copy className="h-3.5 w-3.5" /> Confirm duplicate
+                <Copy className="h-3.5 w-3.5" /> {t('duplicateReviewBanner.confirmDuplicate')}
               </button>
               <button
                 onClick={() => setMode('dismissing')}
                 className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
               >
-                <XCircle className="h-3.5 w-3.5" /> Not a duplicate
+                <XCircle className="h-3.5 w-3.5" /> {t('duplicateReviewBanner.notADuplicate')}
               </button>
             </div>
           )}
@@ -179,8 +190,7 @@ function PossibleDuplicateCard({ review, caseId, canTriage, onDecided }: { revie
                 <label className="flex items-start gap-2 text-xs">
                   <input type="radio" name={`pattern-${review.id}`} checked={pattern === 'allocation'} onChange={() => setPattern('allocation')} className="mt-0.5" />
                   <span>
-                    <strong className="text-foreground">Allocation</strong> — one of these two existing cases becomes the Master Case, the other is
-                    invalidated (kept for audit only).
+                    <strong className="text-foreground">{t('duplicateReviewBanner.allocationLabel')}</strong> {t('duplicateReviewBanner.allocationDescription')}
                   </span>
                 </label>
                 {pattern === 'allocation' && (
@@ -189,22 +199,21 @@ function PossibleDuplicateCard({ review, caseId, canTriage, onDecided }: { revie
                     onChange={(e) => setMasterCaseId(e.target.value)}
                     className="ml-6 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
                   >
-                    <option value={caseId}>This case ({thisCase.referenceNumber}) is the master</option>
-                    <option value={other.id}>{other.referenceNumber} is the master</option>
+                    <option value={caseId}>{t('duplicateReviewBanner.thisCaseIsMaster', { ref: thisCase.referenceNumber })}</option>
+                    <option value={other.id}>{t('duplicateReviewBanner.otherIsMaster', { ref: other.referenceNumber })}</option>
                   </select>
                 )}
                 <label className="flex items-start gap-2 text-xs">
                   <input type="radio" name={`pattern-${review.id}`} checked={pattern === 'creation'} onChange={() => setPattern('creation')} className="mt-0.5" />
                   <span>
-                    <strong className="text-foreground">Creation</strong> — a brand-new Master Case is created, synthesizing both, and both originals
-                    are invalidated (kept for audit only).
+                    <strong className="text-foreground">{t('duplicateReviewBanner.creationLabel')}</strong> {t('duplicateReviewBanner.creationDescription')}
                   </span>
                 </label>
               </div>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Optional note"
+                placeholder={t('duplicateReviewBanner.optionalNote')}
                 rows={2}
                 className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground"
               />
@@ -215,10 +224,10 @@ function PossibleDuplicateCard({ review, caseId, canTriage, onDecided }: { revie
                   disabled={busy}
                   className="flex items-center gap-1.5 rounded-lg bg-status-warning px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
                 >
-                  {busy && <Loader2 className="h-3 w-3 animate-spin" />} Confirm
+                  {busy && <Loader2 className="h-3 w-3 animate-spin" />} {t('duplicateReviewBanner.confirm')}
                 </button>
                 <button onClick={() => setMode('idle')} disabled={busy} className="text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50">
-                  Cancel
+                  {t('duplicateReviewBanner.cancel')}
                 </button>
               </div>
             </div>
@@ -229,7 +238,7 @@ function PossibleDuplicateCard({ review, caseId, canTriage, onDecided }: { revie
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Why are these not duplicates?"
+                placeholder={t('duplicateReviewBanner.whyNotDuplicates')}
                 rows={2}
                 className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground"
               />
@@ -240,10 +249,10 @@ function PossibleDuplicateCard({ review, caseId, canTriage, onDecided }: { revie
                   disabled={busy}
                   className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground disabled:opacity-50"
                 >
-                  {busy && <Loader2 className="h-3 w-3 animate-spin" />} Dismiss
+                  {busy && <Loader2 className="h-3 w-3 animate-spin" />} {t('duplicateReviewBanner.dismiss')}
                 </button>
                 <button onClick={() => setMode('idle')} disabled={busy} className="text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50">
-                  Cancel
+                  {t('duplicateReviewBanner.cancel')}
                 </button>
               </div>
             </div>

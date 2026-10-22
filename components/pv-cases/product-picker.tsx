@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Loader2, Search, X } from 'lucide-react'
 import { listProducts, PRODUCT_CATEGORY_LABELS, type Product } from '@/lib/api/master-data'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   /** Set when this suspect-product row already has a linked catalog product — shows the "linked" state instead of the search box. */
@@ -25,6 +26,7 @@ interface Props {
  * as well with nothing ever picked here.
  */
 export function ProductPicker({ linkedProduct, onSelect, onClear }: Props) {
+  const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Product[]>([])
   const [open, setOpen] = useState(false)
@@ -74,7 +76,7 @@ export function ProductPicker({ linkedProduct, onSelect, onClear }: Props) {
           <span className="truncate text-foreground font-medium">{linkedProduct.brandName}</span>
           <span className="truncate text-xs text-muted-foreground">{PRODUCT_CATEGORY_LABELS[linkedProduct.productCategory]}</span>
         </div>
-        <button onClick={onClear} className="flex-shrink-0 text-muted-foreground hover:text-foreground" title="Unlink from catalog">
+        <button onClick={onClear} className="flex-shrink-0 text-muted-foreground hover:text-foreground" title={t('productPicker.unlinkFromCatalog')}>
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -92,7 +94,7 @@ export function ProductPicker({ linkedProduct, onSelect, onClear }: Props) {
             setOpen(true)
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Search your product catalog by brand, INN, or ATC code (optional)"
+          placeholder={t('productPicker.searchPlaceholder')}
           className="w-full rounded-lg border border-input bg-background pl-8 pr-8 py-2 text-sm text-foreground"
         />
         {loading && <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />}
@@ -101,7 +103,7 @@ export function ProductPicker({ linkedProduct, onSelect, onClear }: Props) {
       {open && query.trim().length >= 2 && (
         <div className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-card shadow-lg max-h-56 overflow-y-auto">
           {results.length === 0 && !loading && (
-            <p className="p-3 text-xs text-muted-foreground">No catalog match — you can still type the product name freely below.</p>
+            <p className="p-3 text-xs text-muted-foreground">{t('productPicker.noCatalogMatch')}</p>
           )}
           {results.map((product) => (
             <button

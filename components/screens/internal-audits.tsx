@@ -29,6 +29,7 @@ import { OpenCapaModal } from '@/components/internal-audits/open-capa-modal'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -61,6 +62,7 @@ type Tab = 'audits' | 'findings' | 'capas'
  */
 export function InternalAuditsScreen() {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has, hasAny } = usePermissions()
   const canManage = has('quality.manage_capa')
   const canClose = has('quality.close_capa')
@@ -71,39 +73,39 @@ export function InternalAuditsScreen() {
   if (!canView) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Internal Audits</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('internalAudits.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view internal audits. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('internalAudits.noPermission')}</p>
         </div>
       </div>
     )
   }
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: 'audits', label: 'Audits', icon: <Gavel className="h-4 w-4" /> },
-    { key: 'findings', label: 'Findings', icon: <AlertTriangle className="h-4 w-4" /> },
-    { key: 'capas', label: 'CAPAs', icon: <ClipboardCheck className="h-4 w-4" /> },
+    { key: 'audits', label: t('internalAudits.tabAudits'), icon: <Gavel className="h-4 w-4" /> },
+    { key: 'findings', label: t('internalAudits.tabFindings'), icon: <AlertTriangle className="h-4 w-4" /> },
+    { key: 'capas', label: t('internalAudits.tabCapas'), icon: <ClipboardCheck className="h-4 w-4" /> },
   ]
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center gap-3">
         <Gavel className="h-6 w-6 text-safemeds-teal" />
-        <h1 className="text-3xl font-display font-bold text-foreground">Internal Audits</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('internalAudits.title')}</h1>
       </div>
 
       <div className="flex gap-1 border-b border-border">
-        {tabs.map((t) => (
+        {tabs.map((tabItem) => (
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
+            key={tabItem.key}
+            onClick={() => setTab(tabItem.key)}
             className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === t.key ? 'border-safemeds-teal text-safemeds-teal' : 'border-transparent text-muted-foreground hover:text-foreground'
+              tab === tabItem.key ? 'border-safemeds-teal text-safemeds-teal' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {t.icon}
-            {t.label}
+            {tabItem.icon}
+            {tabItem.label}
           </button>
         ))}
       </div>
@@ -121,22 +123,22 @@ const AUDIT_SCOPE_STYLES: Record<AuditScope, string> = {
   regulatory: 'bg-status-warning/10 text-status-warning',
 }
 
-const AUDIT_COLUMNS: DataTableColumn<InternalAudit>[] = [
-  { key: 'title', label: 'Title' },
-  {
-    key: 'auditScope',
-    label: 'Scope',
-    render: (v) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${AUDIT_SCOPE_STYLES[v as AuditScope]}`}>{AUDIT_SCOPE_LABELS[v as AuditScope]}</span>,
-  },
-  { key: 'scheduledDate', label: 'Scheduled', sortable: true, render: (v) => formatDate(v) },
-  {
-    key: 'status',
-    label: 'Status',
-    render: (v) => <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground">{INTERNAL_AUDIT_STATUS_LABELS[v as InternalAuditStatus]}</span>,
-  },
-]
-
 function AuditsTab({ canManage, onOpenAudit }: { canManage: boolean; onOpenAudit: (id: string) => void }) {
+  const { t } = useTranslation()
+  const AUDIT_COLUMNS: DataTableColumn<InternalAudit>[] = [
+    { key: 'title', label: t('internalAudits.columnTitle') },
+    {
+      key: 'auditScope',
+      label: t('internalAudits.columnScope'),
+      render: (v) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${AUDIT_SCOPE_STYLES[v as AuditScope]}`}>{AUDIT_SCOPE_LABELS[v as AuditScope]}</span>,
+    },
+    { key: 'scheduledDate', label: t('internalAudits.columnScheduled'), sortable: true, render: (v) => formatDate(v) },
+    {
+      key: 'status',
+      label: t('internalAudits.columnStatus'),
+      render: (v) => <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground">{INTERNAL_AUDIT_STATUS_LABELS[v as InternalAuditStatus]}</span>,
+    },
+  ]
   const [audits, setAudits] = useState<InternalAudit[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -155,8 +157,9 @@ function AuditsTab({ canManage, onOpenAudit }: { canManage: boolean; onOpenAudit
         setTotalPages(meta.totalPages)
         setTotal(meta.total)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load internal audits.')))
+      .catch((err) => setError(getErrorMessage(err, t('internalAudits.errorLoadAudits'))))
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit])
 
   useEffect(() => {
@@ -176,7 +179,7 @@ function AuditsTab({ canManage, onOpenAudit }: { canManage: boolean; onOpenAudit
             onClick={() => setShowSchedule(true)}
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce"
           >
-            <Plus className="h-4 w-4" /> Schedule Audit
+            <Plus className="h-4 w-4" /> {t('internalAudits.scheduleAudit')}
           </button>
         )}
       </div>
@@ -187,7 +190,7 @@ function AuditsTab({ canManage, onOpenAudit }: { canManage: boolean; onOpenAudit
       {!loading && audits.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <Gavel className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">No internal audits scheduled yet.</p>
+          <p className="text-sm text-muted-foreground">{t('internalAudits.noAuditsYet')}</p>
         </div>
       ) : (
         <DataTableV2<InternalAudit>
@@ -212,7 +215,7 @@ function AuditsTab({ canManage, onOpenAudit }: { canManage: boolean; onOpenAudit
           onClose={() => setShowSchedule(false)}
           onScheduled={() => {
             setShowSchedule(false)
-            setNotice('Audit scheduled.')
+            setNotice(t('internalAudits.auditScheduled'))
             setPage(1)
             load()
           }}
@@ -223,6 +226,7 @@ function AuditsTab({ canManage, onOpenAudit }: { canManage: boolean; onOpenAudit
 }
 
 function ScheduleAuditModal({ onClose, onScheduled }: { onClose: () => void; onScheduled: () => void }) {
+  const { t } = useTranslation()
   const [title, setTitle] = useState('')
   const [scope, setScope] = useState('')
   const [auditScope, setAuditScope] = useState<AuditScope>('internal')
@@ -254,7 +258,7 @@ function ScheduleAuditModal({ onClose, onScheduled }: { onClose: () => void; onS
       })
       onScheduled()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not schedule this audit.'))
+      setError(getErrorMessage(err, t('internalAudits.errorScheduleAudit')))
       setSubmitting(false)
     }
   }
@@ -262,30 +266,30 @@ function ScheduleAuditModal({ onClose, onScheduled }: { onClose: () => void; onS
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Schedule Internal Audit</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('internalAudits.scheduleAuditModalTitle')}</h2>
 
         <div>
-          <label className={labelClass}>Title *</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Q3 GVP Audit" className={inputClass} />
+          <label className={labelClass}>{t('internalAudits.titleField')}</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('internalAudits.titlePlaceholder')} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Audit Scope *</label>
+          <label className={labelClass}>{t('internalAudits.auditScope')}</label>
           <select value={auditScope} onChange={(e) => setAuditScope(e.target.value as AuditScope)} className={inputClass}>
             {Object.entries(AUDIT_SCOPE_LABELS).map(([key, label]) => (
               <option key={key} value={key}>{label}</option>
             ))}
           </select>
           <p className="mt-1 text-xs text-muted-foreground">
-            {auditScope === 'internal' && 'A self-inspection of your own site/processes.'}
-            {auditScope === 'supplier' && 'You are auditing/qualifying one of your own suppliers.'}
-            {auditScope === 'regulatory' && 'A regulator (e.g. PPB) is inspecting you.'}
+            {auditScope === 'internal' && t('internalAudits.scopeHelpInternal')}
+            {auditScope === 'supplier' && t('internalAudits.scopeHelpSupplier')}
+            {auditScope === 'regulatory' && t('internalAudits.scopeHelpRegulatory')}
           </p>
         </div>
         {auditScope === 'supplier' && (
           <div>
-            <label className={labelClass}>Supplier *</label>
+            <label className={labelClass}>{t('internalAudits.supplier')}</label>
             <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className={inputClass}>
-              <option value="">Select a supplier…</option>
+              <option value="">{t('internalAudits.selectSupplier')}</option>
               {suppliers.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
@@ -293,11 +297,11 @@ function ScheduleAuditModal({ onClose, onScheduled }: { onClose: () => void; onS
           </div>
         )}
         <div>
-          <label className={labelClass}>Scope Notes</label>
+          <label className={labelClass}>{t('internalAudits.scopeNotes')}</label>
           <textarea value={scope} onChange={(e) => setScope(e.target.value)} rows={2} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Scheduled Date *</label>
+          <label className={labelClass}>{t('internalAudits.scheduledDate')}</label>
           <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} className={inputClass} />
         </div>
 
@@ -305,7 +309,7 @@ function ScheduleAuditModal({ onClose, onScheduled }: { onClose: () => void; onS
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('internalAudits.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -313,7 +317,7 @@ function ScheduleAuditModal({ onClose, onScheduled }: { onClose: () => void; onS
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Schedule
+            {t('internalAudits.schedule')}
           </button>
         </div>
       </div>
@@ -321,18 +325,18 @@ function ScheduleAuditModal({ onClose, onScheduled }: { onClose: () => void; onS
   )
 }
 
-const FINDING_COLUMNS: DataTableColumn<AuditFinding>[] = [
-  { key: 'description', label: 'Description' },
-  {
-    key: 'severity',
-    label: 'Severity',
-    render: (v) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_STYLES[v as AuditFindingSeverity]}`}>{AUDIT_FINDING_SEVERITY_LABELS[v as AuditFindingSeverity]}</span>,
-  },
-  { key: 'status', label: 'Status', render: (v) => <span className="capitalize">{(v as string).replace('_', ' ')}</span> },
-  { key: 'createdAt', label: 'Logged', sortable: true, render: (v) => formatDate(v) },
-]
-
 function FindingsTab() {
+  const { t } = useTranslation()
+  const FINDING_COLUMNS: DataTableColumn<AuditFinding>[] = [
+    { key: 'description', label: t('internalAudits.columnDescription') },
+    {
+      key: 'severity',
+      label: t('internalAudits.columnSeverity'),
+      render: (v) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_STYLES[v as AuditFindingSeverity]}`}>{AUDIT_FINDING_SEVERITY_LABELS[v as AuditFindingSeverity]}</span>,
+    },
+    { key: 'status', label: t('internalAudits.columnStatus'), render: (v) => <span className="capitalize">{(v as string).replace('_', ' ')}</span> },
+    { key: 'createdAt', label: t('internalAudits.columnLogged'), sortable: true, render: (v) => formatDate(v) },
+  ]
   const [findings, setFindings] = useState<AuditFinding[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -349,8 +353,9 @@ function FindingsTab() {
         setTotalPages(meta.totalPages)
         setTotal(meta.total)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load findings.')))
+      .catch((err) => setError(getErrorMessage(err, t('internalAudits.errorLoadFindings'))))
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit])
 
   const handleRowsPerPageChange = (n: number) => {
@@ -364,7 +369,7 @@ function FindingsTab() {
       {!loading && findings.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <AlertTriangle className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">No findings logged yet.</p>
+          <p className="text-sm text-muted-foreground">{t('internalAudits.noFindingsYet')}</p>
         </div>
       ) : (
         <DataTableV2<AuditFinding>
@@ -386,22 +391,22 @@ function FindingsTab() {
   )
 }
 
-const CAPA_COLUMNS: DataTableColumn<Capa>[] = [
-  { key: 'title', label: 'Title' },
-  { key: 'dueDate', label: 'Due', sortable: true, render: (v) => formatDate(v) },
-  {
-    key: 'status',
-    label: 'Status',
-    render: (v) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${CAPA_STATUS_STYLES[v as CapaStatus]}`}>{CAPA_STATUS_LABELS[v as CapaStatus]}</span>,
-  },
-  {
-    key: 'effectivenessCheckResult',
-    label: 'Effectiveness',
-    render: (v) => (v ? (v === 'effective' ? 'Effective' : 'Not effective') : '—'),
-  },
-]
-
 function CapasTab({ canManage, canClose }: { canManage: boolean; canClose: boolean }) {
+  const { t } = useTranslation()
+  const CAPA_COLUMNS: DataTableColumn<Capa>[] = [
+    { key: 'title', label: t('internalAudits.columnTitle') },
+    { key: 'dueDate', label: t('internalAudits.columnDue'), sortable: true, render: (v) => formatDate(v) },
+    {
+      key: 'status',
+      label: t('internalAudits.columnStatus'),
+      render: (v) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${CAPA_STATUS_STYLES[v as CapaStatus]}`}>{CAPA_STATUS_LABELS[v as CapaStatus]}</span>,
+    },
+    {
+      key: 'effectivenessCheckResult',
+      label: t('internalAudits.columnEffectiveness'),
+      render: (v) => (v ? (v === 'effective' ? t('internalAudits.effective') : t('internalAudits.notEffective')) : '—'),
+    },
+  ]
   const [capas, setCapas] = useState<Capa[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -421,8 +426,9 @@ function CapasTab({ canManage, canClose }: { canManage: boolean; canClose: boole
         setTotalPages(meta.totalPages)
         setTotal(meta.total)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load CAPAs.')))
+      .catch((err) => setError(getErrorMessage(err, t('internalAudits.errorLoadCapas'))))
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit])
 
   useEffect(() => {
@@ -439,7 +445,7 @@ function CapasTab({ canManage, canClose }: { canManage: boolean; canClose: boole
       <div className="flex justify-end">
         {canManage && (
           <button onClick={() => setShowOpen(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce">
-            <Plus className="h-4 w-4" /> Open CAPA
+            <Plus className="h-4 w-4" /> {t('internalAudits.openCapa')}
           </button>
         )}
       </div>
@@ -450,7 +456,7 @@ function CapasTab({ canManage, canClose }: { canManage: boolean; canClose: boole
       {!loading && capas.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ClipboardCheck className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">No CAPAs opened yet.</p>
+          <p className="text-sm text-muted-foreground">{t('internalAudits.noCapasYet')}</p>
         </div>
       ) : (
         <DataTableV2<Capa>
@@ -475,7 +481,7 @@ function CapasTab({ canManage, canClose }: { canManage: boolean; canClose: boole
           onClose={() => setShowOpen(false)}
           onOpened={() => {
             setShowOpen(false)
-            setNotice('CAPA opened.')
+            setNotice(t('internalAudits.capaOpened'))
             setPage(1)
             load()
           }}
@@ -498,6 +504,7 @@ function CapasTab({ canManage, canClose }: { canManage: boolean; canClose: boole
 }
 
 function CapaDetailModal({ capa, canClose, onClose, onChanged }: { capa: Capa; canClose: boolean; onClose: () => void; onChanged: () => void }) {
+  const { t } = useTranslation()
   const [result, setResult] = useState<CapaEffectivenessResult>('effective')
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -513,7 +520,7 @@ function CapaDetailModal({ capa, canClose, onClose, onChanged }: { capa: Capa; c
       await recordCapaEffectivenessCheck(capa.id, result, note.trim() || undefined)
       onChanged()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not record this effectiveness check.'))
+      setError(getErrorMessage(err, t('internalAudits.errorRecordCheck')))
       setSubmitting(false)
     }
   }
@@ -525,7 +532,7 @@ function CapaDetailModal({ capa, canClose, onClose, onChanged }: { capa: Capa; c
       await closeCapa(capa.id)
       onChanged()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not close this CAPA.'))
+      setError(getErrorMessage(err, t('internalAudits.errorCloseCapa')))
       setSubmitting(false)
     }
   }
@@ -537,22 +544,22 @@ function CapaDetailModal({ capa, canClose, onClose, onChanged }: { capa: Capa; c
 
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-xs text-muted-foreground">Status</p>
+            <p className="text-xs text-muted-foreground">{t('internalAudits.status')}</p>
             <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${CAPA_STATUS_STYLES[capa.status]}`}>{CAPA_STATUS_LABELS[capa.status]}</span>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Due</p>
+            <p className="text-xs text-muted-foreground">{t('internalAudits.due')}</p>
             <p className="text-foreground">{formatDate(capa.dueDate)}</p>
           </div>
         </div>
 
         <div>
-          <p className="text-xs text-muted-foreground">Corrective Action</p>
+          <p className="text-xs text-muted-foreground">{t('internalAudits.correctiveAction')}</p>
           <p className="text-sm text-foreground">{capa.correctiveAction}</p>
         </div>
         {capa.preventiveAction && (
           <div>
-            <p className="text-xs text-muted-foreground">Preventive Action</p>
+            <p className="text-xs text-muted-foreground">{t('internalAudits.preventiveAction')}</p>
             <p className="text-sm text-foreground">{capa.preventiveAction}</p>
           </div>
         )}
@@ -561,29 +568,29 @@ function CapaDetailModal({ capa, canClose, onClose, onChanged }: { capa: Capa; c
         <div className="rounded-lg border-2 border-dashed border-border p-4 space-y-3">
           <div className="flex items-center gap-2">
             <ClipboardCheck className="h-4 w-4 text-safemeds-teal" />
-            <h3 className="text-sm font-semibold text-foreground">Effectiveness Check</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t('internalAudits.effectivenessCheck')}</h3>
             {hasEffectivenessCheck && <CheckCircle2 className="h-4 w-4 text-status-success" />}
           </div>
 
           {hasEffectivenessCheck ? (
             <div className="text-sm">
               <p className="text-foreground">
-                Result: <span className="font-medium">{capa.effectivenessCheckResult === 'effective' ? 'Effective' : 'Not effective'}</span>
+                {t('internalAudits.result')}: <span className="font-medium">{capa.effectivenessCheckResult === 'effective' ? t('internalAudits.effective') : t('internalAudits.notEffective')}</span>
               </p>
               {capa.effectivenessCheckNote && <p className="mt-1 text-muted-foreground">{capa.effectivenessCheckNote}</p>}
             </div>
           ) : canClose && !isClosed ? (
             <>
-              <p className="text-xs text-muted-foreground">A CAPA cannot be closed until its effectiveness is separately confirmed here.</p>
+              <p className="text-xs text-muted-foreground">{t('internalAudits.cannotCloseHelp')}</p>
               <div>
-                <label className={labelClass}>Result</label>
+                <label className={labelClass}>{t('internalAudits.result')}</label>
                 <select value={result} onChange={(e) => setResult(e.target.value as CapaEffectivenessResult)} className={inputClass}>
-                  <option value="effective">Effective</option>
-                  <option value="not_effective">Not effective</option>
+                  <option value="effective">{t('internalAudits.effective')}</option>
+                  <option value="not_effective">{t('internalAudits.notEffective')}</option>
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Note</label>
+                <label className={labelClass}>{t('internalAudits.note')}</label>
                 <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={inputClass} />
               </div>
               <button
@@ -592,11 +599,11 @@ function CapaDetailModal({ capa, canClose, onClose, onChanged }: { capa: Capa; c
                 className="flex items-center gap-2 rounded-lg border border-safemeds-teal px-3 py-1.5 text-xs font-medium text-safemeds-teal hover:bg-safemeds-teal/10 disabled:opacity-50"
               >
                 {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Record Effectiveness Check
+                {t('internalAudits.recordEffectivenessCheck')}
               </button>
             </>
           ) : (
-            <p className="text-xs text-muted-foreground">Not yet recorded — requires the quality.close_capa permission.</p>
+            <p className="text-xs text-muted-foreground">{t('internalAudits.notYetRecordedHelp')}</p>
           )}
         </div>
 
@@ -604,17 +611,17 @@ function CapaDetailModal({ capa, canClose, onClose, onChanged }: { capa: Capa; c
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Close Dialog
+            {t('internalAudits.closeDialog')}
           </button>
           {canClose && !isClosed && (
             <button
               onClick={handleClose}
               disabled={!hasEffectivenessCheck || submitting}
-              title={!hasEffectivenessCheck ? 'Record an effectiveness check first' : undefined}
+              title={!hasEffectivenessCheck ? t('internalAudits.recordCheckFirst') : undefined}
               className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-40"
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Close CAPA
+              {t('internalAudits.closeCapa')}
             </button>
           )}
         </div>

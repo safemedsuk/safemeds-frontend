@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import { ExecutiveDashboard, getExecutiveDashboard } from '@/lib/api/environmental-monitoring-stability'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString()
@@ -19,6 +20,7 @@ function formatDate(value: string): string {
  * module's own detail screen.
  */
 export function ExecutiveDashboardScreen() {
+  const { t } = useTranslation()
   const [data, setData] = useState<ExecutiveDashboard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -26,7 +28,7 @@ export function ExecutiveDashboardScreen() {
   useEffect(() => {
     getExecutiveDashboard()
       .then(setData)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load the executive dashboard.')))
+      .catch((err) => setError(getErrorMessage(err, t('dashboard.executive.errorLoad'))))
       .finally(() => setLoading(false))
   }, [])
 
@@ -43,10 +45,8 @@ export function ExecutiveDashboardScreen() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Executive Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          One unified view across VigiCloud, RegCloud, and QualCloud — drill into any module for detail.
-        </p>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('dashboard.executive.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.executive.subtitle')}</p>
       </div>
 
       {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-sm text-status-error">{error}</div>}
@@ -57,50 +57,50 @@ export function ExecutiveDashboardScreen() {
         <>
           <div className="grid gap-4 md:grid-cols-3">
             <a href="/pv-cases" className="rounded-lg border border-border bg-card p-5 hover:border-safemeds-teal transition-colors">
-              <h2 className="font-semibold text-foreground">VigiCloud</h2>
+              <h2 className="font-semibold text-foreground">{t('dashboard.executive.vigicloud')}</h2>
               <p className="mt-2 text-2xl font-bold text-foreground">{dashboard?.cases?.totalOpen ?? 0}</p>
-              <p className="text-xs text-muted-foreground">open PV cases</p>
-              <p className="mt-1 text-xs text-status-error">{dashboard?.deadlines?.breached ?? 0} breached deadline(s)</p>
-              <p className="mt-1 text-xs text-muted-foreground">{dashboard?.signals?.open ?? 0} open signal(s)</p>
+              <p className="text-xs text-muted-foreground">{t('dashboard.executive.openPvCases')}</p>
+              <p className="mt-1 text-xs text-status-error">{t('dashboard.executive.breachedDeadlines', { count: dashboard?.deadlines?.breached ?? 0 })}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('dashboard.executive.openSignals', { count: dashboard?.signals?.open ?? 0 })}</p>
             </a>
             <a href="/reg-dossiers" className="rounded-lg border border-border bg-card p-5 hover:border-safemeds-teal transition-colors">
-              <h2 className="font-semibold text-foreground">RegCloud</h2>
+              <h2 className="font-semibold text-foreground">{t('dashboard.executive.regcloud')}</h2>
               <p className="mt-2 text-2xl font-bold text-foreground">{dashboard?.regulatory?.upcomingRenewals30d ?? 0}</p>
-              <p className="text-xs text-muted-foreground">renewals due within 30 days</p>
-              <p className="mt-1 text-xs text-muted-foreground">{dashboard?.regulatory?.openQueries ?? 0} open regulator query(ies)</p>
+              <p className="text-xs text-muted-foreground">{t('dashboard.executive.renewalsDue30d')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('dashboard.executive.openQueries', { count: dashboard?.regulatory?.openQueries ?? 0 })}</p>
             </a>
             <a href="/quality-capas" className="rounded-lg border border-border bg-card p-5 hover:border-safemeds-teal transition-colors">
-              <h2 className="font-semibold text-foreground">QualCloud</h2>
+              <h2 className="font-semibold text-foreground">{t('dashboard.executive.qualcloud')}</h2>
               {dashboard?.qualcloud?.available ? (
                 <>
                   <p className="mt-2 text-2xl font-bold text-foreground">{dashboard.qualcloud.capasOverdue}</p>
-                  <p className="text-xs text-muted-foreground">overdue CAPAs</p>
+                  <p className="text-xs text-muted-foreground">{t('dashboard.executive.overdueCapas')}</p>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-muted-foreground">QualCloud module access not yet on for this company.</p>
+                <p className="mt-2 text-sm text-muted-foreground">{t('dashboard.executive.qualcloudNotAvailable')}</p>
               )}
             </a>
           </div>
 
           <div className="rounded-lg border border-border bg-card p-5">
-            <h2 className="mb-3 font-semibold text-foreground">Readiness Overview</h2>
+            <h2 className="mb-3 font-semibold text-foreground">{t('dashboard.executive.readinessOverview')}</h2>
             <div className="flex gap-4 text-sm">
-              <span>VigiCloud: <strong className="text-foreground">{data.readiness.vigicloud.overall}</strong></span>
-              <span>QualCloud: <strong className="text-foreground">{data.readiness.qualcloud.overall}</strong></span>
-              <span>RegCloud: <strong className="text-foreground">{data.readiness.regulatory.overall}</strong></span>
+              <span>{t('dashboard.executive.vigicloud')}: <strong className="text-foreground">{data.readiness.vigicloud.overall}</strong></span>
+              <span>{t('dashboard.executive.qualcloud')}: <strong className="text-foreground">{data.readiness.qualcloud.overall}</strong></span>
+              <span>{t('dashboard.executive.regcloud')}: <strong className="text-foreground">{data.readiness.regulatory.overall}</strong></span>
             </div>
             <a href="/cross-module-readiness" className="mt-2 inline-block text-xs font-medium text-safemeds-teal hover:underline">
-              View full readiness breakdown →
+              {t('dashboard.executive.viewFullReadiness')}
             </a>
           </div>
 
           <div className="rounded-lg border border-border bg-card p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-semibold text-foreground">Top Upcoming Obligations</h2>
-              <a href="/obligations-feed" className="text-xs font-medium text-safemeds-teal hover:underline">View all →</a>
+              <h2 className="font-semibold text-foreground">{t('dashboard.executive.topObligations')}</h2>
+              <a href="/obligations-feed" className="text-xs font-medium text-safemeds-teal hover:underline">{t('dashboard.executive.viewAll')}</a>
             </div>
             {data.topObligations.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing due soon.</p>
+              <p className="text-sm text-muted-foreground">{t('dashboard.executive.nothingDueSoon')}</p>
             ) : (
               <ul className="space-y-2 text-sm">
                 {data.topObligations.map((o, idx) => (

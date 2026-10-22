@@ -11,11 +11,13 @@ import {
   type DataSubjectRequestType,
 } from '@/lib/api/data-privacy'
 import { usePermissions } from '@/lib/hooks/use-permissions'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
-const STATUS_STYLE: Record<DataSubjectRequest['status'], { bg: string; text: string; label: string }> = {
-  pending: { bg: 'bg-[var(--warn-bg)]', text: 'text-[var(--warn)]', label: 'Pending' },
-  completed: { bg: 'bg-[var(--ok-bg)]', text: 'text-[var(--ok)]', label: 'Completed' },
-  blocked: { bg: 'bg-[var(--bad-bg)]', text: 'text-[var(--bad)]', label: 'Blocked' },
+const STATUS_STYLE: Record<DataSubjectRequest['status'], { bg: string; text: string; labelKey: MessageKey }> = {
+  pending: { bg: 'bg-[var(--warn-bg)]', text: 'text-[var(--warn)]', labelKey: 'settings.dataPrivacy.statusPending' },
+  completed: { bg: 'bg-[var(--ok-bg)]', text: 'text-[var(--ok)]', labelKey: 'settings.dataPrivacy.statusCompleted' },
+  blocked: { bg: 'bg-[var(--bad-bg)]', text: 'text-[var(--bad)]', labelKey: 'settings.dataPrivacy.statusBlocked' },
 }
 
 /**
@@ -26,6 +28,7 @@ const STATUS_STYLE: Record<DataSubjectRequest['status'], { bg: string; text: str
  * exercise the real backend today, ahead of that integration.
  */
 export function DataPrivacySection() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('data_privacy.manage')
 
@@ -57,7 +60,7 @@ export function DataPrivacySection() {
       const { requests } = await listDataSubjectRequests()
       setRequests(requests)
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not load data-subject requests.')
+      setError(err instanceof ApiRequestError ? err.message : t('settings.dataPrivacy.errorLoad'))
     } finally {
       setLoading(false)
     }
@@ -77,7 +80,7 @@ export function DataPrivacySection() {
       setRecordId('')
       await load()
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not submit the request.')
+      setError(err instanceof ApiRequestError ? err.message : t('settings.dataPrivacy.errorSubmit'))
     } finally {
       setSubmitting(false)
     }
@@ -93,23 +96,23 @@ export function DataPrivacySection() {
       )}
 
       <div>
-        <h4 className="text-xs font-semibold text-[var(--text)] mb-2">Submit a request</h4>
+        <h4 className="text-xs font-semibold text-[var(--text)] mb-2">{t('settings.dataPrivacy.submitRequest')}</h4>
         {!canManage ? (
           <p className="text-[10px] text-[var(--text-muted)] italic flex items-center gap-1.5">
-            <ShieldAlert className="h-3 w-3" /> Only a System Administrator can submit data-subject requests.
+            <ShieldAlert className="h-3 w-3" /> {t('settings.dataPrivacy.onlyAdminCanSubmit')}
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
             <input
               value={recordType}
               onChange={(e) => setRecordType(e.target.value)}
-              placeholder="Record type (e.g. pv_case)"
+              placeholder={t('settings.dataPrivacy.recordTypePlaceholder')}
               className="sm:col-span-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
             />
             <input
               value={recordId}
               onChange={(e) => setRecordId(e.target.value)}
-              placeholder="Record ID"
+              placeholder={t('settings.dataPrivacy.recordIdPlaceholder')}
               className="sm:col-span-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
             />
             <select
@@ -117,8 +120,8 @@ export function DataPrivacySection() {
               onChange={(e) => setRequestType(e.target.value as DataSubjectRequestType)}
               className="sm:col-span-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
             >
-              <option value="export">Export</option>
-              <option value="erasure">Erasure</option>
+              <option value="export">{t('settings.dataPrivacy.export')}</option>
+              <option value="erasure">{t('settings.dataPrivacy.erasure')}</option>
             </select>
             <button
               onClick={handleSubmit}
@@ -126,33 +129,31 @@ export function DataPrivacySection() {
               className="sm:col-span-1 h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-40 text-white text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
             >
               {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Submit
+              {t('settings.dataPrivacy.submit')}
             </button>
           </div>
         )}
-        <p className="text-[10px] text-[var(--text-muted)] mt-1.5">
-          An erasure request is blocked automatically if an open regulatory deadline still exists for that record.
-        </p>
+        <p className="text-[10px] text-[var(--text-muted)] mt-1.5">{t('settings.dataPrivacy.erasureBlockedHelp')}</p>
       </div>
 
       <div>
-        <h4 className="text-xs font-semibold text-[var(--text)] mb-2">Request history</h4>
+        <h4 className="text-xs font-semibold text-[var(--text)] mb-2">{t('settings.dataPrivacy.requestHistory')}</h4>
         {loading ? (
           <div className="flex items-center justify-center py-8 text-[var(--text-muted)] text-sm">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…
+            <Loader2 className="h-4 w-4 animate-spin mr-2" /> {t('settings.dataPrivacy.loading')}
           </div>
         ) : requests.length === 0 ? (
-          <p className="text-sm text-[var(--text-muted)] py-4 text-center">No data-subject requests yet.</p>
+          <p className="text-sm text-[var(--text-muted)] py-4 text-center">{t('settings.dataPrivacy.noRequestsYet')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-left text-[var(--text-muted)] border-b border-[var(--border)]">
-                  <th className="py-2 pr-3 font-medium">Record</th>
-                  <th className="py-2 pr-3 font-medium">Type</th>
-                  <th className="py-2 pr-3 font-medium">Status</th>
-                  <th className="py-2 pr-3 font-medium">Detail</th>
-                  <th className="py-2 font-medium">Submitted</th>
+                  <th className="py-2 pr-3 font-medium">{t('settings.dataPrivacy.columnRecord')}</th>
+                  <th className="py-2 pr-3 font-medium">{t('settings.dataPrivacy.columnType')}</th>
+                  <th className="py-2 pr-3 font-medium">{t('settings.dataPrivacy.columnStatus')}</th>
+                  <th className="py-2 pr-3 font-medium">{t('settings.dataPrivacy.columnDetail')}</th>
+                  <th className="py-2 font-medium">{t('settings.dataPrivacy.columnSubmitted')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
@@ -163,10 +164,12 @@ export function DataPrivacySection() {
                       <td className="py-2 pr-3 font-mono text-[var(--text)]">
                         {req.recordType}/{req.recordId}
                       </td>
-                      <td className="py-2 pr-3 text-[var(--text)] capitalize">{req.requestType}</td>
+                      <td className="py-2 pr-3 text-[var(--text)] capitalize">
+                        {req.requestType === 'export' ? t('settings.dataPrivacy.export') : t('settings.dataPrivacy.erasure')}
+                      </td>
                       <td className="py-2 pr-3">
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${style.bg} ${style.text}`}>
-                          {style.label}
+                          {t(style.labelKey)}
                         </span>
                       </td>
                       <td className="py-2 pr-3 text-[var(--text-muted)]">{req.blockedReason ?? '—'}</td>
@@ -181,13 +184,15 @@ export function DataPrivacySection() {
       </div>
 
       <div>
-        <h4 className="text-xs font-semibold text-[var(--text)] mb-1">Consent capture (preview)</h4>
-        <p className="text-[10px] text-[var(--text-muted)] mb-2">
-          The reusable consent-capture widget, shown here against a demo record so it can be exercised end-to-end today — VigiCloud
-          Stage 3&apos;s case intake will embed this directly against real cases.
-        </p>
+        <h4 className="text-xs font-semibold text-[var(--text)] mb-1">{t('settings.dataPrivacy.consentPreviewTitle')}</h4>
+        <p className="text-[10px] text-[var(--text-muted)] mb-2">{t('settings.dataPrivacy.consentPreviewHelp')}</p>
         {demoRecordId && (
-          <ConsentCaptureWidget recordType="demo_record" recordId={demoRecordId} consentType="contact" label="Demo — contact consent" />
+          <ConsentCaptureWidget
+            recordType="demo_record"
+            recordId={demoRecordId}
+            consentType="contact"
+            label={t('settings.dataPrivacy.demoConsentLabel')}
+          />
         )}
       </div>
     </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { BulkImportModal } from '@/components/bulk-import/bulk-import-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   onClose: () => void
@@ -23,21 +24,23 @@ NCT-0001,SUBJ-02,Male,52,2026-01-18
  * pattern as `BulkImportProductsModal`.
  */
 export function BulkImportTrialSubjectsModal({ onClose, onImported }: Props) {
+  const { t } = useTranslation()
   return (
     <BulkImportModal
       importType={IMPORT_TYPE}
-      title="Bulk import trial subjects"
+      title={t('bulkImportTrialSubjects.title')}
       description={
         <>
-          Upload a spreadsheet with columns for <strong>Trial Reference</strong> (must match an existing trial&apos;s
-          reference exactly), <strong>Subject Code</strong>, and <strong>Enrollment Date</strong> — those three are
-          required. Sex and Age are optional. This does not set a treatment-arm assignment — enroll with a known
-          arm one subject at a time on the trial page instead.
+          {t('bulkImportTrialSubjects.descriptionPrefix')} <strong>{t('bulkImportTrialSubjects.trialReference')}</strong>{' '}
+          {t('bulkImportTrialSubjects.descriptionMiddle')} <strong>{t('bulkImportTrialSubjects.subjectCode')}</strong>, {t('bulkImportTrialSubjects.descriptionAnd')}{' '}
+          <strong>{t('bulkImportTrialSubjects.enrollmentDate')}</strong> {t('bulkImportTrialSubjects.descriptionSuffix')}
         </>
       }
       templateFilename="safemeds-bulk-trial-subject-import-template.csv"
       templateCsv={TEMPLATE_CSV}
-      resultLabel={(committed) => `${committed} subject${committed === 1 ? '' : 's'} enrolled.`}
+      resultLabel={(committed) =>
+        committed === 1 ? t('bulkImportTrialSubjects.resultLabelSingular', { count: committed }) : t('bulkImportTrialSubjects.resultLabelPlural', { count: committed })
+      }
       onClose={onClose}
       onImported={onImported}
     />

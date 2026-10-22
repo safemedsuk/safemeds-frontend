@@ -23,6 +23,7 @@ import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { Modal } from '@/components/ui/modal'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm'
 const labelClass = 'block text-xs font-medium text-[var(--text-muted)] mb-1'
@@ -46,6 +47,7 @@ function formatDate(value: string): string {
  * warranted, generates a real DHCP/DIL letter in response.
  */
 export function SafetyAlertsScreen() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('safety_alerts.manage')
 
@@ -68,7 +70,7 @@ export function SafetyAlertsScreen() {
     setError(null)
     listSafetyAlerts(statusFilter === 'all' ? undefined : statusFilter)
       .then(setAlerts)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load safety alerts.')))
+      .catch((err) => setError(getErrorMessage(err, t('safetyAlerts.errorLoad'))))
       .finally(() => setLoading(false))
   }, [statusFilter])
 
@@ -77,14 +79,14 @@ export function SafetyAlertsScreen() {
   }, [load])
 
   const columns: DataTableColumn<SafetyAlert>[] = [
-    { key: 'title', label: 'Title', render: (v) => <span className="font-medium text-foreground">{v as string}</span> },
-    { key: 'source', label: 'Source' },
+    { key: 'title', label: t('safetyAlerts.columnTitle'), render: (v) => <span className="font-medium text-foreground">{v as string}</span> },
+    { key: 'source', label: t('safetyAlerts.columnSource') },
     {
       key: 'status',
-      label: 'Status',
+      label: t('safetyAlerts.columnStatus'),
       render: (v) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[v as SafetyAlertStatus]}`}>{SAFETY_ALERT_STATUS_LABELS[v as SafetyAlertStatus]}</span>,
     },
-    { key: 'createdAt', label: 'Logged', render: (v) => formatDate(v as string) },
+    { key: 'createdAt', label: t('safetyAlerts.columnLogged'), render: (v) => formatDate(v as string) },
   ]
 
   return (
@@ -93,10 +95,10 @@ export function SafetyAlertsScreen() {
         <div>
           <div className="flex items-center gap-3">
             <ShieldAlert className="h-6 w-6 text-safemeds-teal" />
-            <h1 className="text-3xl font-display font-bold text-foreground">Safety Alerts</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground">{t('safetyAlerts.title')}</h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            {alerts.length} {alerts.length === 1 ? 'alert' : 'alerts'} · manually logged safety signals and the DHCP/DIL letters generated in response
+            {alerts.length === 1 ? t('safetyAlerts.subtitleOne') : t('safetyAlerts.subtitleMany', { count: alerts.length })}
           </p>
         </div>
         {canManage && (
@@ -105,15 +107,15 @@ export function SafetyAlertsScreen() {
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
           >
             <Plus className="h-4 w-4" />
-            Log Alert
+            {t('safetyAlerts.logAlert')}
           </button>
         )}
       </div>
 
       <div className="rounded-lg border border-border bg-card p-4">
-        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</label>
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('safetyAlerts.status')}</label>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as SafetyAlertStatus | 'all')} className={`${inputClass} mt-2 sm:max-w-xs`}>
-          <option value="all">All Statuses</option>
+          <option value="all">{t('safetyAlerts.allStatuses')}</option>
           {Object.entries(SAFETY_ALERT_STATUS_LABELS).map(([key, label]) => (
             <option key={key} value={key}>
               {label}
@@ -130,7 +132,7 @@ export function SafetyAlertsScreen() {
       {!loading && alerts.length === 0 && (
         <div className="rounded-lg border border-dashed border-border p-12 text-center">
           <ShieldAlert className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">No safety alerts logged yet.</p>
+          <p className="text-sm text-muted-foreground">{t('safetyAlerts.noAlertsYet')}</p>
         </div>
       )}
 
@@ -139,7 +141,7 @@ export function SafetyAlertsScreen() {
           onClose={() => setShowCreate(false)}
           onCreated={(alert) => {
             setShowCreate(false)
-            setNotice('Alert logged.')
+            setNotice(t('safetyAlerts.alertLogged'))
             setAlerts((prev) => [alert, ...prev])
           }}
         />
@@ -160,6 +162,7 @@ export function SafetyAlertsScreen() {
 }
 
 function LogAlertModal({ onClose, onCreated }: { onClose: () => void; onCreated: (alert: SafetyAlert) => void }) {
+  const { t } = useTranslation()
   const [title, setTitle] = useState('')
   const [source, setSource] = useState('')
   const [sourceUrl, setSourceUrl] = useState('')
@@ -191,31 +194,31 @@ function LogAlertModal({ onClose, onCreated }: { onClose: () => void; onCreated:
       })
       onCreated(alert)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not log this alert.'))
+      setError(getErrorMessage(err, t('safetyAlerts.errorLogAlert')))
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <Modal title="Log Safety Alert" onClose={onClose}>
+    <Modal title={t('safetyAlerts.logAlertModalTitle')} onClose={onClose}>
       <div className="space-y-3">
         <div>
-          <label className={labelClass}>Title *</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Batch withdrawal notice" className={inputClass} />
+          <label className={labelClass}>{t('safetyAlerts.titleRequired')}</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('safetyAlerts.titlePlaceholder')} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Source *</label>
-          <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="e.g. WHO Medical Product Alert" className={inputClass} />
+          <label className={labelClass}>{t('safetyAlerts.sourceRequired')}</label>
+          <input value={source} onChange={(e) => setSource(e.target.value)} placeholder={t('safetyAlerts.sourcePlaceholder')} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Source URL (optional)</label>
+          <label className={labelClass}>{t('safetyAlerts.sourceUrlOptional')}</label>
           <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Affected product (optional)</label>
+          <label className={labelClass}>{t('safetyAlerts.affectedProductOptional')}</label>
           <select value={affectedProductId} onChange={(e) => setAffectedProductId(e.target.value)} className={inputClass}>
-            <option value="">None / not product-specific</option>
+            <option value="">{t('safetyAlerts.noneNotProductSpecific')}</option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.brandName}
@@ -224,7 +227,7 @@ function LogAlertModal({ onClose, onCreated }: { onClose: () => void; onCreated:
           </select>
         </div>
         <div>
-          <label className={labelClass}>Summary *</label>
+          <label className={labelClass}>{t('safetyAlerts.summaryRequired')}</label>
           <textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={4} className={inputClass} />
         </div>
 
@@ -232,7 +235,7 @@ function LogAlertModal({ onClose, onCreated }: { onClose: () => void; onCreated:
 
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onClose} className="px-3 py-2 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text)]">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -240,7 +243,7 @@ function LogAlertModal({ onClose, onCreated }: { onClose: () => void; onCreated:
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-xs font-medium disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Log Alert
+            {t('safetyAlerts.logAlert')}
           </button>
         </div>
       </div>
@@ -249,6 +252,7 @@ function LogAlertModal({ onClose, onCreated }: { onClose: () => void; onCreated:
 }
 
 function AlertDetailModal({ id, canManage, onClose, onUpdated }: { id: string; canManage: boolean; onClose: () => void; onUpdated: () => void }) {
+  const { t } = useTranslation()
   const [alert, setAlert] = useState<SafetyAlert | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -261,9 +265,10 @@ function AlertDetailModal({ id, canManage, onClose, onUpdated }: { id: string; c
     setLoading(true)
     getSafetyAlert(id)
       .then(setAlert)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load this alert.')))
+      .catch((err) => setError(getErrorMessage(err, t('safetyAlerts.errorLoadAlert'))))
       .finally(() => setLoading(false))
-  }, [id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, t])
 
   useEffect(() => {
     load()
@@ -277,7 +282,7 @@ function AlertDetailModal({ id, canManage, onClose, onUpdated }: { id: string; c
       setAlert(updated)
       onUpdated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not update this alert.'))
+      setError(getErrorMessage(err, t('safetyAlerts.errorUpdateAlert')))
     } finally {
       setBusy(false)
     }
@@ -290,7 +295,7 @@ function AlertDetailModal({ id, canManage, onClose, onUpdated }: { id: string; c
     try {
       setLetter(await dispatchSafetyLetter(letter.id))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not dispatch this letter.'))
+      setError(getErrorMessage(err, t('safetyAlerts.errorDispatchLetter')))
     } finally {
       setBusy(false)
     }
@@ -298,7 +303,7 @@ function AlertDetailModal({ id, canManage, onClose, onUpdated }: { id: string; c
 
   if (loading) {
     return (
-      <Modal title="Safety Alert" onClose={onClose}>
+      <Modal title={t('safetyAlerts.modalTitle')} onClose={onClose}>
         <div className="flex justify-center p-8">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
@@ -308,8 +313,8 @@ function AlertDetailModal({ id, canManage, onClose, onUpdated }: { id: string; c
 
   if (!alert) {
     return (
-      <Modal title="Safety Alert" onClose={onClose}>
-        <p className="text-sm text-status-error">{error ?? 'Not found.'}</p>
+      <Modal title={t('safetyAlerts.modalTitle')} onClose={onClose}>
+        <p className="text-sm text-status-error">{error ?? t('safetyAlerts.notFound')}</p>
       </Modal>
     )
   }
@@ -324,7 +329,7 @@ function AlertDetailModal({ id, canManage, onClose, onUpdated }: { id: string; c
         <p className="text-sm text-foreground">{alert.summary}</p>
         {alert.reviewNote && (
           <div className="rounded-lg bg-muted/40 p-3 text-sm text-foreground">
-            <p className="text-xs font-semibold text-muted-foreground">Review note</p>
+            <p className="text-xs font-semibold text-muted-foreground">{t('safetyAlerts.reviewNote')}</p>
             {alert.reviewNote}
           </div>
         )}
@@ -333,26 +338,26 @@ function AlertDetailModal({ id, canManage, onClose, onUpdated }: { id: string; c
 
         {canManage && alert.status !== 'dismissed' && (
           <div className="space-y-2 border-t border-border pt-3">
-            <label className={labelClass}>Review note (optional)</label>
+            <label className={labelClass}>{t('safetyAlerts.reviewNoteOptional')}</label>
             <textarea value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} rows={2} className={inputClass} />
             <div className="flex flex-wrap gap-2">
               {alert.status === 'open' && (
                 <button onClick={() => handleStatus('reviewed')} disabled={busy} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-                  Mark Reviewed
+                  {t('safetyAlerts.markReviewed')}
                 </button>
               )}
               <button onClick={() => handleStatus('actioned')} disabled={busy} className="rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce">
-                Mark Actioned
+                {t('safetyAlerts.markActioned')}
               </button>
               <button onClick={() => handleStatus('dismissed')} disabled={busy} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-                Dismiss
+                {t('safetyAlerts.dismiss')}
               </button>
             </div>
           </div>
         )}
 
         <div className="border-t border-border pt-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">DHCP / DIL Letter</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('safetyAlerts.dhcpDilLetter')}</p>
           {letter ? (
             <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
               <p className="text-sm font-medium text-foreground">{letter.title}</p>
@@ -362,14 +367,16 @@ function AlertDetailModal({ id, canManage, onClose, onUpdated }: { id: string; c
                     <span className="text-foreground">
                       {r.recipientName} &lt;{r.recipientEmail}&gt;
                     </span>
-                    <span className={r.sentAt ? 'text-status-success' : 'text-muted-foreground'}>{r.sentAt ? `Sent ${formatDate(r.sentAt)}` : 'Not sent'}</span>
+                    <span className={r.sentAt ? 'text-status-success' : 'text-muted-foreground'}>
+                      {r.sentAt ? t('safetyAlerts.sentOnDate', { date: formatDate(r.sentAt) }) : t('safetyAlerts.notSent')}
+                    </span>
                   </li>
                 ))}
               </ul>
               {canManage && letter.recipients.some((r) => !r.sentAt) && (
                 <button onClick={handleDispatch} disabled={busy} className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce">
                   {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
-                  Dispatch to Remaining Recipients
+                  {t('safetyAlerts.dispatchToRemaining')}
                 </button>
               )}
             </div>
@@ -385,11 +392,11 @@ function AlertDetailModal({ id, canManage, onClose, onUpdated }: { id: string; c
               />
             ) : (
               <button onClick={() => setShowLetterForm(true)} className="text-xs font-medium text-safemeds-teal hover:underline">
-                Generate a DHCP/DIL letter for this alert
+                {t('safetyAlerts.generateLetterForAlert')}
               </button>
             )
           ) : (
-            <p className="text-xs text-muted-foreground">No letter generated yet.</p>
+            <p className="text-xs text-muted-foreground">{t('safetyAlerts.noLetterYet')}</p>
           )}
         </div>
       </div>
@@ -398,6 +405,7 @@ function AlertDetailModal({ id, canManage, onClose, onUpdated }: { id: string; c
 }
 
 function GenerateLetterForm({ safetyAlertId, onGenerated, onCancel }: { safetyAlertId: string; onGenerated: (letter: SafetyLetterWithRecipients) => void; onCancel: () => void }) {
+  const { t } = useTranslation()
   const [letterType, setLetterType] = useState<SafetyLetterType>('dhcp')
   const [ppbApprovalReference, setPpbApprovalReference] = useState('')
   const [backgroundInformation, setBackgroundInformation] = useState('')
@@ -433,7 +441,7 @@ function GenerateLetterForm({ safetyAlertId, onGenerated, onCancel }: { safetyAl
       })
       onGenerated(letter)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not generate this letter.'))
+      setError(getErrorMessage(err, t('safetyAlerts.errorGenerateLetter')))
     } finally {
       setSubmitting(false)
     }
@@ -442,7 +450,7 @@ function GenerateLetterForm({ safetyAlertId, onGenerated, onCancel }: { safetyAl
   return (
     <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
       <div>
-        <label className={labelClass}>Letter type</label>
+        <label className={labelClass}>{t('safetyAlerts.letterType')}</label>
         <select value={letterType} onChange={(e) => setLetterType(e.target.value as SafetyLetterType)} className={inputClass}>
           {Object.entries(SAFETY_LETTER_TYPE_LABELS).map(([key, label]) => (
             <option key={key} value={key}>
@@ -452,55 +460,55 @@ function GenerateLetterForm({ safetyAlertId, onGenerated, onCancel }: { safetyAl
         </select>
       </div>
       <div>
-        <label className={labelClass}>PPB approval reference</label>
+        <label className={labelClass}>{t('safetyAlerts.ppbApprovalReference')}</label>
         <input
           value={ppbApprovalReference}
           onChange={(e) => setPpbApprovalReference(e.target.value)}
           className={inputClass}
           placeholder="e.g. PPB/PV/2026/0142"
         />
-        <p className="mt-1 text-xs text-muted-foreground">Required — a letter cannot be generated without regulator pre-approval reference.</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t('safetyAlerts.ppbApprovalReferenceHelp')}</p>
       </div>
       <div>
-        <label className={labelClass}>Background information &amp; clinical relevance</label>
-        <textarea value={backgroundInformation} onChange={(e) => setBackgroundInformation(e.target.value)} rows={3} className={inputClass} placeholder="What happened, and why it's clinically relevant?" />
+        <label className={labelClass}>{t('safetyAlerts.backgroundInformation')}</label>
+        <textarea value={backgroundInformation} onChange={(e) => setBackgroundInformation(e.target.value)} rows={3} className={inputClass} placeholder={t('safetyAlerts.backgroundInformationPlaceholder')} />
       </div>
       <div>
-        <label className={labelClass}>Actionable guidance for healthcare providers</label>
-        <textarea value={actionableGuidance} onChange={(e) => setActionableGuidance(e.target.value)} rows={3} className={inputClass} placeholder="What should recipients do?" />
+        <label className={labelClass}>{t('safetyAlerts.actionableGuidance')}</label>
+        <textarea value={actionableGuidance} onChange={(e) => setActionableGuidance(e.target.value)} rows={3} className={inputClass} placeholder={t('safetyAlerts.actionableGuidancePlaceholder')} />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className={labelClass}>Signatory name</label>
-          <input value={signatoryName} onChange={(e) => setSignatoryName(e.target.value)} className={inputClass} placeholder="e.g. Dr. Jane Doe" />
+          <label className={labelClass}>{t('safetyAlerts.signatoryName')}</label>
+          <input value={signatoryName} onChange={(e) => setSignatoryName(e.target.value)} className={inputClass} placeholder={t('safetyAlerts.signatoryNamePlaceholder')} />
         </div>
         <div>
-          <label className={labelClass}>Signatory title</label>
-          <input value={signatoryTitle} onChange={(e) => setSignatoryTitle(e.target.value)} className={inputClass} placeholder="Medical Director / QPPV" />
+          <label className={labelClass}>{t('safetyAlerts.signatoryTitle')}</label>
+          <input value={signatoryTitle} onChange={(e) => setSignatoryTitle(e.target.value)} className={inputClass} placeholder={t('safetyAlerts.signatoryTitlePlaceholder')} />
         </div>
       </div>
       <div>
-        <label className={labelClass}>Recipients</label>
+        <label className={labelClass}>{t('safetyAlerts.recipients')}</label>
         <div className="space-y-2">
           {recipients.map((r, idx) => (
             <div key={idx} className="flex gap-2">
               <input
                 value={r.name}
                 onChange={(e) => setRecipients((prev) => prev.map((p, i) => (i === idx ? { ...p, name: e.target.value } : p)))}
-                placeholder="Name"
+                placeholder={t('safetyAlerts.recipientName')}
                 className={inputClass}
               />
               <input
                 value={r.email}
                 onChange={(e) => setRecipients((prev) => prev.map((p, i) => (i === idx ? { ...p, email: e.target.value } : p)))}
-                placeholder="Email"
+                placeholder={t('safetyAlerts.recipientEmail')}
                 className={inputClass}
               />
             </div>
           ))}
         </div>
         <button onClick={() => setRecipients((prev) => [...prev, { name: '', email: '' }])} className="mt-1 text-xs font-medium text-safemeds-teal hover:underline">
-          + Add recipient
+          {t('safetyAlerts.addRecipient')}
         </button>
       </div>
 
@@ -508,11 +516,11 @@ function GenerateLetterForm({ safetyAlertId, onGenerated, onCancel }: { safetyAl
 
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className="px-3 py-2 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text)]">
-          Cancel
+          {t('common.cancel')}
         </button>
         <button onClick={handleSubmit} disabled={!isValid || submitting} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-xs font-medium disabled:opacity-50">
           {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          Generate Letter
+          {t('safetyAlerts.generateLetter')}
         </button>
       </div>
     </div>

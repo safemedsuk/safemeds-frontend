@@ -10,6 +10,7 @@ import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { BuildPsmfModal } from '@/components/psmf/build-psmf-modal'
 import { DocumentPreviewModal } from '@/components/ui/document-preview-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -33,6 +34,7 @@ function formatDate(value: string | null): string {
  * with an inline hint rather than a confusing 409 after the click.
  */
 export function PsmfScreen() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('psmf.manage')
 
@@ -65,10 +67,11 @@ export function PsmfScreen() {
           setVigicloudEnabled(entitlements.some((e) => e.moduleKey === 'vigicloud' && e.featureKey === '*' && e.enabled))
         }
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load PSMF versions.')))
+      .catch((err) => setError(getErrorMessage(err, t('psmf.errorLoad'))))
       .finally(() => {
         if (!opts.silent) setLoading(false)
       })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -83,10 +86,10 @@ export function PsmfScreen() {
     try {
       const version = await uploadDocument('psmf', psmfId, file, { title: 'PSMF document' })
       await attachPsmfDocument(psmfId, version.documentId)
-      setNotice('Document attached.')
+      setNotice(t('psmf.documentAttached'))
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not upload this document.'))
+      setError(getErrorMessage(err, t('psmf.errorUpload')))
     } finally {
       setUploadingFor(null)
     }
@@ -99,7 +102,7 @@ export function PsmfScreen() {
       const doc = docs[0]
       if (doc) setPreviewing(doc)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load this document.'))
+      setError(getErrorMessage(err, t('psmf.errorLoadDocument')))
     }
   }
 
@@ -107,10 +110,10 @@ export function PsmfScreen() {
     setError(null)
     try {
       await activatePsmf(id)
-      setNotice('PSMF activated.')
+      setNotice(t('psmf.activated'))
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not activate this PSMF.'))
+      setError(getErrorMessage(err, t('psmf.errorActivate')))
     }
   }
 
@@ -120,12 +123,10 @@ export function PsmfScreen() {
         <div>
           <div className="flex items-center gap-3">
             <FileCheck2 className="h-6 w-6 text-safemeds-teal" />
-            <h1 className="text-3xl font-display font-bold text-foreground">PSMF</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground">{t('psmf.title')}</h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Pharmacovigilance System Master File — required before SafeMeds staff can switch on this company&apos;s
-            VigiCloud <strong className="text-foreground">module access</strong> (the platform-side entitlement
-            toggle). VigiCloud itself is already built — this only gates that access switch.
+            {t('psmf.subtitle', { moduleAccess: t('psmf.moduleAccess') })}
           </p>
         </div>
         {canManage && (
@@ -133,7 +134,7 @@ export function PsmfScreen() {
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
           >
-            New Draft
+            {t('psmf.newDraft')}
           </button>
         )}
       </div>
@@ -142,27 +143,23 @@ export function PsmfScreen() {
         <div className="rounded-lg border border-status-success bg-status-success/10 p-4 text-sm text-status-success flex items-center justify-between gap-3">
           <span className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
-            VigiCloud module access is enabled for this company.
+            {t('psmf.moduleAccessEnabled')}
           </span>
-          <button onClick={() => load()} className="flex items-center gap-1 text-xs text-status-success hover:underline flex-shrink-0" title="Re-check the current access status">
-            <RefreshCw className="h-3 w-3" /> Refresh
+          <button onClick={() => load()} className="flex items-center gap-1 text-xs text-status-success hover:underline flex-shrink-0" title={t('psmf.refreshTitle')}>
+            <RefreshCw className="h-3 w-3" /> {t('psmf.refresh')}
           </button>
         </div>
       ) : activeVersion ? (
         <div className="rounded-lg border border-status-info bg-status-info/10 p-4 text-sm text-status-info flex items-center justify-between gap-3">
-          <span>
-            Version {activeVersion.version} is active — SafeMeds staff can now switch on VigiCloud module access for
-            this company. It isn&apos;t on yet as of the last check.
-          </span>
-          <button onClick={() => load()} className="flex items-center gap-1 text-xs text-status-info hover:underline flex-shrink-0" title="Re-check the current access status">
-            <RefreshCw className="h-3 w-3" /> Refresh
+          <span>{t('psmf.versionActive', { version: activeVersion.version })}</span>
+          <button onClick={() => load()} className="flex items-center gap-1 text-xs text-status-info hover:underline flex-shrink-0" title={t('psmf.refreshTitle')}>
+            <RefreshCw className="h-3 w-3" /> {t('psmf.refresh')}
           </button>
         </div>
       ) : (
         <div className="rounded-lg border border-status-warning bg-status-warning/10 p-4 text-sm text-status-warning flex items-start gap-2">
           <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
-          No active PSMF — build or upload one, then activate it. VigiCloud module access cannot be switched on
-          until then.
+          {t('psmf.noActivePsmf')}
         </div>
       )}
 
@@ -177,17 +174,17 @@ export function PsmfScreen() {
         ) : versions.length === 0 ? (
           <div className="p-12 text-center">
             <FileCheck2 className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No PSMF versions yet.</p>
+            <p className="text-sm text-muted-foreground">{t('psmf.noVersionsYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Version</th>
-                <th className="p-3">Title</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Document</th>
-                <th className="p-3">Activated</th>
+                <th className="p-3">{t('psmf.columnVersion')}</th>
+                <th className="p-3">{t('psmf.columnTitle')}</th>
+                <th className="p-3">{t('psmf.columnStatus')}</th>
+                <th className="p-3">{t('psmf.columnDocument')}</th>
+                <th className="p-3">{t('psmf.columnActivated')}</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
@@ -202,7 +199,7 @@ export function PsmfScreen() {
                   <td className="p-3">
                     {v.documentId ? (
                       <button onClick={() => handlePreview(v.id)} className="text-safemeds-teal hover:underline">
-                        View
+                        {t('psmf.view')}
                       </button>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -217,7 +214,7 @@ export function PsmfScreen() {
                           className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
                         >
                           <Hammer className="h-3.5 w-3.5" />
-                          Build
+                          {t('psmf.build')}
                         </button>
                         {!v.documentId && (
                           <button
@@ -229,16 +226,16 @@ export function PsmfScreen() {
                             className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
                           >
                             {uploadingFor === v.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                            Upload
+                            {t('psmf.upload')}
                           </button>
                         )}
                         <button
                           onClick={() => handleActivate(v.id)}
                           disabled={!v.documentId}
-                          title={!v.documentId ? 'Attach a document before activating' : undefined}
+                          title={!v.documentId ? t('psmf.attachDocumentBeforeActivating') : undefined}
                           className="rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-40"
                         >
-                          Activate
+                          {t('psmf.activate')}
                         </button>
                       </div>
                     )}
@@ -267,7 +264,7 @@ export function PsmfScreen() {
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false)
-            setNotice('Draft created.')
+            setNotice(t('psmf.draftCreated'))
             load()
           }}
         />
@@ -280,7 +277,7 @@ export function PsmfScreen() {
           onSaved={() => load({ silent: true })}
           onGenerated={() => {
             setBuilding(null)
-            setNotice('PSMF document generated.')
+            setNotice(t('psmf.documentGenerated'))
             load()
           }}
         />
@@ -300,6 +297,7 @@ export function PsmfScreen() {
 }
 
 function CreatePsmfModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { t } = useTranslation()
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -315,7 +313,7 @@ function CreatePsmfModal({ onClose, onCreated }: { onClose: () => void; onCreate
       await createPsmf({ title: title.trim(), summary: summary.trim() || undefined })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this draft.'))
+      setError(getErrorMessage(err, t('psmf.errorCreateDraft')))
       setSubmitting(false)
     }
   }
@@ -323,16 +321,16 @@ function CreatePsmfModal({ onClose, onCreated }: { onClose: () => void; onCreate
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">New PSMF Draft</h2>
-        <p className="text-xs text-muted-foreground">Create it with your QPPV, or upload an existing PSMF document — either way, start with a title.</p>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('psmf.newDraftModalTitle')}</h2>
+        <p className="text-xs text-muted-foreground">{t('psmf.newDraftModalHelp')}</p>
 
         <div>
-          <label className={labelClass}>Title *</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. SafeMeds PSMF v1" className={inputClass} />
+          <label className={labelClass}>{t('psmf.titleField')}</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('psmf.titlePlaceholder')} className={inputClass} />
         </div>
 
         <div>
-          <label className={labelClass}>Summary</label>
+          <label className={labelClass}>{t('psmf.summary')}</label>
           <textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={3} className={inputClass} />
         </div>
 
@@ -340,7 +338,7 @@ function CreatePsmfModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('psmf.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -348,7 +346,7 @@ function CreatePsmfModal({ onClose, onCreated }: { onClose: () => void; onCreate
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create
+            {t('psmf.create')}
           </button>
         </div>
       </div>

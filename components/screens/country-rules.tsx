@@ -57,12 +57,24 @@ import { ProductClassPicker } from '@/components/regulatory/product-class-picker
 import { Modal } from '@/components/ui/modal'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useAuthStore } from '@/lib/store/auth-store'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
+// Used only by the deferred, platform-admin-only sections further down
+// this file (SubmissionFormatVersionPanel/CreateSubmissionFormatForm) —
+// see this file's own CHANNEL_LABEL_KEYS for the tenant-visible equivalent.
 const CHANNEL_LABELS: Record<string, string> = {
   vigiflow: 'VigiFlow',
   dhis2: 'DHIS2',
   portal: 'Regulator Portal',
   paper_pdf: 'Paper/PDF',
+}
+
+const CHANNEL_LABEL_KEYS: Record<string, MessageKey> = {
+  vigiflow: 'countryRules.channelVigiflow',
+  dhis2: 'countryRules.channelDhis2',
+  portal: 'countryRules.channelPortal',
+  paper_pdf: 'countryRules.channelPaperPdf',
 }
 
 function formatKey(key: string): string {
@@ -79,6 +91,7 @@ type VersionPanelKind =
   | { kind: 'reg-deadline-rule'; countryId: string; authorityId: string; productClass: string }
 
 export function CountryRules() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('platform.config.manage')
   const currentUser = useAuthStore((state) => state.currentUser)
@@ -121,7 +134,7 @@ export function CountryRules() {
           const kenya = rows.find((c) => c.isoCode === 'KE')
           setSelectedCountryId(kenya?.id ?? rows[0]?.id ?? '')
         })
-        .catch((err) => setError(getErrorMessage(err, 'Could not load configured countries.')))
+        .catch((err) => setError(getErrorMessage(err, t('countryRules.errorLoadCountries'))))
       return
     }
 
@@ -142,7 +155,7 @@ export function CountryRules() {
         setCountries(home ? [home] : [])
         setSelectedCountryId(company.homeCountryId)
       })
-      .catch((err) => setError(getErrorMessage(err, "Could not load your company's operating markets.")))
+      .catch((err) => setError(getErrorMessage(err, t('countryRules.errorLoadMarkets'))))
   }, [isPlatformStaff])
 
   const loadConfig = (countryId: string) => {
@@ -152,7 +165,7 @@ export function CountryRules() {
     setConfig([])
     getCountryConfig(countryId)
       .then(setConfig)
-      .catch((err) => setError(getErrorMessage(err, "Could not load this country's configuration.")))
+      .catch((err) => setError(getErrorMessage(err, t('countryRules.errorLoadConfig'))))
       .finally(() => setLoading(false))
   }
 
@@ -171,14 +184,12 @@ export function CountryRules() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Country Rules & Regulations</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Regulatory authorities, reporting windows, seriousness criteria, and official form schemas per market
-        </p>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('countryRules.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('countryRules.subtitle')}</p>
       </div>
 
       <div className="rounded-lg border border-border bg-card p-4">
-        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Country</label>
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('countryRules.country')}</label>
         <select
           value={selectedCountryId}
           onChange={(e) => setSelectedCountryId(e.target.value)}
@@ -192,11 +203,11 @@ export function CountryRules() {
         </select>
         {!isPlatformStaff && noMarketsYet && (
           <p className="mt-2 text-xs text-muted-foreground">
-            Showing your company&apos;s home country only — no operating markets have been explicitly activated yet.{' '}
+            {t('countryRules.homeCountryOnlyNote')}{' '}
             <a href="/company-profile" className="text-primary hover:underline">
-              Set up markets in Company Profile
+              {t('countryRules.setUpMarkets')}
             </a>{' '}
-            to add more.
+            {t('countryRules.toAddMore')}
           </p>
         )}
         {isPlatformStaff && canManage && (
@@ -204,7 +215,7 @@ export function CountryRules() {
             onClick={() => setShowNewCountryModal(true)}
             className="mt-3 flex items-center gap-1.5 text-xs font-medium text-safemeds-teal hover:underline"
           >
-            <Plus className="h-3.5 w-3.5" /> Bring a new country online
+            <Plus className="h-3.5 w-3.5" /> {t('countryRules.bringNewCountryOnline')}
           </button>
         )}
       </div>
@@ -213,16 +224,16 @@ export function CountryRules() {
         <div className="rounded-lg border border-border bg-card overflow-hidden">
           <div className="p-4 border-b border-border flex items-center gap-2">
             <Landmark className="h-4 w-4 text-muted-foreground" />
-            <h2 className="font-semibold text-foreground">Regulatory Authorities for this country</h2>
+            <h2 className="font-semibold text-foreground">{t('countryRules.authoritiesForCountry')}</h2>
             <button
               onClick={() => setAuthorityModal({ mode: 'create' })}
               className="ml-auto flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
             >
-              <Plus className="h-3.5 w-3.5" /> Add Authority
+              <Plus className="h-3.5 w-3.5" /> {t('countryRules.addAuthority')}
             </button>
           </div>
           {authorities.length === 0 ? (
-            <p className="p-4 text-xs text-muted-foreground">No regulatory authority exists for this country yet — add one to bring it online.</p>
+            <p className="p-4 text-xs text-muted-foreground">{t('countryRules.noAuthorityYet')}</p>
           ) : (
             <div className="divide-y divide-border">
               {authorities.map((a) => (
@@ -230,13 +241,13 @@ export function CountryRules() {
                   <span className="rounded-full bg-safemeds-teal/10 px-2 py-0.5 text-xs font-medium text-safemeds-teal">{a.code}</span>
                   <span className="text-sm text-foreground">{a.name}</span>
                   <span className="ml-2 text-[11px] text-muted-foreground">
-                    {a.formCode || a.ministryName || a.emblemAssetKey ? 'Letterhead configured' : 'No letterhead set — submissions render text-only'}
+                    {a.formCode || a.ministryName || a.emblemAssetKey ? t('countryRules.letterheadConfigured') : t('countryRules.noLetterheadSet')}
                   </span>
                   <button
                     onClick={() => setAuthorityModal({ mode: 'edit', authority: a })}
                     className="ml-auto flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline"
                   >
-                    <Pencil className="h-3 w-3" /> Edit
+                    <Pencil className="h-3 w-3" /> {t('countryRules.edit')}
                   </button>
                 </div>
               ))}
@@ -252,7 +263,7 @@ export function CountryRules() {
       {loading && (
         <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading configuration...
+          {t('countryRules.loadingConfiguration')}
         </div>
       )}
 
@@ -268,7 +279,7 @@ export function CountryRules() {
                   onClick={() => setVersionPanel({ kind: 'seriousness-definition', authorityId: authority.id })}
                   className="ml-auto flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
                 >
-                  <History className="h-3.5 w-3.5" /> Seriousness criteria versions
+                  <History className="h-3.5 w-3.5" /> {t('countryRules.seriousnessCriteriaVersions')}
                 </button>
               )}
             </div>
@@ -288,26 +299,26 @@ export function CountryRules() {
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
                         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                          <AlertTriangle className="h-3.5 w-3.5" /> Reporting Windows
+                          <AlertTriangle className="h-3.5 w-3.5" /> {t('countryRules.reportingWindows')}
                         </p>
                         {canManage && (
                           <button
                             onClick={() => setVersionPanel({ kind: 'reporting-rule', authorityId: authority.id, reportTypeId: rt.id, reportTypeKey: rt.typeKey })}
                             className="flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline"
                           >
-                            <History className="h-3 w-3" /> Version history
+                            <History className="h-3 w-3" /> {t('countryRules.versionHistory')}
                           </button>
                         )}
                       </div>
                       {rt.activeReportingRules.length === 0 ? (
                         <div className="rounded-lg bg-status-warning/10 p-2.5 text-xs text-status-warning">
-                          No active reporting window — verification still pending.
+                          {t('countryRules.noActiveReportingWindow')}
                         </div>
                       ) : (
                         <div className="flex flex-wrap gap-2">
                           {rt.activeReportingRules.map((rule) => (
                             <span key={rule.id} className="rounded-full bg-status-success/10 px-2.5 py-1 text-xs font-medium text-status-success">
-                              {formatKey(rule.seriousnessClass)}: {rule.windowDays} {rule.dayType} days
+                              {t('countryRules.daysSuffix', { class: formatKey(rule.seriousnessClass), days: rule.windowDays, dayType: rule.dayType })}
                             </span>
                           ))}
                         </div>
@@ -318,7 +329,7 @@ export function CountryRules() {
                     {rt.activeSeriousnessDefinitions.length > 0 && (
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                          <ShieldAlert className="h-3.5 w-3.5" /> Seriousness Criteria
+                          <ShieldAlert className="h-3.5 w-3.5" /> {t('countryRules.seriousnessCriteria')}
                         </p>
                         <div className="flex flex-wrap gap-1.5">
                           {rt.activeSeriousnessDefinitions.map((d) => (
@@ -338,7 +349,10 @@ export function CountryRules() {
                         >
                           {expandedSchema === schemaKey ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                           <FileText className="h-3.5 w-3.5" />
-                          Form: {rt.activeFormSchema.officialFormCode ?? `v${rt.activeFormSchema.version}`} ({schemaFields.length} sections)
+                          {t('countryRules.formWithSections', {
+                            code: rt.activeFormSchema.officialFormCode ?? `v${rt.activeFormSchema.version}`,
+                            count: schemaFields.length,
+                          })}
                         </button>
                       )}
                       {canManage && (
@@ -346,13 +360,17 @@ export function CountryRules() {
                           onClick={() => setVersionPanel({ kind: 'form-schema', countryId: selectedCountryId || null, reportTypeId: rt.id })}
                           className="flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline"
                         >
-                          <History className="h-3 w-3" /> Schema versions
+                          <History className="h-3 w-3" /> {t('countryRules.schemaVersions')}
                         </button>
                       )}
                       {rt.activeSubmissionFormat && (
                         <span className="flex items-center gap-1.5 text-muted-foreground">
                           <Send className="h-3.5 w-3.5" />
-                          Submits via {CHANNEL_LABELS[rt.activeSubmissionFormat.channel] ?? rt.activeSubmissionFormat.channel}
+                          {t('countryRules.submitsVia', {
+                            channel: CHANNEL_LABEL_KEYS[rt.activeSubmissionFormat.channel]
+                              ? t(CHANNEL_LABEL_KEYS[rt.activeSubmissionFormat.channel])
+                              : rt.activeSubmissionFormat.channel,
+                          })}
                         </span>
                       )}
                       {canManage && (
@@ -360,7 +378,7 @@ export function CountryRules() {
                           onClick={() => setVersionPanel({ kind: 'submission-format', authorityId: authority.id, reportTypeId: rt.id })}
                           className="flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline"
                         >
-                          <History className="h-3 w-3" /> Format versions
+                          <History className="h-3 w-3" /> {t('countryRules.formatVersions')}
                         </button>
                       )}
                     </div>
@@ -368,7 +386,7 @@ export function CountryRules() {
                     {expandedSchema === schemaKey && (
                       <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
                         {schemaFields.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">This schema version has no sections defined yet.</p>
+                          <p className="text-xs text-muted-foreground">{t('countryRules.noSectionsYet')}</p>
                         ) : (
                           schemaFields.map((section) => (
                             <div key={section.key}>
@@ -384,7 +402,7 @@ export function CountryRules() {
                                   ))}
                                 </ul>
                               ) : (
-                                <p className="pl-3 text-xs text-muted-foreground/70">No fields defined for this section.</p>
+                                <p className="pl-3 text-xs text-muted-foreground/70">{t('countryRules.noFieldsForSection')}</p>
                               )}
                             </div>
                           ))
@@ -401,21 +419,21 @@ export function CountryRules() {
       {!loading && config.length === 0 && !error && (
         <div className="rounded-lg border border-border bg-card/50 p-12 text-center">
           <Globe className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">No configuration for this country yet.</p>
+          <p className="text-sm text-muted-foreground">{t('countryRules.noConfigYet')}</p>
         </div>
       )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Regulatory Authorities</p>
+          <p className="text-xs text-muted-foreground">{t('countryRules.statRegulatoryAuthorities')}</p>
           <p className="text-2xl font-bold text-foreground mt-1">{config.length}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Configured Report Types</p>
+          <p className="text-xs text-muted-foreground">{t('countryRules.statConfiguredReportTypes')}</p>
           <p className="text-2xl font-bold text-foreground mt-1">{totalReportTypes}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Active Reporting Rules</p>
+          <p className="text-xs text-muted-foreground">{t('countryRules.statActiveReportingRules')}</p>
           <p className="text-2xl font-bold text-foreground mt-1">{activeRuleCount}</p>
         </div>
       </div>

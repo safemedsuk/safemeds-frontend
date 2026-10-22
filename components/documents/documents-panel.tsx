@@ -6,6 +6,14 @@ import { getErrorMessage } from '@/lib/api/client'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { listDocuments, uploadDocument, getDownloadUrl, type DocumentVersion, type DocumentWithVersions } from '@/lib/api/documents'
 import { DocumentPreviewModal } from '@/components/ui/document-preview-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
+
+const STATUS_LABEL_KEYS: Record<string, MessageKey> = {
+  stored: 'documents.statusStored',
+  failed: 'documents.statusFailed',
+  pending: 'documents.statusPending',
+}
 
 function formatBytes(bytes: number | null): string {
   if (bytes === null) return '—'
@@ -24,6 +32,7 @@ export function DocumentsPanel({
   /** Fires after a successful upload — this panel manages its own `documents` state entirely internally, so a parent tracking the same record's documents separately (e.g. for a "link as source" flow) has no other way to know a new one just landed without a full page reload. */
   onUploaded?: () => void
 }) {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('documents.manage')
   const canView = has('documents.view')
@@ -44,7 +53,7 @@ export function DocumentsPanel({
     try {
       setDocuments(await listDocuments(recordType, recordId))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load documents.'))
+      setError(getErrorMessage(err, t('documents.errorLoad')))
     } finally {
       setLoading(false)
     }
@@ -58,7 +67,7 @@ export function DocumentsPanel({
     const documentId = newVersionDocId.current ?? undefined
     const title = documentId ? undefined : newTitle.trim()
     if (!documentId && !title) {
-      setError('Give the document a title first.')
+      setError(t('documents.errorGiveTitle'))
       return
     }
     setUploading(documentId ? `version:${documentId}` : 'new')
@@ -71,7 +80,7 @@ export function DocumentsPanel({
       await load()
       onUploaded?.()
     } catch (err) {
-      setError(getErrorMessage(err, 'Upload failed.'))
+      setError(getErrorMessage(err, t('documents.errorUpload')))
     } finally {
       setUploading(null)
     }
@@ -98,10 +107,8 @@ export function DocumentsPanel({
             <FileText className="h-5 w-5 text-[var(--primary)]" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-[var(--text)]">Documents</h2>
-            <p className="text-xs text-[var(--text-muted)]">
-              Every upload is a new version — nothing is ever overwritten, and every file is hashed on arrival.
-            </p>
+            <h2 className="text-sm font-semibold text-[var(--text)]">{t('documents.title')}</h2>
+            <p className="text-xs text-[var(--text-muted)]">{t('documents.subtitle')}</p>
           </div>
         </div>
         {canManage && (
@@ -112,7 +119,7 @@ export function DocumentsPanel({
             }}
             className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)] text-white flex items-center gap-1.5"
           >
-            <Upload className="h-3.5 w-3.5" /> Add document
+            <Upload className="h-3.5 w-3.5" /> {t('documents.addDocument')}
           </button>
         )}
       </div>
@@ -122,17 +129,17 @@ export function DocumentsPanel({
       {showNewForm && (
         <div className="mx-5 mt-5 p-4 rounded-lg border border-[var(--border)] bg-[var(--bg)] space-y-3">
           <div>
-            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Title</label>
+            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('documents.documentTitleLabel')}</label>
             <input
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="e.g. Pharmacovigilance System Master File"
+              placeholder={t('documents.titlePlaceholder')}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--surface)] text-[var(--text)] text-sm"
             />
           </div>
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowNewForm(false)} className="px-3 py-2 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text)]">
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               disabled={!newTitle.trim() || uploading === 'new'}
@@ -140,7 +147,7 @@ export function DocumentsPanel({
               className="px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-xs font-medium disabled:opacity-50 flex items-center gap-1.5"
             >
               {uploading === 'new' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Choose file & upload
+              {t('documents.chooseFileAndUpload')}
             </button>
           </div>
         </div>
@@ -163,7 +170,7 @@ export function DocumentsPanel({
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         ) : documents.length === 0 ? (
-          <p className="py-8 text-center text-sm text-[var(--text-muted)]">No documents yet.</p>
+          <p className="py-8 text-center text-sm text-[var(--text-muted)]">{t('documents.noDocumentsYet')}</p>
         ) : (
           <ul className="divide-y divide-[var(--border)]">
             {documents.map((doc) => {
@@ -185,7 +192,7 @@ export function DocumentsPanel({
                         <button
                           onClick={() => setPreviewing({ documentId: doc.id, version: latest })}
                           className="p-1.5 rounded-md hover:bg-[var(--surface-raised)] text-[var(--text-muted)] hover:text-[var(--text)]"
-                          title="View"
+                          title={t('documents.viewTooltip')}
                         >
                           <Download className="h-3.5 w-3.5" />
                         </button>
@@ -198,7 +205,7 @@ export function DocumentsPanel({
                           }}
                           disabled={uploading === `version:${doc.id}`}
                           className="p-1.5 rounded-md hover:bg-[var(--surface-raised)] text-[var(--text-muted)] hover:text-[var(--text)] disabled:opacity-50"
-                          title="Upload a new version"
+                          title={t('documents.uploadNewVersionTooltip')}
                         >
                           {uploading === `version:${doc.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <History className="h-3.5 w-3.5" />}
                         </button>
@@ -223,14 +230,14 @@ export function DocumentsPanel({
                                     : 'text-status-warning'
                               }
                             >
-                              {v.status}
+                              {STATUS_LABEL_KEYS[v.status] ? t(STATUS_LABEL_KEYS[v.status]) : v.status}
                             </span>
                           </span>
                           <div className="flex items-center gap-2 flex-shrink-0">
                             {v.sha256 && <span className="font-mono" title={v.sha256}>{v.sha256.slice(0, 10)}…</span>}
                             {v.status === 'stored' && (
                               <button onClick={() => setPreviewing({ documentId: doc.id, version: v })} className="text-[var(--primary)] hover:underline">
-                                View
+                                {t('documents.view')}
                               </button>
                             )}
                           </div>

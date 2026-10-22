@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2, KeyRound, Loader2, ShieldCheck, ShieldOff } 
 import { ApiRequestError } from '@/lib/api/client'
 import { setupMfa, verifyMfaSetup, disableMfa, regenerateRecoveryCodes, type MfaSetupResult } from '@/lib/api/mfa'
 import { useAuthStore } from '@/lib/store/auth-store'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 type Mode = 'idle' | 'setup' | 'disable' | 'regenerate'
 
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function MfaSection({ autoOpenSetup }: Props) {
+  const { t } = useTranslation()
   const { mfaEnabled, setMfaEnabled } = useAuthStore()
   const [mode, setMode] = useState<Mode>(autoOpenSetup ? 'setup' : 'idle')
   const [error, setError] = useState<string | null>(null)
@@ -35,7 +37,7 @@ export function MfaSection({ autoOpenSetup }: Props) {
       setSetupData(data)
       setMode('setup')
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not start MFA setup')
+      setError(err instanceof ApiRequestError ? err.message : t('settings.mfa.errorStartSetup'))
     } finally {
       setLoading(false)
     }
@@ -66,7 +68,7 @@ export function MfaSection({ autoOpenSetup }: Props) {
       setRecoveryCodes(codes)
       setMfaEnabled(true)
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Verification failed')
+      setError(err instanceof ApiRequestError ? err.message : t('settings.mfa.errorVerification'))
     } finally {
       setLoading(false)
     }
@@ -90,7 +92,7 @@ export function MfaSection({ autoOpenSetup }: Props) {
       setPassword('')
       setMfaCode('')
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not disable MFA')
+      setError(err instanceof ApiRequestError ? err.message : t('settings.mfa.errorDisable'))
     } finally {
       setLoading(false)
     }
@@ -106,7 +108,7 @@ export function MfaSection({ autoOpenSetup }: Props) {
       setPassword('')
       setMfaCode('')
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not regenerate recovery codes')
+      setError(err instanceof ApiRequestError ? err.message : t('settings.mfa.errorRegenerate'))
     } finally {
       setLoading(false)
     }
@@ -120,9 +122,9 @@ export function MfaSection({ autoOpenSetup }: Props) {
             <ShieldCheck className="h-5 w-5 text-[var(--primary)]" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-[var(--text)]">Multi-Factor Authentication</h2>
+            <h2 className="text-sm font-semibold text-[var(--text)]">{t('settings.mfa.title')}</h2>
             <p className="text-xs text-[var(--text-muted)]">
-              {mfaEnabled ? 'Enabled — an authenticator code is required at sign-in' : 'Add an authenticator app for a second sign-in factor'}
+              {mfaEnabled ? t('settings.mfa.enabledDescription') : t('settings.mfa.disabledDescription')}
             </p>
           </div>
         </div>
@@ -136,14 +138,14 @@ export function MfaSection({ autoOpenSetup }: Props) {
                   className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors flex items-center gap-1.5"
                 >
                   <KeyRound className="h-3.5 w-3.5" />
-                  New recovery codes
+                  {t('settings.mfa.newRecoveryCodes')}
                 </button>
                 <button
                   onClick={() => setMode('disable')}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium border border-status-error/30 text-status-error hover:bg-status-error/10 transition-colors flex items-center gap-1.5"
                 >
                   <ShieldOff className="h-3.5 w-3.5" />
-                  Disable
+                  {t('settings.mfa.disable')}
                 </button>
               </>
             ) : (
@@ -153,7 +155,7 @@ export function MfaSection({ autoOpenSetup }: Props) {
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
               >
                 {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Enable MFA
+                {t('settings.mfa.enableMfa')}
               </button>
             )}
           </div>
@@ -171,14 +173,12 @@ export function MfaSection({ autoOpenSetup }: Props) {
       {mode === 'setup' && setupData && !recoveryCodes && (
         <div className="p-5 space-y-5">
           <div>
-            <p className="text-sm text-[var(--text)] font-medium mb-1">1. Scan this QR code</p>
-            <p className="text-xs text-[var(--text-muted)] mb-3">
-              Use Google Authenticator, 1Password, or any TOTP app.
-            </p>
+            <p className="text-sm text-[var(--text)] font-medium mb-1">{t('settings.mfa.step1ScanQr')}</p>
+            <p className="text-xs text-[var(--text-muted)] mb-3">{t('settings.mfa.step1Help')}</p>
             <div className="flex flex-col items-center gap-3 p-4 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
               {/* eslint-disable-next-line @next/next/no-img-element -- server-generated data: URI, not an optimizable remote image */}
               <img src={setupData.qrCodeDataUrl} alt="MFA setup QR code" className="h-40 w-40" />
-              <p className="text-[11px] text-[var(--text-muted)]">Or enter manually:</p>
+              <p className="text-[11px] text-[var(--text-muted)]">{t('settings.mfa.orEnterManually')}</p>
               <code className="text-xs font-mono px-3 py-1.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] tracking-wider select-all">
                 {setupData.secret}
               </code>
@@ -186,7 +186,7 @@ export function MfaSection({ autoOpenSetup }: Props) {
           </div>
 
           <div>
-            <p className="text-sm text-[var(--text)] font-medium mb-2">2. Enter the 6-digit code</p>
+            <p className="text-sm text-[var(--text)] font-medium mb-2">{t('settings.mfa.step2EnterCode')}</p>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -204,7 +204,7 @@ export function MfaSection({ autoOpenSetup }: Props) {
                 className="px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors flex items-center gap-2"
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                Verify
+                {t('settings.mfa.verify')}
               </button>
             </div>
           </div>
@@ -213,7 +213,7 @@ export function MfaSection({ autoOpenSetup }: Props) {
             onClick={() => setMode('idle')}
             className="text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
           >
-            Cancel setup
+            {t('settings.mfa.cancelSetup')}
           </button>
         </div>
       )}
@@ -224,13 +224,10 @@ export function MfaSection({ autoOpenSetup }: Props) {
           <div className="flex items-center gap-2 text-status-success">
             <CheckCircle2 className="h-4 w-4" />
             <p className="text-sm font-semibold">
-              {mode === 'setup' ? 'MFA is now enabled' : 'New recovery codes generated'}
+              {mode === 'setup' ? t('settings.mfa.enabledNowTitle') : t('settings.mfa.newCodesGeneratedTitle')}
             </p>
           </div>
-          <p className="text-xs text-[var(--text-muted)]">
-            Save these recovery codes somewhere safe. Each one can be used once if you lose access to your
-            authenticator app. Old codes are no longer valid.
-          </p>
+          <p className="text-xs text-[var(--text-muted)]">{t('settings.mfa.recoveryCodesHelp')}</p>
           <div className="grid grid-cols-2 gap-2">
             {recoveryCodes.map((code) => (
               <code
@@ -245,7 +242,7 @@ export function MfaSection({ autoOpenSetup }: Props) {
             onClick={finishSetup}
             className="w-full h-10 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-medium rounded-lg transition-colors"
           >
-            I&apos;ve saved these codes
+            {t('settings.mfa.savedCodesConfirm')}
           </button>
         </div>
       )}
@@ -255,11 +252,11 @@ export function MfaSection({ autoOpenSetup }: Props) {
         <div className="p-5 space-y-4">
           <p className="text-sm text-[var(--text)]">
             {mode === 'disable'
-              ? 'Confirm your password and current authenticator code to disable MFA.'
-              : 'Confirm your password and current authenticator code to generate new recovery codes.'}
+              ? t('settings.mfa.confirmDisablePrompt')
+              : t('settings.mfa.confirmRegeneratePrompt')}
           </p>
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-[var(--text)]">Password</label>
+            <label className="block text-xs font-medium text-[var(--text)]">{t('settings.mfa.password')}</label>
             <input
               type="password"
               autoComplete="current-password"
@@ -269,7 +266,7 @@ export function MfaSection({ autoOpenSetup }: Props) {
             />
           </div>
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-[var(--text)]">Authenticator code</label>
+            <label className="block text-xs font-medium text-[var(--text)]">{t('settings.mfa.authenticatorCode')}</label>
             <input
               type="text"
               inputMode="numeric"
@@ -291,7 +288,7 @@ export function MfaSection({ autoOpenSetup }: Props) {
               }`}
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {mode === 'disable' ? 'Disable MFA' : 'Generate new codes'}
+              {mode === 'disable' ? t('settings.mfa.disableMfa') : t('settings.mfa.generateNewCodes')}
             </button>
             <button
               onClick={() => {
@@ -302,7 +299,7 @@ export function MfaSection({ autoOpenSetup }: Props) {
               }}
               className="px-4 h-9 rounded-lg text-sm font-medium border border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>

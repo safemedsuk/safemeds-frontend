@@ -8,6 +8,7 @@ import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { getSessions, revokeAllOtherSessions, revokeSession, type SessionInfo } from '@/lib/api/auth'
 import { ChangePasswordSection } from '@/components/settings/change-password-section'
 import { DataPrivacySection } from '@/components/settings/data-privacy-section'
+import { LanguageSection } from '@/components/settings/language-section'
 import { MfaSection } from '@/components/settings/mfa-section'
 
 function SettingsContent() {
@@ -86,6 +87,8 @@ function SettingsContent() {
             </p>
           </div>
         )}
+
+        <LanguageSection />
 
         <ChangePasswordSection />
 

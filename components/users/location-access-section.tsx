@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/location-scopes'
 import type { Country } from '@/lib/api/countries'
 import type { Facility } from '@/lib/api/company'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface LocationAccessSectionProps {
   userId: string
@@ -26,6 +27,7 @@ interface LocationAccessSectionProps {
  * facility the company currently operates in that country.
  */
 export function LocationAccessSection({ userId, countries, facilities }: LocationAccessSectionProps) {
+  const { t } = useTranslation()
   const [scopes, setScopes] = useState<LocationScope[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,7 +43,7 @@ export function LocationAccessSection({ userId, countries, facilities }: Locatio
     setError(null)
     listUserLocationScopes(userId)
       .then(setScopes)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load location access.')))
+      .catch((err) => setError(getErrorMessage(err, t('users.locationAccess.errorLoad'))))
       .finally(() => setLoading(false))
   }
 
@@ -67,7 +69,7 @@ export function LocationAccessSection({ userId, countries, facilities }: Locatio
       setCountryId('')
       setFacilityId('')
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not grant that location access.'))
+      setError(getErrorMessage(err, t('users.locationAccess.errorGrant')))
     } finally {
       setGranting(false)
     }
@@ -80,7 +82,7 @@ export function LocationAccessSection({ userId, countries, facilities }: Locatio
       await revokeLocationScope(scope.id)
       setScopes((prev) => prev.filter((s) => s.id !== scope.id))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not revoke that location access.'))
+      setError(getErrorMessage(err, t('users.locationAccess.errorRevoke')))
     } finally {
       setRevokingId(null)
     }
@@ -90,18 +92,16 @@ export function LocationAccessSection({ userId, countries, facilities }: Locatio
     <div className="space-y-3 rounded-lg border border-[var(--border)] p-3">
       <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
         <MapPin className="h-3.5 w-3.5" />
-        Location access
+        {t('users.locationAccess.title')}
       </div>
 
       {loading ? (
         <div className="flex items-center gap-2 py-2 text-xs text-[var(--text-muted)]">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Loading…
+          {t('users.locationAccess.loading')}
         </div>
       ) : scopes.length === 0 ? (
-        <p className="text-xs text-[var(--text-muted)]">
-          Unrestricted — this user currently sees every location in the company. Grant a market or facility below to narrow it.
-        </p>
+        <p className="text-xs text-[var(--text-muted)]">{t('users.locationAccess.unrestricted')}</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {scopes.map((scope) => (
@@ -109,11 +109,13 @@ export function LocationAccessSection({ userId, countries, facilities }: Locatio
               key={scope.id}
               className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-raised)] px-2.5 py-1 text-xs text-[var(--text)]"
             >
-              {scope.level === 'market' ? `Market: ${scope.countryName}` : `Facility: ${scope.facilityName}`}
+              {scope.level === 'market'
+                ? t('users.locationAccess.marketScope', { name: scope.countryName ?? '' })
+                : t('users.locationAccess.facilityScope', { name: scope.facilityName ?? '' })}
               <button
                 onClick={() => handleRevoke(scope)}
                 disabled={revokingId === scope.id}
-                title="Revoke this access"
+                title={t('users.locationAccess.revokeTooltip')}
                 className="text-[var(--text-muted)] hover:text-status-error disabled:opacity-50"
               >
                 {revokingId === scope.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
@@ -131,8 +133,8 @@ export function LocationAccessSection({ userId, countries, facilities }: Locatio
           onChange={(e) => setLevel(e.target.value as LocationScopeLevel)}
           className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-xs text-[var(--text)]"
         >
-          <option value="facility">Facility</option>
-          <option value="market">Market (country)</option>
+          <option value="facility">{t('users.locationAccess.facility')}</option>
+          <option value="market">{t('users.locationAccess.marketCountry')}</option>
         </select>
 
         {level === 'market' ? (
@@ -141,7 +143,7 @@ export function LocationAccessSection({ userId, countries, facilities }: Locatio
             onChange={(e) => setCountryId(e.target.value)}
             className="min-w-[10rem] flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-xs text-[var(--text)]"
           >
-            <option value="">Select a country…</option>
+            <option value="">{t('users.locationAccess.selectCountry')}</option>
             {countries.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -154,7 +156,7 @@ export function LocationAccessSection({ userId, countries, facilities }: Locatio
             onChange={(e) => setFacilityId(e.target.value)}
             className="min-w-[10rem] flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-xs text-[var(--text)]"
           >
-            <option value="">Select a facility…</option>
+            <option value="">{t('users.locationAccess.selectFacility')}</option>
             {facilities.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
@@ -169,7 +171,7 @@ export function LocationAccessSection({ userId, countries, facilities }: Locatio
           className="flex items-center gap-1 rounded-lg bg-safemeds-teal px-2.5 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
         >
           {granting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-          Grant
+          {t('users.locationAccess.grant')}
         </button>
       </div>
     </div>

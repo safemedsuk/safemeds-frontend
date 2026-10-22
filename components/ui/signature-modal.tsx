@@ -6,6 +6,7 @@ import { X, Check, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { reauth } from '@/lib/api/auth'
 import { ApiRequestError, getErrorMessage } from '@/lib/api/client'
 import { useAuthStore } from '@/lib/store/auth-store'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface SignatureModalProps {
   isOpen: boolean
@@ -30,6 +31,7 @@ export function SignatureModal({
   documentTitle,
   documentId,
 }: SignatureModalProps) {
+  const { t } = useTranslation()
   const router = useRouter()
   const mfaEnabled = useAuthStore((s) => s.mfaEnabled)
   const [intent, setIntent] = useState('')
@@ -91,15 +93,15 @@ export function SignatureModal({
     } catch (err) {
       if (err instanceof ApiRequestError && err.code === 'MFA_CODE_REQUIRED') {
         setMfaCodeRequired(true)
-        setError('Your account has an authenticator app set up — enter your current code to continue.')
+        setError(t('signature.errorMfaCodeRequired'))
       } else if (err instanceof ApiRequestError && err.code === 'MFA_SETUP_REQUIRED') {
         setMfaSetupRequired(true)
-        setError('Your role requires multi-factor authentication before you can sign. Set it up in Settings, then come back to sign.')
+        setError(t('signature.errorMfaSetupRequired'))
       } else if (err instanceof ApiRequestError && err.code === 'REAUTH_FAILED' && mfaCodeRequired) {
-        setError('Incorrect password or authenticator code. Please try again.')
+        setError(t('signature.errorIncorrectPasswordOrCode'))
         setMfaCode('')
       } else {
-        setError(getErrorMessage(err, 'Could not complete the signature. Please try again.'))
+        setError(getErrorMessage(err, t('signature.errorGeneric')))
       }
     } finally {
       setIsSubmitting(false)
@@ -113,7 +115,7 @@ export function SignatureModal({
       <div className="w-full max-w-md rounded-lg border border-border bg-card shadow-lg">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="font-display font-bold text-lg text-foreground">Electronic Signature</h2>
+          <h2 className="font-display font-bold text-lg text-foreground">{t('signature.title')}</h2>
           <button
             onClick={onClose}
             className="rounded-lg p-1 text-muted-foreground hover:bg-muted transition-colors"
@@ -127,7 +129,7 @@ export function SignatureModal({
           {/* Document Info */}
           <div className="rounded-lg bg-muted/30 p-4">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              Document to Sign
+              {t('signature.documentToSign')}
             </p>
             <div>
               <p className="font-medium text-foreground text-sm">{documentTitle}</p>
@@ -138,29 +140,29 @@ export function SignatureModal({
           {/* Intent */}
           <div>
             <label className="text-sm font-semibold text-foreground block mb-2">
-              Intent to Sign
+              {t('signature.intentToSign')}
             </label>
             <textarea
               value={intent}
               onChange={e => setIntent(e.target.value)}
-              placeholder="I confirm that I have reviewed and approved this document."
+              placeholder={t('signature.intentPlaceholder')}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-safemeds-teal"
               rows={3}
             />
-            <p className="text-xs text-muted-foreground mt-1">Explain why you are signing this document</p>
+            <p className="text-xs text-muted-foreground mt-1">{t('signature.intentHelp')}</p>
           </div>
 
           {/* Password */}
           <div>
             <label className="text-sm font-semibold text-foreground block mb-2">
-              Password Verification
+              {t('signature.passwordVerification')}
             </label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder={t('signature.passwordPlaceholder')}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-safemeds-teal"
               />
               <button
@@ -171,14 +173,14 @@ export function SignatureModal({
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Minimum 8 characters</p>
+            <p className="text-xs text-muted-foreground mt-1">{t('signature.passwordHelp')}</p>
           </div>
 
           {/* MFA code — only shown once the backend tells us this account actually has one */}
           {mfaCodeRequired && !mfaSetupRequired && (
             <div>
               <label className="text-sm font-semibold text-foreground block mb-2">
-                Authenticator Code
+                {t('signature.authenticatorCode')}
               </label>
               <input
                 type="text"
@@ -186,10 +188,10 @@ export function SignatureModal({
                 autoComplete="one-time-code"
                 value={mfaCode}
                 onChange={e => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="6-digit code"
+                placeholder={t('signature.authenticatorCodePlaceholder')}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground tracking-widest focus:outline-none focus:ring-2 focus:ring-safemeds-teal"
               />
-              <p className="text-xs text-muted-foreground mt-1">From your authenticator app</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('signature.authenticatorCodeHelp')}</p>
             </div>
           )}
 
@@ -197,14 +199,14 @@ export function SignatureModal({
             <div className="rounded-lg border border-safemeds-teal/30 bg-safemeds-teal/5 p-3 flex items-start gap-3">
               <ShieldCheck className="h-4 w-4 text-safemeds-teal flex-shrink-0 mt-0.5" />
               <div className="text-xs text-foreground">
-                <p className="font-semibold mb-1">Multi-factor authentication required</p>
-                <p className="mb-2">Your role requires MFA before you can sign. Set it up once in Settings, then come back here.</p>
+                <p className="font-semibold mb-1">{t('signature.mfaRequiredTitle')}</p>
+                <p className="mb-2">{t('signature.mfaRequiredBody')}</p>
                 <button
                   type="button"
                   onClick={() => router.push('/settings?forceMfaSetup=1')}
                   className="font-medium text-safemeds-teal hover:underline"
                 >
-                  Set up MFA now
+                  {t('signature.setUpMfaNow')}
                 </button>
               </div>
             </div>
@@ -220,8 +222,7 @@ export function SignatureModal({
               className="mt-1 h-4 w-4 rounded border-border accent-safemeds-teal"
             />
             <label htmlFor="terms" className="text-xs text-muted-foreground leading-relaxed">
-              I understand that this electronic signature is legally binding and equivalent to my
-              handwritten signature. This document will be stored in our secure audit trail.
+              {t('signature.termsAcknowledgement')}
             </label>
           </div>
 
@@ -236,8 +237,7 @@ export function SignatureModal({
           {/* Info Box */}
           <div className="rounded-lg border border-safemeds-teal/30 bg-safemeds-teal/5 p-3">
             <p className="text-xs text-foreground">
-              <span className="font-semibold">Legal Notice:</span> By signing, you confirm that you
-              have the authority to execute this agreement and accept all terms and conditions.
+              <span className="font-semibold">{t('signature.legalNoticeLabel')}</span> {t('signature.legalNoticeBody')}
             </p>
           </div>
         </div>
@@ -248,7 +248,7 @@ export function SignatureModal({
             onClick={onClose}
             className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -258,12 +258,12 @@ export function SignatureModal({
             {isSubmitting ? (
               <>
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                Signing...
+                {t('signature.signing')}
               </>
             ) : (
               <>
                 <Check className="h-4 w-4" />
-                Sign Document
+                {t('signature.signDocument')}
               </>
             )}
           </button>

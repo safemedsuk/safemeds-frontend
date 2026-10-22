@@ -15,10 +15,12 @@ import {
 import { getPasswordRequirements, isPasswordValid } from '@/lib/password-requirements'
 import { tenantRoleLabel } from '@/lib/tenant-roles'
 import { useAuthStore } from '@/lib/store/auth-store'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 type Step = 'loading' | 'invalid' | 'form' | 'verify'
 
 function AcceptInvitationForm() {
+  const { t } = useTranslation()
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
@@ -39,7 +41,7 @@ function AcceptInvitationForm() {
 
   useEffect(() => {
     if (!token) {
-      setInvalidReason('This invitation link is missing its token.')
+      setInvalidReason(t('auth.acceptInvitation.missingToken'))
       setStep('invalid')
       return
     }
@@ -51,15 +53,16 @@ function AcceptInvitationForm() {
       })
       .catch((err) => {
         if (err instanceof ApiRequestError) {
-          if (err.code === 'INVITATION_REVOKED') setInvalidReason('This invitation has been revoked.')
-          else if (err.code === 'INVITATION_ALREADY_ACCEPTED') setInvalidReason('This invitation has already been accepted.')
-          else if (err.code === 'INVITATION_EXPIRED') setInvalidReason('This invitation has expired. Ask your administrator to send a new one.')
-          else setInvalidReason('This invitation link is invalid.')
+          if (err.code === 'INVITATION_REVOKED') setInvalidReason(t('auth.acceptInvitation.revoked'))
+          else if (err.code === 'INVITATION_ALREADY_ACCEPTED') setInvalidReason(t('auth.acceptInvitation.alreadyAccepted'))
+          else if (err.code === 'INVITATION_EXPIRED') setInvalidReason(t('auth.acceptInvitation.expired'))
+          else setInvalidReason(t('auth.acceptInvitation.invalidLink'))
         } else {
-          setInvalidReason('This invitation link is invalid.')
+          setInvalidReason(t('auth.acceptInvitation.invalidLink'))
         }
         setStep('invalid')
       })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   const passwordValid = isPasswordValid(password, invitation?.minPasswordLength)
@@ -75,7 +78,7 @@ function AcceptInvitationForm() {
       await acceptInvitation(token, fullName.trim(), password)
       setStep('verify')
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not accept the invitation. Please try again.')
+      setError(err instanceof ApiRequestError ? err.message : t('auth.acceptInvitation.errorAccepting'))
     } finally {
       setLoading(false)
     }
@@ -91,7 +94,7 @@ function AcceptInvitationForm() {
       const result = await verifyInvitationEmail(invitation.email, code)
       if (result.mfaRequired) {
         // Shouldn't happen for a brand-new account, but stay safe if it ever does.
-        setError('Please sign in to continue.')
+        setError(t('auth.acceptInvitation.errorPleaseSignIn'))
         router.push('/login')
         return
       }
@@ -107,7 +110,7 @@ function AcceptInvitationForm() {
         router.push('/tasks')
       }
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Verification failed. Please try again.')
+      setError(err instanceof ApiRequestError ? err.message : t('auth.acceptInvitation.errorVerifying'))
     } finally {
       setLoading(false)
     }
@@ -127,7 +130,7 @@ function AcceptInvitationForm() {
     return (
       <AuthLayout>
         <div className="flex items-center justify-center py-16 text-[var(--text-muted)]">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Checking your invitation…
+          <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('auth.acceptInvitation.checkingInvitation')}
         </div>
       </AuthLayout>
     )
@@ -142,10 +145,10 @@ function AcceptInvitationForm() {
               <AlertCircle className="h-7 w-7 text-status-error" />
             </div>
           </div>
-          <h1 className="text-2xl font-display font-semibold text-[var(--text)]">Invitation unavailable</h1>
+          <h1 className="text-2xl font-display font-semibold text-[var(--text)]">{t('auth.acceptInvitation.unavailableTitle')}</h1>
           <p className="text-sm text-[var(--text-muted)]">{invalidReason}</p>
           <a href="/login" className="inline-block text-sm text-[var(--primary)] hover:opacity-90 font-medium">
-            Back to sign in
+            {t('auth.login.backToSignIn')}
           </a>
         </div>
       </AuthLayout>
@@ -156,8 +159,10 @@ function AcceptInvitationForm() {
     return (
       <AuthLayout>
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">Verify your email</h1>
-          <p className="text-sm text-[var(--text-muted)]">We sent a 6-digit code to {invitation.email}</p>
+          <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">{t('auth.acceptInvitation.verifyEmailTitle')}</h1>
+          <p className="text-sm text-[var(--text-muted)]">
+            {t('auth.acceptInvitation.verifyEmailSubtitle', { email: invitation.email })}
+          </p>
         </div>
 
         {error && (
@@ -184,7 +189,7 @@ function AcceptInvitationForm() {
             className="w-full h-10 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Verify and continue
+            {t('auth.acceptInvitation.verifyAndContinue')}
           </button>
         </form>
 
@@ -194,7 +199,7 @@ function AcceptInvitationForm() {
             disabled={resent}
             className="text-sm text-[var(--primary)] hover:opacity-90 font-medium disabled:opacity-50"
           >
-            {resent ? 'Code resent' : "Didn't get a code? Resend"}
+            {resent ? t('auth.acceptInvitation.codeResent') : t('auth.acceptInvitation.resendCode')}
           </button>
         </div>
       </AuthLayout>
@@ -210,10 +215,13 @@ function AcceptInvitationForm() {
           <Building2 className="h-3.5 w-3.5" />
           {invitation.companyName}
         </div>
-        <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">You&apos;ve been invited</h1>
+        <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">{t('auth.acceptInvitation.youveBeenInvited')}</h1>
         <p className="text-sm text-[var(--text-muted)]">
-          {invitation.inviterName} invited you to join {invitation.companyName} as{' '}
-          {invitation.roleKeys.map(tenantRoleLabel).join(', ')}. Set up your account below.
+          {t('auth.acceptInvitation.invitedBySubtitle', {
+            inviterName: invitation.inviterName,
+            companyName: invitation.companyName,
+            roles: invitation.roleKeys.map((key) => tenantRoleLabel(key, t)).join(', '),
+          })}
         </p>
       </div>
 
@@ -227,7 +235,7 @@ function AcceptInvitationForm() {
       <form onSubmit={handleAccept} className="space-y-5">
         <div className="space-y-2">
           <label htmlFor="email" className="block text-sm font-medium text-[var(--text)]">
-            Email
+            {t('auth.acceptInvitation.email')}
           </label>
           <input
             id="email"
@@ -240,7 +248,7 @@ function AcceptInvitationForm() {
 
         <div className="space-y-2">
           <label htmlFor="fullName" className="block text-sm font-medium text-[var(--text)]">
-            Full name
+            {t('auth.acceptInvitation.fullName')}
           </label>
           <div className="relative">
             <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-muted)] pointer-events-none" />
@@ -258,7 +266,7 @@ function AcceptInvitationForm() {
 
         <div className="space-y-2">
           <label htmlFor="password" className="block text-sm font-medium text-[var(--text)]">
-            Password
+            {t('auth.acceptInvitation.password')}
           </label>
           <div className="relative">
             <input
@@ -290,7 +298,9 @@ function AcceptInvitationForm() {
                   >
                     {met && <span className="text-white text-[8px]">✓</span>}
                   </div>
-                  <span className={met ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}>{req.label}</span>
+                  <span className={met ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}>
+                    {t(req.labelKey, req.labelParams)}
+                  </span>
                 </div>
               )
             })}
@@ -299,7 +309,7 @@ function AcceptInvitationForm() {
 
         <div className="space-y-2">
           <label htmlFor="confirmPassword" className="block text-sm font-medium text-[var(--text)]">
-            Confirm password
+            {t('auth.acceptInvitation.confirmPassword')}
           </label>
           <input
             id="confirmPassword"
@@ -323,7 +333,7 @@ function AcceptInvitationForm() {
           className="w-full h-10 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          Create account
+          {t('auth.acceptInvitation.createAccount')}
         </button>
       </form>
     </AuthLayout>

@@ -14,12 +14,21 @@ import {
 } from '@/lib/api/personnel-licences'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { defaultAnnualLicenceExpiryOn } from '@/lib/licence-defaults'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const STATUS_STYLES: Record<string, string> = {
   active: 'bg-[var(--ok-bg)] text-[var(--ok)]',
   expired: 'bg-status-error/10 text-status-error',
   suspended: 'bg-status-warning/10 text-status-warning',
   revoked: 'bg-status-error/10 text-status-error',
+}
+
+const STATUS_LABEL_KEYS: Record<string, MessageKey> = {
+  active: 'users.personnelLicences.statusActive',
+  expired: 'users.personnelLicences.statusExpired',
+  suspended: 'users.personnelLicences.statusSuspended',
+  revoked: 'users.personnelLicences.statusRevoked',
 }
 
 /**
@@ -29,6 +38,7 @@ const STATUS_STYLES: Record<string, string> = {
  * regulatory fact about a staff member already listed there.
  */
 export function PersonnelLicencesSection() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('regulatory.manage_licensing')
 
@@ -47,8 +57,9 @@ export function PersonnelLicencesSection() {
         setLicences(licencePage.rows)
         setUsers(usersPage.users)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load personnel licences.')))
+      .catch((err) => setError(getErrorMessage(err, t('users.personnelLicences.errorLoad'))))
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(load, [load])
@@ -56,25 +67,29 @@ export function PersonnelLicencesSection() {
   const userName = (userId: string) => users.find((u) => u.id === userId)?.fullName ?? userId
 
   const columns: DataTableColumn<PersonnelLicence>[] = [
-    { key: 'userId', label: 'Staff member', render: (v) => userName(v as string) },
-    { key: 'licenceType', label: 'Licence type', render: (v) => (v as string).replace(/_/g, ' ') },
-    { key: 'licenceNumber', label: 'Licence number' },
-    { key: 'issuedOn', label: 'Issued', render: (v) => new Date(v as string).toLocaleDateString() },
-    { key: 'expiresOn', label: 'Expires', render: (v) => (v ? new Date(v as string).toLocaleDateString() : '—') },
+    { key: 'userId', label: t('users.personnelLicences.columnStaffMember'), render: (v) => userName(v as string) },
+    { key: 'licenceType', label: t('users.personnelLicences.columnLicenceType'), render: (v) => (v as string).replace(/_/g, ' ') },
+    { key: 'licenceNumber', label: t('users.personnelLicences.columnLicenceNumber') },
+    { key: 'issuedOn', label: t('users.personnelLicences.columnIssued'), render: (v) => new Date(v as string).toLocaleDateString() },
+    { key: 'expiresOn', label: t('users.personnelLicences.columnExpires'), render: (v) => (v ? new Date(v as string).toLocaleDateString() : '—') },
     {
       key: 'status',
-      label: 'Status',
-      render: (v) => (
-        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wide ${STATUS_STYLES[v as string] ?? 'bg-[var(--surface-raised)] text-[var(--text-muted)]'}`}>
-          {v as string}
-        </span>
-      ),
+      label: t('users.personnelLicences.columnStatus'),
+      render: (v) => {
+        const key = v as string
+        const labelKey = STATUS_LABEL_KEYS[key]
+        return (
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wide ${STATUS_STYLES[key] ?? 'bg-[var(--surface-raised)] text-[var(--text-muted)]'}`}>
+            {labelKey ? t(labelKey) : key}
+          </span>
+        )
+      },
     },
     ...(canManage
       ? [
           {
             key: 'id' as keyof PersonnelLicence,
-            label: 'Actions',
+            label: t('users.personnelLicences.columnActions'),
             render: (_v: unknown, row: PersonnelLicence) => (
               <button
                 onClick={(e) => {
@@ -83,7 +98,7 @@ export function PersonnelLicencesSection() {
                 }}
                 className="text-xs font-medium text-[var(--primary)] hover:underline"
               >
-                Manage
+                {t('users.personnelLicences.manage')}
               </button>
             ),
           },
@@ -100,7 +115,7 @@ export function PersonnelLicencesSection() {
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-medium"
           >
-            <Plus className="h-3.5 w-3.5" /> Record Licence
+            <Plus className="h-3.5 w-3.5" /> {t('users.personnelLicences.recordLicence')}
           </button>
         )}
       </div>
@@ -113,7 +128,7 @@ export function PersonnelLicencesSection() {
       )}
 
       {showCreate && (
-        <Modal title="Record a personnel licence" onClose={() => setShowCreate(false)}>
+        <Modal title={t('users.personnelLicences.recordLicenceModalTitle')} onClose={() => setShowCreate(false)}>
           <PersonnelLicenceForm
             users={users}
             onSaved={() => {
@@ -126,7 +141,7 @@ export function PersonnelLicencesSection() {
       )}
 
       {editing && (
-        <Modal title={`Licence — ${userName(editing.userId)}`} onClose={() => setEditing(null)}>
+        <Modal title={t('users.personnelLicences.licenceModalTitle', { name: userName(editing.userId) })} onClose={() => setEditing(null)}>
           <PersonnelLicenceEditForm
             licence={editing}
             onSaved={() => {
@@ -142,6 +157,7 @@ export function PersonnelLicencesSection() {
 }
 
 function PersonnelLicenceForm({ users, onSaved, onError }: { users: TenantUser[]; onSaved: () => void; onError: (msg: string) => void }) {
+  const { t } = useTranslation()
   const [userId, setUserId] = useState(users[0]?.id ?? '')
   const [licenceType, setLicenceType] = useState('pharmacist')
   const [licenceNumber, setLicenceNumber] = useState('')
@@ -165,7 +181,7 @@ function PersonnelLicenceForm({ users, onSaved, onError }: { users: TenantUser[]
       await createPersonnelLicence({ userId, licenceType, licenceNumber: licenceNumber.trim(), issuedOn, expiresOn: expiresOn || undefined })
       onSaved()
     } catch (err) {
-      onError(getErrorMessage(err, 'Could not record this licence.'))
+      onError(getErrorMessage(err, t('users.personnelLicences.errorCreate')))
     } finally {
       setSaving(false)
     }
@@ -174,7 +190,7 @@ function PersonnelLicenceForm({ users, onSaved, onError }: { users: TenantUser[]
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Staff member</label>
+        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('users.personnelLicences.staffMember')}</label>
         <select value={userId} onChange={(e) => setUserId(e.target.value)} className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm">
           {users.map((u) => (
             <option key={u.id} value={u.id}>
@@ -184,14 +200,14 @@ function PersonnelLicenceForm({ users, onSaved, onError }: { users: TenantUser[]
         </select>
       </div>
       <div>
-        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Licence type</label>
+        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('users.personnelLicences.licenceType')}</label>
         <select value={licenceType} onChange={(e) => setLicenceType(e.target.value)} className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm">
-          <option value="pharmacist">Pharmacist</option>
-          <option value="superintendent_pharmacist">Superintendent Pharmacist</option>
+          <option value="pharmacist">{t('users.personnelLicences.pharmacist')}</option>
+          <option value="superintendent_pharmacist">{t('users.personnelLicences.superintendentPharmacist')}</option>
         </select>
       </div>
       <div>
-        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Licence number</label>
+        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('users.personnelLicences.licenceNumber')}</label>
         <input
           value={licenceNumber}
           onChange={(e) => setLicenceNumber(e.target.value)}
@@ -201,11 +217,11 @@ function PersonnelLicenceForm({ users, onSaved, onError }: { users: TenantUser[]
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Issued on</label>
+          <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('users.personnelLicences.issuedOn')}</label>
           <input type="date" value={issuedOn} onChange={(e) => handleIssuedOnChange(e.target.value)} className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Expires on (optional)</label>
+          <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('users.personnelLicences.expiresOnOptional')}</label>
           <input type="date" value={expiresOn} onChange={(e) => setExpiresOn(e.target.value)} className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm" />
         </div>
       </div>
@@ -216,7 +232,7 @@ function PersonnelLicenceForm({ users, onSaved, onError }: { users: TenantUser[]
           className="px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-xs font-medium disabled:opacity-50 flex items-center gap-1.5"
         >
           {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          Record licence
+          {t('users.personnelLicences.recordLicenceButton')}
         </button>
       </div>
     </div>
@@ -224,6 +240,7 @@ function PersonnelLicenceForm({ users, onSaved, onError }: { users: TenantUser[]
 }
 
 function PersonnelLicenceEditForm({ licence, onSaved, onError }: { licence: PersonnelLicence; onSaved: () => void; onError: (msg: string) => void }) {
+  const { t } = useTranslation()
   const [expiresOn, setExpiresOn] = useState(licence.expiresOn?.slice(0, 10) ?? '')
   const [status, setStatus] = useState(licence.status)
   const [saving, setSaving] = useState(false)
@@ -234,7 +251,7 @@ function PersonnelLicenceEditForm({ licence, onSaved, onError }: { licence: Pers
       await updatePersonnelLicence(licence.id, { expiresOn: expiresOn || undefined, status })
       onSaved()
     } catch (err) {
-      onError(getErrorMessage(err, 'Could not update this licence.'))
+      onError(getErrorMessage(err, t('users.personnelLicences.errorUpdate')))
     } finally {
       setSaving(false)
     }
@@ -243,22 +260,22 @@ function PersonnelLicenceEditForm({ licence, onSaved, onError }: { licence: Pers
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Expires on</label>
+        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('users.personnelLicences.expiresOn')}</label>
         <input type="date" value={expiresOn} onChange={(e) => setExpiresOn(e.target.value)} className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm" />
       </div>
       <div>
-        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Status</label>
+        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{t('users.personnelLicences.status')}</label>
         <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm">
-          <option value="active">Active</option>
-          <option value="expired">Expired</option>
-          <option value="suspended">Suspended</option>
-          <option value="revoked">Revoked</option>
+          <option value="active">{t('users.personnelLicences.statusActive')}</option>
+          <option value="expired">{t('users.personnelLicences.statusExpired')}</option>
+          <option value="suspended">{t('users.personnelLicences.statusSuspended')}</option>
+          <option value="revoked">{t('users.personnelLicences.statusRevoked')}</option>
         </select>
       </div>
       <div className="flex justify-end">
         <button disabled={saving} onClick={handleSubmit} className="px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-xs font-medium disabled:opacity-50 flex items-center gap-1.5">
           {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          Save
+          {t('users.personnelLicences.save')}
         </button>
       </div>
     </div>

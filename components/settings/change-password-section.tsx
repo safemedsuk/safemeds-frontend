@@ -7,8 +7,10 @@ import { changePassword } from '@/lib/api/password'
 import { getSecurityPolicy } from '@/lib/api/security-policy'
 import { DEFAULT_MIN_PASSWORD_LENGTH, getPasswordRequirements, isPasswordValid } from '@/lib/password-requirements'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export function ChangePasswordSection() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -45,14 +47,14 @@ export function ChangePasswordSection() {
     setLoading(true)
     try {
       await changePassword(currentPassword, newPassword)
-      setSuccess('Password changed. Other sessions have been signed out.')
+      setSuccess(t('settings.changePassword.successToast'))
       reset()
       setOpen(false)
     } catch (err) {
       setError(
         err instanceof ApiRequestError && err.code === 'INVALID_CURRENT_PASSWORD'
-          ? 'Current password is incorrect'
-          : 'Could not change password. Please try again.',
+          ? t('settings.changePassword.errorCurrentIncorrect')
+          : t('settings.changePassword.errorGeneric'),
       )
     } finally {
       setLoading(false)
@@ -67,8 +69,8 @@ export function ChangePasswordSection() {
             <KeyRound className="h-5 w-5 text-[var(--primary)]" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-[var(--text)]">Password</h2>
-            <p className="text-xs text-[var(--text-muted)]">Change the password used to sign in</p>
+            <h2 className="text-sm font-semibold text-[var(--text)]">{t('settings.changePassword.title')}</h2>
+            <p className="text-xs text-[var(--text-muted)]">{t('settings.changePassword.description')}</p>
           </div>
         </div>
         {!open && (
@@ -79,7 +81,7 @@ export function ChangePasswordSection() {
             }}
             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors"
           >
-            Change password
+            {t('settings.changePassword.changeButton')}
           </button>
         )}
       </div>
@@ -101,7 +103,7 @@ export function ChangePasswordSection() {
           )}
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-[var(--text)]">Current password</label>
+            <label className="block text-xs font-medium text-[var(--text)]">{t('settings.changePassword.currentPassword')}</label>
             <div className="relative">
               <input
                 type={showPasswords ? 'text' : 'password'}
@@ -121,7 +123,7 @@ export function ChangePasswordSection() {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-[var(--text)]">New password</label>
+            <label className="block text-xs font-medium text-[var(--text)]">{t('settings.changePassword.newPassword')}</label>
             <input
               type={showPasswords ? 'text' : 'password'}
               autoComplete="new-password"
@@ -141,7 +143,9 @@ export function ChangePasswordSection() {
                     >
                       {met && <span className="text-white text-[8px]">✓</span>}
                     </div>
-                    <span className={met ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}>{req.label}</span>
+                    <span className={met ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}>
+                      {t(req.labelKey, req.labelParams)}
+                    </span>
                   </div>
                 )
               })}
@@ -149,7 +153,7 @@ export function ChangePasswordSection() {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-[var(--text)]">Confirm new password</label>
+            <label className="block text-xs font-medium text-[var(--text)]">{t('settings.changePassword.confirmNewPassword')}</label>
             <input
               type={showPasswords ? 'text' : 'password'}
               autoComplete="new-password"
@@ -172,7 +176,7 @@ export function ChangePasswordSection() {
               className="flex-1 h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save new password
+              {t('settings.changePassword.save')}
             </button>
             <button
               onClick={() => {
@@ -181,7 +185,7 @@ export function ChangePasswordSection() {
               }}
               className="px-4 h-9 rounded-lg text-sm font-medium border border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>

@@ -13,6 +13,8 @@ import {
   startCaseFollowUp,
 } from '@/lib/api/pv-cases'
 import { DocumentPreviewModal } from '@/components/ui/document-preview-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 interface Props {
   caseId: string
@@ -34,10 +36,10 @@ const STATUS_STYLES: Record<CaseFollowUp['status'], string> = {
   closed_failed: 'bg-status-error/10 text-status-error',
 }
 
-const OUTCOME_LABELS: Record<LogFollowUpAttemptInput['outcome'], string> = {
-  responded_resolved: 'Reporter responded — resolved',
-  responded_new_information: 'Reporter responded — new information (resets the cycle)',
-  no_response: 'No response',
+const OUTCOME_LABEL_KEYS: Record<LogFollowUpAttemptInput['outcome'], MessageKey> = {
+  responded_resolved: 'caseFollowUpPanel.outcomeRespondedResolved',
+  responded_new_information: 'caseFollowUpPanel.outcomeRespondedNewInformation',
+  no_response: 'caseFollowUpPanel.outcomeNoResponse',
 }
 
 /**
@@ -49,6 +51,7 @@ const OUTCOME_LABELS: Record<LogFollowUpAttemptInput['outcome'], string> = {
  * it's fired server-side the moment a cycle (or its next attempt) opens.
  */
 export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
+  const { t } = useTranslation()
   const [followUp, setFollowUp] = useState<CaseFollowUp | null>(null)
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState(false)
@@ -87,7 +90,7 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
       await startCaseFollowUp(caseId)
       await load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not start a follow-up cycle.'))
+      setError(getErrorMessage(err, t('caseFollowUpPanel.errorStart')))
     } finally {
       setStarting(false)
     }
@@ -109,7 +112,7 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
       setLogDocumentName(null)
       await load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not log this follow-up attempt.'))
+      setError(getErrorMessage(err, t('caseFollowUpPanel.errorLogAttempt')))
     } finally {
       setLogging(false)
     }
@@ -119,11 +122,11 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
     setUploadingDocument(true)
     setError(null)
     try {
-      const version = await uploadDocument('pv_case', caseId, file, { title: 'Sent with follow-up response' })
+      const version = await uploadDocument('pv_case', caseId, file, { title: t('caseFollowUpPanel.documentModalTitle') })
       setLogDocumentId(version.documentId)
       setLogDocumentName(file.name)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not upload this document.'))
+      setError(getErrorMessage(err, t('caseFollowUpPanel.errorUploadDocument')))
     } finally {
       setUploadingDocument(false)
     }
@@ -137,7 +140,7 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
       if (!latestVersion) throw new Error('Document version not found')
       setPreviewing({ documentId, version: latestVersion })
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load this document.'))
+      setError(getErrorMessage(err, t('caseFollowUpPanel.errorLoadDocument')))
     }
   }
 
@@ -148,7 +151,7 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
   if (!followUp) {
     return (
       <div className="rounded-lg border border-border p-4 flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">No follow-up cycle started for this case yet.</p>
+        <p className="text-sm text-muted-foreground">{t('caseFollowUpPanel.noCycleStarted')}</p>
         {canTriage && (
           <button
             onClick={handleStart}
@@ -156,7 +159,7 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
             className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50 whitespace-nowrap"
           >
             {starting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Start follow-up
+            {t('caseFollowUpPanel.startFollowUp')}
           </button>
         )}
         {error && <p className="text-xs text-status-error">{error}</p>}
@@ -175,7 +178,11 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
           {isOpen && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
-              {remaining > 0 ? `${remaining} day${remaining === 1 ? '' : 's'} left before the 28-day close` : 'Closing imminently'}
+              {remaining > 0
+                ? remaining === 1
+                  ? t('caseFollowUpPanel.daysLeft', { n: remaining })
+                  : t('caseFollowUpPanel.daysLeftPlural', { n: remaining })
+                : t('caseFollowUpPanel.closingImminently')}
             </span>
           )}
         </div>
@@ -188,13 +195,13 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 font-medium text-foreground">
                 {attempt.channel === 'email' ? <Mail className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
-                Attempt {attempt.attemptNumber} — {attempt.channel === 'email' ? 'Email' : 'Phone'}
+                {t('caseFollowUpPanel.attemptChannel', { n: attempt.attemptNumber, channel: attempt.channel === 'email' ? t('caseFollowUpPanel.email') : t('caseFollowUpPanel.phone') })}
               </span>
               <AttemptOutcomeBadge outcome={attempt.outcome} />
             </div>
             <p className="mt-1 text-muted-foreground">
-              Triggered {formatDateTime(attempt.triggeredAt)} · Due {formatDateTime(attempt.dueAt)}
-              {attempt.respondedAt && <> · Responded {formatDateTime(attempt.respondedAt)}</>}
+              {t('caseFollowUpPanel.triggeredDue', { triggered: formatDateTime(attempt.triggeredAt), due: formatDateTime(attempt.dueAt) })}
+              {attempt.respondedAt && t('caseFollowUpPanel.respondedAt', { date: formatDateTime(attempt.respondedAt) })}
             </p>
             {attempt.note && <p className="mt-1 text-foreground">{attempt.note}</p>}
             {attempt.documentId && (
@@ -202,7 +209,7 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
                 onClick={() => handleViewDocument(attempt.documentId!)}
                 className="mt-1.5 flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline"
               >
-                <FileText className="h-3.5 w-3.5" /> View attached document
+                <FileText className="h-3.5 w-3.5" /> {t('caseFollowUpPanel.viewAttachedDocument')}
               </button>
             )}
           </div>
@@ -213,7 +220,7 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
         <div className="border-t border-border pt-3">
           {!showLogForm ? (
             <button onClick={() => setShowLogForm(true)} className="text-xs font-medium text-safemeds-teal hover:underline">
-              Log a follow-up contact
+              {t('caseFollowUpPanel.logFollowUpContact')}
             </button>
           ) : (
             <div className="space-y-2">
@@ -222,16 +229,16 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
                 onChange={(e) => setLogOutcome(e.target.value as LogFollowUpAttemptInput['outcome'])}
                 className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
               >
-                {(Object.keys(OUTCOME_LABELS) as LogFollowUpAttemptInput['outcome'][]).map((key) => (
+                {(Object.keys(OUTCOME_LABEL_KEYS) as LogFollowUpAttemptInput['outcome'][]).map((key) => (
                   <option key={key} value={key}>
-                    {OUTCOME_LABELS[key]}
+                    {t(OUTCOME_LABEL_KEYS[key])}
                   </option>
                 ))}
               </select>
               <textarea
                 value={logNote}
                 onChange={(e) => setLogNote(e.target.value)}
-                placeholder="What did the reporter say? (optional)"
+                placeholder={t('caseFollowUpPanel.reporterSaidPlaceholder')}
                 rows={2}
                 className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
               />
@@ -245,13 +252,13 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
                 {uploadingDocument && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
                 {logDocumentId && !uploadingDocument && (
                   <span className="flex items-center gap-1 text-xs text-status-success">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> {logDocumentName ?? 'Uploaded'}
+                    <CheckCircle2 className="h-3.5 w-3.5" /> {logDocumentName ?? t('caseFollowUpPanel.uploaded')}
                   </span>
                 )}
               </div>
               {!logDocumentId && !uploadingDocument && (
                 <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <UploadCloud className="h-3.5 w-3.5" /> Attach a document the reporter sent, if any (optional).
+                  <UploadCloud className="h-3.5 w-3.5" /> {t('caseFollowUpPanel.attachDocumentOptional')}
                 </p>
               )}
               <div className="flex gap-2">
@@ -260,14 +267,14 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
                   disabled={logging}
                   className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
                 >
-                  {logging && <Loader2 className="h-3 w-3 animate-spin" />} Log attempt
+                  {logging && <Loader2 className="h-3 w-3 animate-spin" />} {t('caseFollowUpPanel.logAttempt')}
                 </button>
                 <button
                   onClick={() => setShowLogForm(false)}
                   disabled={logging}
                   className="text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
                 >
-                  Cancel
+                  {t('caseFollowUpPanel.cancel')}
                 </button>
               </div>
             </div>
@@ -279,7 +286,7 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
 
       {previewing && (
         <DocumentPreviewModal
-          title="Document sent with follow-up response"
+          title={t('caseFollowUpPanel.documentModalTitle')}
           filename={previewing.version.filename}
           contentType={previewing.version.contentType}
           getUrl={() => getDownloadUrl(previewing.documentId, previewing.version.id)}
@@ -291,30 +298,31 @@ export function CaseFollowUpPanel({ caseId, canTriage }: Props) {
 }
 
 function AttemptOutcomeBadge({ outcome }: { outcome: CaseFollowUp['attempts'][number]['outcome'] }) {
+  const { t } = useTranslation()
   if (outcome === 'pending') {
     return (
       <span className="flex items-center gap-1 rounded-full bg-status-info/10 px-2 py-0.5 text-[10px] font-medium text-status-info">
-        <Clock className="h-3 w-3" /> Pending
+        <Clock className="h-3 w-3" /> {t('caseFollowUpPanel.outcomePending')}
       </span>
     )
   }
   if (outcome === 'responded_resolved') {
     return (
       <span className="flex items-center gap-1 rounded-full bg-status-success/10 px-2 py-0.5 text-[10px] font-medium text-status-success">
-        <CheckCircle2 className="h-3 w-3" /> Resolved
+        <CheckCircle2 className="h-3 w-3" /> {t('caseFollowUpPanel.outcomeResolved')}
       </span>
     )
   }
   if (outcome === 'responded_new_information') {
     return (
       <span className="flex items-center gap-1 rounded-full bg-status-warning/10 px-2 py-0.5 text-[10px] font-medium text-status-warning">
-        <CheckCircle2 className="h-3 w-3" /> New information
+        <CheckCircle2 className="h-3 w-3" /> {t('caseFollowUpPanel.outcomeNewInformation')}
       </span>
     )
   }
   return (
     <span className="flex items-center gap-1 rounded-full bg-status-error/10 px-2 py-0.5 text-[10px] font-medium text-status-error">
-      <XCircle className="h-3 w-3" /> No response
+      <XCircle className="h-3 w-3" /> {t('caseFollowUpPanel.outcomeNoResponseBadge')}
     </span>
   )
 }

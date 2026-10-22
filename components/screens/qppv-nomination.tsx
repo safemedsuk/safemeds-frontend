@@ -9,6 +9,7 @@ import { listUsers, TenantUser } from '@/lib/api/users'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { DocumentPreviewModal } from '@/components/ui/document-preview-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -26,6 +27,7 @@ async function findLatestVersion(recordType: string, recordId: string, documentI
  * the backup card is never visually de-emphasized relative to primary.
  */
 export function QppvScreen() {
+  const { t } = useTranslation()
   const { has, hasAny } = usePermissions()
   const canManage = has('qppv.manage_nomination')
   const canView = hasAny('qppv.manage_nomination', 'governance.view')
@@ -51,9 +53,10 @@ export function QppvScreen() {
         setStatus(s)
         setUsers(u.users)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load QPPV status.')))
+      .catch((err) => setError(getErrorMessage(err, t('qppv.errorLoad'))))
       .finally(() => setLoading(false))
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t])
 
   useEffect(() => {
     if (!canView) return
@@ -63,10 +66,10 @@ export function QppvScreen() {
   if (!canView) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">QPPV</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('qppv.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view QPPV records. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('qppv.noPermission')}</p>
         </div>
       </div>
     )
@@ -87,9 +90,9 @@ export function QppvScreen() {
       <div>
         <div className="flex items-center gap-3">
           <UserCog className="h-6 w-6 text-safemeds-teal" />
-          <h1 className="text-3xl font-display font-bold text-foreground">QPPV</h1>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('qppv.title')}</h1>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Qualified Person for Pharmacovigilance — a backup is legally required, not optional (GUD/006 §3).</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('qppv.subtitle')}</p>
       </div>
 
       {notice && <div className="rounded-lg border border-status-success bg-status-success/10 p-3 text-sm text-status-success">{notice}</div>}
@@ -105,7 +108,7 @@ export function QppvScreen() {
           onNominate={() => setNominatingRole('primary')}
           onOpenDocument={openDocument}
           onConfirmed={() => {
-            setNotice('Regulator confirmation uploaded.')
+            setNotice(t('qppv.regulatorConfirmationUploaded'))
             load()
           }}
         />
@@ -118,7 +121,7 @@ export function QppvScreen() {
           onNominate={() => setNominatingRole('backup')}
           onOpenDocument={openDocument}
           onConfirmed={() => {
-            setNotice('Regulator confirmation uploaded.')
+            setNotice(t('qppv.regulatorConfirmationUploaded'))
             load()
           }}
         />
@@ -127,7 +130,7 @@ export function QppvScreen() {
       {!status?.backupQppvUserId && (
         <div className="rounded-lg border border-status-warning bg-status-warning/10 p-4 text-sm text-status-warning flex items-start gap-2">
           <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
-          No backup QPPV nominated yet — required under GUD/006 §3, not optional.
+          {t('qppv.noBackupNominated')}
         </div>
       )}
 
@@ -138,7 +141,7 @@ export function QppvScreen() {
           onClose={() => setNominatingRole(null)}
           onNominated={() => {
             setNominatingRole(null)
-            setNotice('Nomination letter generated.')
+            setNotice(t('qppv.nominationLetterGenerated'))
             load()
           }}
         />
@@ -176,6 +179,7 @@ function QppvCard({
   onOpenDocument: (recordType: string, recordId: string, documentId: string) => void
   onConfirmed: () => void
 }) {
+  const { t } = useTranslation()
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const user = users.find((u) => u.id === userId)
@@ -189,7 +193,7 @@ function QppvCard({
       await uploadQppvRegulatorConfirmation(nomination.id, version.documentId)
       onConfirmed()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not upload this confirmation.'))
+      setError(getErrorMessage(err, t('qppv.errorUploadConfirmation')))
     } finally {
       setUploading(false)
     }
@@ -198,16 +202,16 @@ function QppvCard({
   return (
     <div className="rounded-lg border border-border bg-card p-5 space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground">{role === 'primary' ? 'Primary QPPV' : 'Backup QPPV'}</h2>
+        <h2 className="text-sm font-semibold text-foreground">{role === 'primary' ? t('qppv.primaryQppv') : t('qppv.backupQppv')}</h2>
         {canManage && (
           <button onClick={onNominate} className="text-xs font-medium text-safemeds-teal hover:underline">
-            {userId ? 'Change' : 'Nominate'}
+            {userId ? t('qppv.change') : t('qppv.nominate')}
           </button>
         )}
       </div>
 
       {!userId ? (
-        <p className="text-sm text-muted-foreground">Not nominated yet.</p>
+        <p className="text-sm text-muted-foreground">{t('qppv.notNominatedYet')}</p>
       ) : (
         <>
           <p className="text-sm text-foreground font-medium">{user?.fullName ?? userId}</p>
@@ -218,23 +222,23 @@ function QppvCard({
               onClick={() => onOpenDocument('qppv_nomination', nomination.id, nomination.nominationLetterDocumentId!)}
               className="flex items-center gap-1.5 text-xs font-medium text-safemeds-teal hover:underline"
             >
-              <Download className="h-3.5 w-3.5" /> Download Nomination Letter
+              <Download className="h-3.5 w-3.5" /> {t('qppv.downloadNominationLetter')}
             </button>
           )}
 
           <div className="pt-2 border-t border-border">
-            <p className="text-xs font-medium text-muted-foreground mb-1">Regulator Confirmation</p>
+            <p className="text-xs font-medium text-muted-foreground mb-1">{t('qppv.regulatorConfirmation')}</p>
             {nomination?.regulatorConfirmationDocumentId ? (
               <button
                 onClick={() => onOpenDocument('qppv_nomination', nomination.id, nomination.regulatorConfirmationDocumentId!)}
                 className="flex items-center gap-1.5 text-xs font-medium text-status-success hover:underline"
               >
-                <Download className="h-3.5 w-3.5" /> View Confirmation
+                <Download className="h-3.5 w-3.5" /> {t('qppv.viewConfirmation')}
               </button>
             ) : canManage ? (
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer hover:text-foreground">
                 {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                Upload confirmation
+                {t('qppv.uploadConfirmation')}
                 <input
                   type="file"
                   className="hidden"
@@ -245,7 +249,7 @@ function QppvCard({
                 />
               </label>
             ) : (
-              <p className="text-xs text-muted-foreground">Not yet uploaded.</p>
+              <p className="text-xs text-muted-foreground">{t('qppv.notYetUploaded')}</p>
             )}
           </div>
         </>
@@ -257,6 +261,7 @@ function QppvCard({
 }
 
 function NominateModal({ role, users, onClose, onNominated }: { role: QppvNominationRole; users: TenantUser[]; onClose: () => void; onNominated: () => void }) {
+  const { t } = useTranslation()
   const [userId, setUserId] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -271,7 +276,7 @@ function NominateModal({ role, users, onClose, onNominated }: { role: QppvNomina
       await setQppvNomination(role, userId)
       onNominated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not set this nomination.'))
+      setError(getErrorMessage(err, t('qppv.errorSetNomination')))
       setSubmitting(false)
     }
   }
@@ -279,15 +284,15 @@ function NominateModal({ role, users, onClose, onNominated }: { role: QppvNomina
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Nominate {role === 'primary' ? 'Primary' : 'Backup'} QPPV</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{role === 'primary' ? t('qppv.nominateModalTitlePrimary') : t('qppv.nominateModalTitleBackup')}</h2>
 
         {users.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No users hold the QPPV role yet — grant it via Users & Roles first.</p>
+          <p className="text-sm text-muted-foreground">{t('qppv.noUsersHoldRole')}</p>
         ) : (
           <div>
-            <label className={labelClass}>User (must hold the QPPV role) *</label>
+            <label className={labelClass}>{t('qppv.userMustHoldRole')}</label>
             <select value={userId} onChange={(e) => setUserId(e.target.value)} className={inputClass}>
-              <option value="">Select…</option>
+              <option value="">{t('qppv.selectPlaceholder')}</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.fullName} ({u.email})
@@ -297,13 +302,13 @@ function NominateModal({ role, users, onClose, onNominated }: { role: QppvNomina
           </div>
         )}
 
-        <p className="text-xs text-muted-foreground">A real nomination letter PDF is generated automatically. SafeMeds does not submit this or verify the regulator&apos;s acceptance.</p>
+        <p className="text-xs text-muted-foreground">{t('qppv.letterGeneratedNote')}</p>
 
         {error && <p className="text-sm text-status-error">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -311,7 +316,7 @@ function NominateModal({ role, users, onClose, onNominated }: { role: QppvNomina
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Nominate
+            {t('qppv.nominate')}
           </button>
         </div>
       </div>

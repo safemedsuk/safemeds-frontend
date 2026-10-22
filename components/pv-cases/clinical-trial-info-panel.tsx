@@ -6,6 +6,7 @@ import { getErrorMessage } from '@/lib/api/client'
 import { ClinicalTrialWithSubjects, getClinicalTrial, revealTreatmentArm } from '@/lib/api/clinical-trials'
 import { SignatureModal } from '@/components/ui/signature-modal'
 import { usePermissions } from '@/lib/hooks/use-permissions'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   clinicalTrialId: string
@@ -21,6 +22,7 @@ interface Props {
  * consumer of that one mechanism, not a parallel one.
  */
 export function ClinicalTrialInfoPanel({ clinicalTrialId, clinicalTrialSubjectId }: Props) {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canUnblind = has('pv.unblind_treatment')
 
@@ -63,30 +65,31 @@ export function ClinicalTrialInfoPanel({ clinicalTrialId, clinicalTrialSubjectId
       {subject ? (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
           <span className="text-xs text-muted-foreground">
-            Subject <span className="font-mono text-foreground">{subject.subjectCode}</span>
+            {t('clinicalTrialInfoPanel.subject')} <span className="font-mono text-foreground">{subject.subjectCode}</span>
           </span>
           {revealedArm !== undefined ? (
             <span className="flex items-center gap-1.5 text-xs font-medium text-status-warning">
-              <Eye className="h-3.5 w-3.5" /> Treatment arm: {revealedArm}
+              <Eye className="h-3.5 w-3.5" /> {t('clinicalTrialInfoPanel.treatmentArm', { arm: revealedArm ?? '' })}
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <EyeOff className="h-3.5 w-3.5" /> Treatment arm blinded{subject.blindingBroken ? ' (previously unblinded)' : ''}
+              <EyeOff className="h-3.5 w-3.5" /> {t('clinicalTrialInfoPanel.treatmentArmBlinded')}
+              {subject.blindingBroken ? t('clinicalTrialInfoPanel.previouslyUnblinded') : ''}
             </span>
           )}
           {canUnblind && revealedArm === undefined && (
             <button onClick={() => setShowSignature(true)} className="text-xs font-medium text-safemeds-teal hover:underline">
-              Reveal Treatment Arm
+              {t('clinicalTrialInfoPanel.revealTreatmentArm')}
             </button>
           )}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">No pre-enrolled subject linked to this case.</p>
+        <p className="text-xs text-muted-foreground">{t('clinicalTrialInfoPanel.noSubjectLinked')}</p>
       )}
 
       {!canUnblind && subject && (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <ShieldAlert className="h-3.5 w-3.5" /> Revealing a treatment-arm assignment requires the QPPV-held unblinding permission and a fresh electronic signature.
+          <ShieldAlert className="h-3.5 w-3.5" /> {t('clinicalTrialInfoPanel.unblindRequiresSignature')}
         </p>
       )}
 
@@ -96,7 +99,7 @@ export function ClinicalTrialInfoPanel({ clinicalTrialId, clinicalTrialSubjectId
         <SignatureModal
           isOpen={true}
           onClose={() => setShowSignature(false)}
-          documentTitle={`Reveal treatment arm — subject ${subject.subjectCode}`}
+          documentTitle={t('clinicalTrialInfoPanel.revealTitle', { code: subject.subjectCode })}
           documentId={subject.id}
           onSigned={async ({ signatureToken, intentStatement }) => {
             setError(null)
@@ -105,7 +108,7 @@ export function ClinicalTrialInfoPanel({ clinicalTrialId, clinicalTrialSubjectId
               setRevealedArm(result.treatmentArm)
               setShowSignature(false)
             } catch (err) {
-              setError(getErrorMessage(err, 'Could not reveal the treatment arm.'))
+              setError(getErrorMessage(err, t('clinicalTrialInfoPanel.errorReveal')))
               throw err
             }
           }}

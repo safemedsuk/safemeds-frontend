@@ -43,6 +43,7 @@ import {
   ListChecks,
   CalendarClock,
   LayoutDashboard,
+  Bell,
 } from 'lucide-react'
 import { TopBar } from '@/components/layout/top-bar'
 import { Sidebar, type SidebarSection } from '@/components/layout/sidebar'
@@ -52,12 +53,14 @@ import { logout as apiLogout } from '@/lib/api/auth'
 import { getSecurityPolicy } from '@/lib/api/security-policy'
 import { getMyEntitlements } from '@/lib/api/entitlements'
 import { usePermissions } from '@/lib/hooks/use-permissions'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const { currentUser, isAuthenticated, hasHydrated, setCurrentUser, setIsAuthenticated } = useAuthStore()
   const { has } = usePermissions()
+  const { t } = useTranslation()
   const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState<number | null>(null)
   /**
    * Real-usage request, 22 Sep 2026 — "the VigiCloud sidebar section
@@ -120,11 +123,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const sidebarSections: SidebarSection[] = [
     {
-      title: 'Dashboard',
+      title: t('nav.dashboard'),
       items: [
+        // Pass A2 (item 5a) — the full notifications inbox.
+        {
+          label: t('nav.notifications'),
+          icon: <Bell className="h-4 w-4" />,
+          href: '/notifications',
+          isActive: pathname === '/notifications',
+        },
         // Real-usage request, 11 Sep 2026 — the unified cross-module view.
         {
-          label: 'Master Dashboard',
+          label: t('nav.masterDashboard'),
           icon: <BarChart3 className="h-4 w-4" />,
           href: '/master-dashboard',
           isActive: pathname === '/master-dashboard',
@@ -134,25 +144,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         // views, the real capstone now that VigiCloud/RegCloud/QualCloud
         // all have their own dashboard-shaped data to compose.
         {
-          label: 'Executive Dashboard',
+          label: t('nav.executiveDashboard'),
           icon: <LayoutDashboard className="h-4 w-4" />,
           href: '/executive-dashboard',
           isActive: pathname === '/executive-dashboard',
         },
         {
-          label: 'Inspection Readiness (All Modules)',
+          label: t('nav.inspectionReadinessAllModules'),
           icon: <ListChecks className="h-4 w-4" />,
           href: '/cross-module-readiness',
           isActive: pathname === '/cross-module-readiness',
         },
         {
-          label: 'Deadlines & Obligations',
+          label: t('nav.deadlinesObligations'),
           icon: <CalendarClock className="h-4 w-4" />,
           href: '/obligations-feed',
           isActive: pathname === '/obligations-feed',
         },
         {
-          label: 'Task Inbox',
+          label: t('nav.taskInbox'),
           icon: <CheckCircle2 className="h-4 w-4" />,
           href: '/tasks',
           isActive: pathname === '/tasks',
@@ -162,10 +172,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ...(vigicloudEnabled && (has('pv.capture_case') || has('pv.view_all'))
       ? [
           {
-            title: 'Pharmacovigilance',
+            title: t('nav.pharmacovigilance'),
             items: [
               {
-                label: 'PV Cases',
+                label: t('nav.pVCases'),
                 icon: <Stethoscope className="h-4 w-4" />,
                 href: '/pv-cases',
                 isActive:
@@ -179,7 +189,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               ...(has('pv.triage_case')
                 ? [
                     {
-                      label: 'Draft Review Queue',
+                      label: t('nav.draftReviewQueue'),
                       icon: <ShieldAlert className="h-4 w-4" />,
                       href: '/pv-cases/draft-review',
                       isActive: pathname === '/pv-cases/draft-review',
@@ -192,7 +202,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               ...(has('pv.capture_case')
                 ? [
                     {
-                      label: 'Log a Call',
+                      label: t('nav.logACall'),
                       icon: <Phone className="h-4 w-4" />,
                       href: '/pv-cases/call-logs',
                       isActive: pathname === '/pv-cases/call-logs',
@@ -207,7 +217,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               ...(has('pv.capture_case') || has('pv.view_all') || has('pv.manage_clinical_trials')
                 ? [
                     {
-                      label: 'Clinical Trials',
+                      label: t('nav.clinicalTrials'),
                       icon: <FlaskConical className="h-4 w-4" />,
                       href: '/clinical-trials',
                       isActive: pathname === '/clinical-trials' || pathname?.startsWith('/clinical-trials/'),
@@ -222,7 +232,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               ...(has('pv.manage_signals') || has('pv.view_all')
                 ? [
                     {
-                      label: 'Signals',
+                      label: t('nav.signals'),
                       icon: <Radar className="h-4 w-4" />,
                       href: '/pv-signals',
                       isActive: pathname === '/pv-signals' || pathname?.startsWith('/pv-signals/'),
@@ -235,7 +245,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               ...(has('safety_alerts.view') || has('safety_alerts.manage')
                 ? [
                     {
-                      label: 'Safety Alerts',
+                      label: t('nav.safetyAlerts'),
                       icon: <ShieldAlert className="h-4 w-4" />,
                       href: '/safety-alerts',
                       isActive: pathname === '/safety-alerts',
@@ -247,7 +257,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               ...(has('pv.manage_literature_monitoring')
                 ? [
                     {
-                      label: 'Literature Monitoring',
+                      label: t('nav.literatureMonitoring'),
                       icon: <BookOpen className="h-4 w-4" />,
                       href: '/literature-monitoring',
                       isActive: pathname === '/literature-monitoring',
@@ -258,7 +268,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               ...(has('pv.view_molecule_intelligence')
                 ? [
                     {
-                      label: 'Molecule Intelligence',
+                      label: t('nav.moleculeIntelligence'),
                       icon: <Microscope className="h-4 w-4" />,
                       href: '/molecule-intelligence',
                       isActive: pathname === '/molecule-intelligence',
@@ -270,16 +280,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ]
       : []),
     {
-      title: 'Operations',
+      title: t('nav.operations'),
       items: [
         {
-          label: 'Master Data',
+          label: t('nav.masterData'),
           icon: <Package className="h-4 w-4" />,
           href: '/master-data',
           isActive: pathname === '/master-data',
         },
         {
-          label: 'Country Rules',
+          label: t('nav.countryRules'),
           icon: <Globe className="h-4 w-4" />,
           href: '/country-rules',
           isActive: pathname === '/country-rules',
@@ -291,7 +301,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('regulatory.view_all')
           ? [
               {
-                label: 'Regulatory Dossiers',
+                label: t('nav.regulatoryDossiers'),
                 icon: <FileCheck2 className="h-4 w-4" />,
                 href: '/reg-dossiers',
                 isActive: pathname === '/reg-dossiers' || pathname?.startsWith('/reg-dossiers/'),
@@ -304,7 +314,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               // is, but this is the cross-dossier register the CEO's own
               // email specifically asked for.
               {
-                label: 'Query Register',
+                label: t('nav.queryRegister'),
                 icon: <MessageSquareText className="h-4 w-4" />,
                 href: '/reg-queries',
                 isActive: pathname === '/reg-queries',
@@ -314,14 +324,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('reports.view')
           ? [
               {
-                label: 'Reports',
+                label: t('nav.reports'),
                 icon: <FileBarChart className="h-4 w-4" />,
                 href: '/reports',
                 isActive: pathname === '/reports',
               },
               // Real-usage request, 11 Sep 2026 — the self-service report builder.
               {
-                label: 'Report Builder',
+                label: t('nav.reportBuilder'),
                 icon: <Wand2 className="h-4 w-4" />,
                 href: '/report-builder',
                 isActive: pathname === '/report-builder',
@@ -336,7 +346,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('regulatory.view_all')
           ? [
               {
-                label: 'Recalls',
+                label: t('nav.recalls'),
                 icon: <AlertTriangle className="h-4 w-4" />,
                 href: '/recalls',
                 isActive: pathname === '/recalls' || pathname?.startsWith('/recalls/'),
@@ -346,7 +356,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               // filtering rather than a parallel screen family; its own
               // nav entry only for direct discoverability.
               {
-                label: 'Mock Recalls',
+                label: t('nav.mockRecalls'),
                 icon: <ShieldAlert className="h-4 w-4" />,
                 href: '/mock-recalls',
                 isActive: pathname === '/mock-recalls',
@@ -361,7 +371,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('reconciliation.view') || has('reconciliation.manage')
           ? [
               {
-                label: 'Reconciliation',
+                label: t('nav.reconciliation'),
                 icon: <Handshake className="h-4 w-4" />,
                 href: '/reconciliation',
                 isActive: pathname === '/reconciliation' || pathname?.startsWith('/reconciliation/'),
@@ -375,7 +385,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('contact_testing.manage')
           ? [
               {
-                label: 'Contact Testing',
+                label: t('nav.contactTesting'),
                 icon: <PhoneCall className="h-4 w-4" />,
                 href: '/contact-tests',
                 isActive: pathname === '/contact-tests',
@@ -387,12 +397,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // VigiCloud Stage 16 — Governance & Audit Module. Each entry gates
     // independently on its own permission, same as every other section.
     {
-      title: 'Governance',
+      title: t('nav.governance'),
       items: [
         ...(has('psmf.view') || has('psmf.manage')
           ? [
               {
-                label: 'PSMF',
+                label: t('nav.pSMF'),
                 icon: <FileCheck2 className="h-4 w-4" />,
                 href: '/psmf',
                 isActive: pathname === '/psmf',
@@ -402,7 +412,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('governance.view') || has('governance.manage')
           ? [
               {
-                label: 'Audit Readiness',
+                label: t('nav.auditReadiness'),
                 icon: <ClipboardList className="h-4 w-4" />,
                 href: '/audit-readiness',
                 isActive: pathname === '/audit-readiness',
@@ -412,7 +422,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('quality.manage_capa') || has('quality.view_all')
           ? [
               {
-                label: 'Internal Audits',
+                label: t('nav.internalAudits'),
                 icon: <Gavel className="h-4 w-4" />,
                 href: '/internal-audits',
                 isActive: pathname === '/internal-audits' || pathname?.startsWith('/internal-audits/'),
@@ -422,7 +432,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               // discoverable alongside Internal Audits since it extends
               // that same record type.
               {
-                label: 'Inspection Readiness',
+                label: t('nav.inspectionReadiness'),
                 icon: <ShieldCheck className="h-4 w-4" />,
                 href: '/inspection-readiness',
                 isActive: pathname === '/inspection-readiness',
@@ -433,7 +443,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('quality.view_metrics')
           ? [
               {
-                label: 'Quality Metrics & Trends',
+                label: t('nav.qualityMetricsTrends'),
                 icon: <BarChart3 className="h-4 w-4" />,
                 href: '/quality-metrics',
                 isActive: pathname === '/quality-metrics',
@@ -443,7 +453,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('qppv.manage_nomination') || has('governance.view')
           ? [
               {
-                label: 'QPPV',
+                label: t('nav.qPPV'),
                 icon: <UserCog className="h-4 w-4" />,
                 href: '/qppv',
                 isActive: pathname === '/qppv',
@@ -453,7 +463,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('sdea.view') || has('sdea.manage')
           ? [
               {
-                label: 'SDEA',
+                label: t('nav.sDEA'),
                 icon: <FileSignature className="h-4 w-4" />,
                 href: '/sdea',
                 isActive: pathname === '/sdea',
@@ -463,7 +473,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('training.view') || has('training.manage')
           ? [
               {
-                label: 'Training',
+                label: t('nav.training'),
                 icon: <GraduationCap className="h-4 w-4" />,
                 href: '/training',
                 isActive: pathname === '/training',
@@ -475,7 +485,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('rmp.view') || has('rmp.manage')
           ? [
               {
-                label: 'Risk Management Plans',
+                label: t('nav.riskManagementPlans'),
                 icon: <ClipboardList className="h-4 w-4" />,
                 href: '/risk-management-plans',
                 isActive: pathname === '/risk-management-plans',
@@ -489,60 +499,73 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ...(has('quality.view_all')
       ? [
           {
-            title: 'Quality',
+            title: t('nav.quality'),
             items: [
               {
-                label: 'Quality Entities',
+                label: t('nav.qualityEntities'),
                 icon: <FlaskConical className="h-4 w-4" />,
                 href: '/quality-entities',
                 isActive: pathname === '/quality-entities',
               },
               {
-                label: 'Controlled Documents',
+                label: t('nav.controlledDocuments'),
                 icon: <ClipboardList className="h-4 w-4" />,
                 href: '/quality-documents',
                 isActive: pathname === '/quality-documents',
               },
               {
-                label: 'Deviations',
+                label: t('nav.deviations'),
                 icon: <AlertOctagon className="h-4 w-4" />,
                 href: '/quality-deviations',
                 isActive: pathname === '/quality-deviations' || pathname?.startsWith('/quality-deviations/'),
               },
               {
-                label: 'CAPAs',
+                label: t('nav.cAPAs'),
                 icon: <Wrench className="h-4 w-4" />,
                 href: '/quality-capas',
                 isActive: pathname === '/quality-capas',
               },
               {
-                label: 'Change Control',
+                label: t('nav.changeControl'),
                 icon: <GitCommit className="h-4 w-4" />,
                 href: '/quality-change-controls',
                 isActive: pathname === '/quality-change-controls' || pathname?.startsWith('/quality-change-controls/'),
               },
               {
-                label: 'Complaints',
+                label: t('nav.complaints'),
                 icon: <MessageSquareWarning className="h-4 w-4" />,
                 href: '/quality-complaints',
                 isActive: pathname === '/quality-complaints' || pathname?.startsWith('/quality-complaints/'),
               },
               {
-                label: 'OOS/OOT Investigations',
+                label: t('nav.oOSOOTInvestigations'),
                 icon: <TestTube2 className="h-4 w-4" />,
                 href: '/quality-oos',
                 isActive: pathname === '/quality-oos' || pathname?.startsWith('/quality-oos/'),
               },
               // QualCloud (Phase 13) Stage 15 — Pharmaceutical Waste Management.
               {
-                label: 'Waste Disposal',
+                label: t('nav.wasteDisposal'),
                 icon: <Trash2 className="h-4 w-4" />,
                 href: '/quality-waste-disposal',
                 isActive: pathname === '/quality-waste-disposal',
               },
+              // QualCloud Phase 1 Pass B (item A7) — the same Recalls list as Operations.
+              // Gated exactly like the Operations entry (`regulatory.view_all`): quality owns
+              // much of the recall lifecycle, so the link sits here too.
+              ...(has('regulatory.view_all')
+                ? [
+                    {
+                      label: t('nav.recalls'),
+                      icon: <AlertTriangle className="h-4 w-4" />,
+                      href: '/recalls',
+                      isActive: pathname === '/recalls' || pathname?.startsWith('/recalls/'),
+                    },
+                  ]
+                : []),
               // QualCloud (Phase 13) Stage 16 — Falsified & Substandard Product Handling.
               {
-                label: 'Falsified Product Reports',
+                label: t('nav.falsifiedProductReports'),
                 icon: <AlertTriangle className="h-4 w-4" />,
                 href: '/quality-falsified-reports',
                 isActive: pathname === '/quality-falsified-reports',
@@ -552,7 +575,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               // reachable from Master Data's Batches tab — not a separate
               // nav entry, matching Stage 7's own BatchRecordReview precedent.)
               {
-                label: 'Validation & CSV',
+                label: t('nav.validationCSV'),
                 icon: <ClipboardCheck className="h-4 w-4" />,
                 href: '/quality-validation',
                 isActive: pathname === '/quality-validation',
@@ -562,7 +585,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               // 0's own "Quality Entities"/"Controlled Documents"
               // precedent for closely-related concepts.
               {
-                label: 'Environmental Monitoring & Stability',
+                label: t('nav.environmentalMonitoringStability'),
                 icon: <Wind className="h-4 w-4" />,
                 href: '/quality-environmental-stability',
                 isActive: pathname === '/quality-environmental-stability',
@@ -571,7 +594,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               ...(has('quality.view_pqr')
                 ? [
                     {
-                      label: 'Product Quality Reviews',
+                      label: t('nav.annualProductQualityReviewsAPQR'),
                       icon: <ClipboardList className="h-4 w-4" />,
                       href: '/quality-pqr',
                       isActive: pathname === '/quality-pqr',
@@ -582,7 +605,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               ...(has('training.view')
                 ? [
                     {
-                      label: 'Training Compliance',
+                      label: t('nav.trainingCompliance'),
                       icon: <ClipboardList className="h-4 w-4" />,
                       href: '/training-compliance',
                       isActive: pathname === '/training-compliance',
@@ -594,7 +617,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ]
       : []),
     {
-      title: 'Administration',
+      title: t('nav.administration'),
       // A page whose entire purpose a user can't act on (or, for Users &
       // Roles, not even view anything for) shouldn't be a link they see —
       // the pages themselves still enforce this independently if reached
@@ -603,7 +626,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('users.view')
           ? [
               {
-                label: 'Users & Roles',
+                label: t('nav.usersRoles'),
                 icon: <Users className="h-4 w-4" />,
                 href: '/users-and-roles',
                 isActive: pathname === '/users-and-roles',
@@ -613,7 +636,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ...(has('audit.read')
           ? [
               {
-                label: 'Audit Trail',
+                label: t('nav.auditTrail'),
                 icon: <FileText className="h-4 w-4" />,
                 href: '/audit-trail',
                 isActive: pathname === '/audit-trail',
@@ -621,13 +644,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             ]
           : []),
         {
-          label: 'Company Profile',
+          label: t('nav.companyProfile'),
           icon: <Building2 className="h-4 w-4" />,
           href: '/company-profile',
           isActive: pathname === '/company-profile',
         },
         {
-          label: 'Settings',
+          label: t('nav.settings'),
           icon: <ShieldCheck className="h-4 w-4" />,
           href: '/settings',
           isActive: pathname === '/settings',
@@ -635,16 +658,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       ],
     },
     {
-      title: 'Tools',
+      title: t('nav.tools'),
       items: [
         {
-          label: 'Workflow Viewer',
+          label: t('nav.workflowViewer'),
           icon: <BarChart3 className="h-4 w-4" />,
           href: '/workflow-viewer',
           isActive: pathname === '/workflow-viewer',
         },
         {
-          label: 'Electronic Signature',
+          label: t('nav.electronicSignature'),
           icon: <PenTool className="h-4 w-4" />,
           href: '/electronic-signature',
           isActive: pathname === '/electronic-signature',

@@ -1,7 +1,8 @@
 'use client'
 
 import { BulkImportModal } from '@/components/bulk-import/bulk-import-modal'
-import { TENANT_ROLES } from '@/lib/tenant-roles'
+import { TENANT_ROLES, tenantRoleLabel } from '@/lib/tenant-roles'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   onClose: () => void
@@ -9,11 +10,6 @@ interface Props {
 }
 
 const IMPORT_TYPE = 'user_invite'
-
-// Same labels as the "Add User" modal's role checkboxes — a person
-// preparing this file never needs to know a raw role key like
-// "SUPERINTENDENT_PHARMACIST"; the backend resolves either form.
-const TEMPLATE_CSV = `Email Address,Role(s)\njeff@example.com,${TENANT_ROLES[2].label}\nrobert@example.com,${TENANT_ROLES[3].label};${TENANT_ROLES[5].label}\n`
 
 /**
  * VigiCloud Stage 0.6 — bulk-inviting users by CSV or Excel (email +
@@ -24,21 +20,29 @@ const TEMPLATE_CSV = `Email Address,Role(s)\njeff@example.com,${TENANT_ROLES[2].
  * from what used to be a user-invite-only component).
  */
 export function BulkImportUsersModal({ onClose, onImported }: Props) {
+  const { t } = useTranslation()
+
+  // Same labels as the "Add User" modal's role checkboxes — a person
+  // preparing this file never needs to know a raw role key like
+  // "SUPERINTENDENT_PHARMACIST"; the backend resolves either form.
+  const templateCsv = `Email Address,Role(s)\njeff@example.com,${tenantRoleLabel(TENANT_ROLES[2].key, t)}\nrobert@example.com,${tenantRoleLabel(TENANT_ROLES[3].key, t)};${tenantRoleLabel(TENANT_ROLES[5].key, t)}\n`
+
   return (
     <BulkImportModal
       importType={IMPORT_TYPE}
-      title="Bulk invite users"
+      title={t('users.bulkImport.title')}
       description={
         <>
-          Upload a spreadsheet with a column for <strong>email</strong> and a column for <strong>role(s)</strong> — the
-          column headers don&apos;t have to match exactly (e.g. &quot;Email Address&quot; or &quot;Roles&quot; both work).
-          For more than one role in a cell, separate them with a semicolon (<code className="bg-[var(--surface-raised)] px-1 rounded">;</code>).
+          {t('users.bulkImport.descriptionPrefix')} <strong>{t('users.bulkImport.email')}</strong>{' '}
+          {t('users.bulkImport.descriptionMiddle')} <strong>{t('users.bulkImport.roles')}</strong> —{' '}
+          {t('users.bulkImport.descriptionSuffix')} (
+          <code className="bg-[var(--surface-raised)] px-1 rounded">;</code>).
         </>
       }
-      helpPanel={{ title: 'Valid roles', values: TENANT_ROLES.map((r) => r.label) }}
+      helpPanel={{ title: t('users.bulkImport.validRoles'), values: TENANT_ROLES.map((r) => tenantRoleLabel(r.key, t)) }}
       templateFilename="safemeds-bulk-invite-template.csv"
-      templateCsv={TEMPLATE_CSV}
-      resultLabel={(committed) => `${committed} invitation${committed === 1 ? '' : 's'} sent.`}
+      templateCsv={templateCsv}
+      resultLabel={(committed) => (committed === 1 ? t('users.bulkImport.resultLabelOne') : t('users.bulkImport.resultLabelMany', { count: committed }))}
       onClose={onClose}
       onImported={onImported}
     />

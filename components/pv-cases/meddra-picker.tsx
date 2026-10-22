@@ -4,13 +4,15 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, Loader2, Search, X } from 'lucide-react'
 import { searchMeddra } from '@/lib/api/meddra'
 import { MeddraTerm } from '@/lib/api/pv-cases'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
-const LEVEL_LABELS: Record<MeddraTerm['level'], string> = {
-  SOC: 'System Organ Class',
-  HLGT: 'High-Level Group Term',
-  HLT: 'High-Level Term',
-  PT: 'Preferred Term',
-  LLT: 'Lowest-Level Term',
+const LEVEL_LABEL_KEYS: Record<MeddraTerm['level'], MessageKey> = {
+  SOC: 'meddraPicker.levelSoc',
+  HLGT: 'meddraPicker.levelHlgt',
+  HLT: 'meddraPicker.levelHlt',
+  PT: 'meddraPicker.levelPt',
+  LLT: 'meddraPicker.levelLlt',
 }
 
 interface Props {
@@ -29,6 +31,7 @@ interface Props {
  * each result makes it obvious which one you're picking.
  */
 export function MeddraPicker({ codedTerm, onSelect, onClear, busy }: Props) {
+  const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<MeddraTerm[]>([])
   const [open, setOpen] = useState(false)
@@ -79,7 +82,7 @@ export function MeddraPicker({ codedTerm, onSelect, onClear, busy }: Props) {
           <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{codedTerm.level}</span>
         </div>
         {onClear && (
-          <button onClick={onClear} disabled={busy} className="flex-shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50" title="Recode">
+          <button onClick={onClear} disabled={busy} className="flex-shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50" title={t('meddraPicker.recode')}>
             <X className="h-4 w-4" />
           </button>
         )}
@@ -99,7 +102,7 @@ export function MeddraPicker({ codedTerm, onSelect, onClear, busy }: Props) {
           }}
           onFocus={() => setOpen(true)}
           disabled={busy}
-          placeholder="Search MedDRA (e.g. rash, nausea, headache)"
+          placeholder={t('meddraPicker.searchPlaceholder')}
           className="w-full rounded-lg border border-input bg-background pl-8 pr-8 py-2 text-sm text-foreground disabled:opacity-50"
         />
         {loading && <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />}
@@ -107,7 +110,7 @@ export function MeddraPicker({ codedTerm, onSelect, onClear, busy }: Props) {
 
       {open && query.trim().length >= 2 && (
         <div className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-card shadow-lg max-h-56 overflow-y-auto">
-          {results.length === 0 && !loading && <p className="p-3 text-xs text-muted-foreground">No MedDRA match for &quot;{query.trim()}&quot;.</p>}
+          {results.length === 0 && !loading && <p className="p-3 text-xs text-muted-foreground">{t('meddraPicker.noMatch', { query: query.trim() })}</p>}
           {results.map((term) => (
             <button
               key={term.id}
@@ -119,7 +122,7 @@ export function MeddraPicker({ codedTerm, onSelect, onClear, busy }: Props) {
               className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
             >
               <span className="truncate text-foreground">{term.name}</span>
-              <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground" title={LEVEL_LABELS[term.level]}>
+              <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground" title={t(LEVEL_LABEL_KEYS[term.level])}>
                 {term.level}
               </span>
             </button>

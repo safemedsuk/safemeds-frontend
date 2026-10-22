@@ -12,9 +12,12 @@ import {
 } from '@/lib/api/distributor-training'
 import { Distributor, listDistributors } from '@/lib/api/reconciliation'
 import { activateSdea, attachSdeaDocument, createSdea, getSdeaStatusForDistributor, listSdeas, Sdea, SDEA_STATUS_LABELS, SdeaDistributorStatus, SdeaStatus } from '@/lib/api/sdea'
+import { listTrainingTypes, TrainingType } from '@/lib/api/training-types'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -26,11 +29,11 @@ const DISTRIBUTOR_STATUS_STYLES: Record<SdeaDistributorStatus, string> = {
   missing: 'bg-muted text-muted-foreground',
 }
 
-const DISTRIBUTOR_STATUS_LABELS: Record<SdeaDistributorStatus, string> = {
-  active: 'Active',
-  expiring: 'Expiring Soon',
-  expired: 'Expired',
-  missing: 'No SDEA',
+const DISTRIBUTOR_STATUS_LABEL_KEYS: Record<SdeaDistributorStatus, MessageKey> = {
+  active: 'sdea.distributorStatusActive',
+  expiring: 'sdea.distributorStatusExpiring',
+  expired: 'sdea.distributorStatusExpired',
+  missing: 'sdea.distributorStatusMissing',
 }
 
 /** Real-usage request, 22 Sep 2026 (item 6) — the "trained annually" flag, same style as the SDEA status pill above. */
@@ -40,11 +43,11 @@ const TRAINING_STATUS_STYLES: Record<DistributorTrainingStatus, string> = {
   expired: 'bg-status-error/10 text-status-error',
   missing: 'bg-muted text-muted-foreground',
 }
-const TRAINING_STATUS_LABELS: Record<DistributorTrainingStatus, string> = {
-  valid: 'Trained',
-  expiring: 'Renewal Due Soon',
-  expired: 'Training Expired',
-  missing: 'No Training on File',
+const TRAINING_STATUS_LABEL_KEYS: Record<DistributorTrainingStatus, MessageKey> = {
+  valid: 'sdea.trainingStatusValid',
+  expiring: 'sdea.trainingStatusExpiring',
+  expired: 'sdea.trainingStatusExpired',
+  missing: 'sdea.trainingStatusMissing',
 }
 
 function formatDate(value: string | null): string {
@@ -57,28 +60,23 @@ interface DistributorRow {
   trainingStatus: DistributorTrainingStatus
 }
 
-const SDEA_HISTORY_COLUMNS: DataTableColumn<Sdea>[] = [
-  { key: 'title', label: 'Title' },
-  { key: 'version', label: 'Version', render: (v) => <span className="font-mono text-xs">v{v}</span> },
-  { key: 'status', label: 'Status', render: (v) => SDEA_STATUS_LABELS[v as SdeaStatus] },
-  // Real-usage request, 22 Sep 2026 (item 5) — "check date received
-  // versus date uploaded versus date it has to be renewed." Received
-  // and Renewal (expiry) sit side by side here since both are dates a
-  // human actually types in; "date uploaded" is the underlying
-  // Document's own upload timestamp — already tracked and visible on
-  // the Documents/Audit Trail screens generically, not duplicated here.
-  { key: 'receivedDate', label: 'Received', sortable: true, render: (v) => formatDate(v) },
-  { key: 'expiryDate', label: 'Renewal', sortable: true, render: (v) => formatDate(v) },
-]
-
 /**
  * VigiCloud Stage 16.5 — the SDEA repository, framed around each
  * distributor's own current status (the "reconciliation-at-risk flag"
  * this stage exists to surface) rather than a bare version list.
  */
 export function SdeaScreen() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('sdea.manage')
+
+  const SDEA_HISTORY_COLUMNS: DataTableColumn<Sdea>[] = [
+    { key: 'title', label: t('sdea.columnTitle') },
+    { key: 'version', label: t('sdea.columnVersion'), render: (v) => <span className="font-mono text-xs">v{v}</span> },
+    { key: 'status', label: t('sdea.columnStatus'), render: (v) => SDEA_STATUS_LABELS[v as SdeaStatus] },
+    { key: 'receivedDate', label: t('sdea.columnReceived'), sortable: true, render: (v) => formatDate(v) },
+    { key: 'expiryDate', label: t('sdea.columnRenewal'), sortable: true, render: (v) => formatDate(v) },
+  ]
 
   const [rows, setRows] = useState<DistributorRow[]>([])
   const [history, setHistory] = useState<Sdea[]>([])
@@ -110,10 +108,11 @@ export function SdeaScreen() {
         })),
       )
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load SDEA data.'))
+      setError(getErrorMessage(err, t('sdea.errorLoad')))
     } finally {
       setLoading(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const loadHistory = useCallback(
@@ -125,10 +124,11 @@ export function SdeaScreen() {
         setHistoryTotalPages(meta.totalPages)
         setHistoryTotal(meta.total)
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not load SDEA version history.'))
+        setError(getErrorMessage(err, t('sdea.errorLoadHistory')))
       } finally {
         setHistoryLoading(false)
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
     [historyPage, historyLimit],
   )
@@ -156,13 +156,13 @@ export function SdeaScreen() {
         <div>
           <div className="flex items-center gap-3">
             <FileSignature className="h-6 w-6 text-safemeds-teal" />
-            <h1 className="text-3xl font-display font-bold text-foreground">SDEA Repository</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground">{t('sdea.title')}</h1>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">Safety Data Exchange Agreements — an expiring or missing SDEA flags that distributor relationship as at-risk for reconciliation.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('sdea.subtitle')}</p>
         </div>
         {canManage && (
           <button onClick={() => setShowNew(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce">
-            New / Renew SDEA
+            {t('sdea.newRenewSdea')}
           </button>
         )}
       </div>
@@ -170,7 +170,7 @@ export function SdeaScreen() {
       {atRiskCount > 0 && (
         <div className="rounded-lg border border-status-warning bg-status-warning/10 p-4 text-sm text-status-warning flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-          {atRiskCount} distributor{atRiskCount === 1 ? '' : 's'} at risk — missing, expiring, or expired SDEA.
+          {atRiskCount === 1 ? t('sdea.atRiskSingular', { count: atRiskCount }) : t('sdea.atRiskPlural', { count: atRiskCount })}
         </div>
       )}
 
@@ -178,7 +178,7 @@ export function SdeaScreen() {
       {untrainedCount > 0 && (
         <div className="rounded-lg border border-status-warning bg-status-warning/10 p-4 text-sm text-status-warning flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-          {untrainedCount} distributor{untrainedCount === 1 ? '' : 's'} without current-year training on file — missing, expiring, or expired.
+          {untrainedCount === 1 ? t('sdea.untrainedSingular', { count: untrainedCount }) : t('sdea.untrainedPlural', { count: untrainedCount })}
         </div>
       )}
 
@@ -193,15 +193,15 @@ export function SdeaScreen() {
         ) : rows.length === 0 ? (
           <div className="p-12 text-center">
             <FileSignature className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No distributors listed yet — add one from Reconciliation first.</p>
+            <p className="text-sm text-muted-foreground">{t('sdea.noDistributorsYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Distributor</th>
-                <th className="p-3">SDEA Status</th>
-                <th className="p-3">Training Status</th>
+                <th className="p-3">{t('sdea.columnDistributor')}</th>
+                <th className="p-3">{t('sdea.columnSdeaStatus')}</th>
+                <th className="p-3">{t('sdea.columnTrainingStatus')}</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
@@ -210,15 +210,15 @@ export function SdeaScreen() {
                 <tr key={r.distributor.id} className="border-b border-border last:border-0">
                   <td className="p-3 font-medium text-foreground">{r.distributor.name}</td>
                   <td className="p-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${DISTRIBUTOR_STATUS_STYLES[r.status]}`}>{DISTRIBUTOR_STATUS_LABELS[r.status]}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${DISTRIBUTOR_STATUS_STYLES[r.status]}`}>{t(DISTRIBUTOR_STATUS_LABEL_KEYS[r.status])}</span>
                   </td>
                   <td className="p-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TRAINING_STATUS_STYLES[r.trainingStatus]}`}>{TRAINING_STATUS_LABELS[r.trainingStatus]}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TRAINING_STATUS_STYLES[r.trainingStatus]}`}>{t(TRAINING_STATUS_LABEL_KEYS[r.trainingStatus])}</span>
                   </td>
                   <td className="p-3 text-right">
                     {canManage && (
                       <button onClick={() => setLoggingTrainingFor(r.distributor)} className="text-xs font-medium text-safemeds-teal hover:underline whitespace-nowrap">
-                        Log Training
+                        {t('sdea.logTraining')}
                       </button>
                     )}
                   </td>
@@ -230,9 +230,9 @@ export function SdeaScreen() {
       </div>
 
       <div className="rounded-lg border border-border bg-card p-6">
-        <h2 className="text-sm font-semibold text-foreground mb-4">Version History</h2>
+        <h2 className="text-sm font-semibold text-foreground mb-4">{t('sdea.versionHistory')}</h2>
         {!historyLoading && history.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">No SDEA versions yet.</p>
+          <p className="text-sm text-muted-foreground text-center py-6">{t('sdea.noVersionsYet')}</p>
         ) : (
           <DataTableV2<Sdea>
             data={history}
@@ -257,7 +257,7 @@ export function SdeaScreen() {
           onClose={() => setShowNew(false)}
           onDone={() => {
             setShowNew(false)
-            setNotice('SDEA activated.')
+            setNotice(t('sdea.sdeaActivated'))
             load()
             setHistoryPage(1)
             loadHistory(1, historyLimit)
@@ -271,7 +271,7 @@ export function SdeaScreen() {
           onClose={() => setLoggingTrainingFor(null)}
           onDone={() => {
             setLoggingTrainingFor(null)
-            setNotice('Training logged.')
+            setNotice(t('sdea.trainingLogged'))
             load()
           }}
         />
@@ -281,6 +281,7 @@ export function SdeaScreen() {
 }
 
 function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distributor[]; onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation()
   const [step, setStep] = useState<'details' | 'upload'>('details')
   const [distributorId, setDistributorId] = useState('')
   const [title, setTitle] = useState('')
@@ -310,7 +311,7 @@ function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distrib
       setDraftId(draft.id)
       setStep('upload')
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this SDEA draft.'))
+      setError(getErrorMessage(err, t('sdea.errorCreateDraft')))
     } finally {
       setSubmitting(false)
     }
@@ -325,7 +326,7 @@ function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distrib
       await attachSdeaDocument(draftId, version.documentId)
       setDocumentId(version.documentId)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not upload this document.'))
+      setError(getErrorMessage(err, t('sdea.errorUploadDocument')))
     } finally {
       setUploading(false)
     }
@@ -339,7 +340,7 @@ function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distrib
       await activateSdea(draftId)
       onDone()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not activate this SDEA.'))
+      setError(getErrorMessage(err, t('sdea.errorActivate')))
       setSubmitting(false)
     }
   }
@@ -347,14 +348,14 @@ function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distrib
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">New / Renew SDEA</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('sdea.newRenewSdeaModalTitle')}</h2>
 
         {step === 'details' ? (
           <>
             <div>
-              <label className={labelClass}>Distributor *</label>
+              <label className={labelClass}>{t('sdea.distributor')}</label>
               <select value={distributorId} onChange={(e) => setDistributorId(e.target.value)} className={inputClass}>
-                <option value="">Select…</option>
+                <option value="">{t('sdea.select')}</option>
                 {distributors.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -363,20 +364,20 @@ function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distrib
               </select>
             </div>
             <div>
-              <label className={labelClass}>Title *</label>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Meridian SDEA" className={inputClass} />
+              <label className={labelClass}>{t('sdea.titleField')}</label>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('sdea.titlePlaceholder')} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Counterparty Name *</label>
+              <label className={labelClass}>{t('sdea.counterpartyName')}</label>
               <input value={counterpartyName} onChange={(e) => setCounterpartyName(e.target.value)} className={inputClass} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass}>Date Received</label>
+                <label className={labelClass}>{t('sdea.dateReceived')}</label>
                 <input type="date" value={receivedDate} onChange={(e) => setReceivedDate(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Renewal / Expiry Date</label>
+                <label className={labelClass}>{t('sdea.renewalExpiryDate')}</label>
                 <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className={inputClass} />
               </div>
             </div>
@@ -385,7 +386,7 @@ function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distrib
 
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-                Cancel
+                {t('sdea.cancel')}
               </button>
               <button
                 onClick={handleCreateDraft}
@@ -393,19 +394,19 @@ function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distrib
                 className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
               >
                 {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                Next
+                {t('sdea.next')}
               </button>
             </div>
           </>
         ) : (
           <>
-            <p className="text-sm text-muted-foreground">Upload the signed agreement, then activate it.</p>
+            <p className="text-sm text-muted-foreground">{t('sdea.uploadSignedAgreementHelp')}</p>
             {documentId ? (
-              <p className="text-sm text-status-success">Document attached.</p>
+              <p className="text-sm text-status-success">{t('sdea.documentAttached')}</p>
             ) : (
               <label className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted-foreground cursor-pointer hover:bg-muted">
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                Upload signed SDEA
+                {t('sdea.uploadSignedSdea')}
                 <input
                   type="file"
                   className="hidden"
@@ -421,16 +422,16 @@ function NewSdeaModal({ distributors, onClose, onDone }: { distributors: Distrib
 
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-                Cancel
+                {t('sdea.cancel')}
               </button>
               <button
                 onClick={handleActivate}
                 disabled={!documentId || submitting}
-                title={!documentId ? 'Upload the signed document first' : undefined}
+                title={!documentId ? t('sdea.uploadDocumentFirst') : undefined}
                 className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-40"
               >
                 {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                Activate
+                {t('sdea.activate')}
               </button>
             </div>
           </>
@@ -458,7 +459,13 @@ function LogDistributorTrainingModal({
   onClose: () => void
   onDone: () => void
 }) {
+  const { t } = useTranslation()
   const [trainingType, setTrainingType] = useState('pv_annual')
+  // QualCloud Phase 1 Pass B (item A5 / D-series) — the training type is picked by name from the catalogue; the stored value is its key.
+  const [trainingTypeOptions, setTrainingTypeOptions] = useState<TrainingType[]>([])
+  useEffect(() => {
+    listTrainingTypes().then(setTrainingTypeOptions).catch(() => setTrainingTypeOptions([]))
+  }, [])
   const [title, setTitle] = useState('')
   const [completionDate, setCompletionDate] = useState('')
   const [expiryDate, setExpiryDate] = useState('')
@@ -484,7 +491,7 @@ function LogDistributorTrainingModal({
       })
       setRecordId(record.id)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not log this training.'))
+      setError(getErrorMessage(err, t('sdea.errorLogTraining')))
     } finally {
       setSubmitting(false)
     }
@@ -499,7 +506,7 @@ function LogDistributorTrainingModal({
       await attachDistributorTrainingCertificate(recordId, version.documentId)
       setDocumentId(version.documentId)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not upload this certificate.'))
+      setError(getErrorMessage(err, t('sdea.errorUploadCertificate')))
     } finally {
       setUploading(false)
     }
@@ -508,27 +515,34 @@ function LogDistributorTrainingModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Log Training — {distributor.name}</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('sdea.logTrainingTitle', { name: distributor.name })}</h2>
 
         {!recordId ? (
           <>
             <div>
-              <label className={labelClass}>Training Type</label>
-              <input value={trainingType} onChange={(e) => setTrainingType(e.target.value)} placeholder="e.g. pv_annual" className={inputClass} />
+              <label className={labelClass}>{t('sdea.trainingType')}</label>
+              <select value={trainingType} onChange={(e) => setTrainingType(e.target.value)} className={inputClass}>
+                {trainingTypeOptions.length === 0 && <option value={trainingType}>{trainingType}</option>}
+                {trainingTypeOptions.map((tt) => (
+                  <option key={tt.id} value={tt.typeKey}>
+                    {tt.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className={labelClass}>Title *</label>
+              <label className={labelClass}>{t('sdea.titleField')}</label>
               <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Annual PV/Reporting-Obligations Training 2026" className={inputClass} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass}>Completion Date *</label>
+                <label className={labelClass}>{t('sdea.completionDate')}</label>
                 <input type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Renewal Due</label>
+                <label className={labelClass}>{t('sdea.renewalDue')}</label>
                 <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className={inputClass} />
-                <p className="mt-1 text-xs text-muted-foreground">Leave blank if this training has no expiry.</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('sdea.leaveBlankIfNoExpiry')}</p>
               </div>
             </div>
 
@@ -536,7 +550,7 @@ function LogDistributorTrainingModal({
 
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-                Cancel
+                {t('sdea.cancel')}
               </button>
               <button
                 onClick={handleLog}
@@ -544,20 +558,20 @@ function LogDistributorTrainingModal({
                 className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
               >
                 {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                Log Training
+                {t('sdea.logTraining')}
               </button>
             </div>
           </>
         ) : (
           <>
-            <p className="text-sm text-status-success">Training logged.</p>
-            <p className="text-sm text-muted-foreground">Optionally attach the certificate now, or do it later.</p>
+            <p className="text-sm text-status-success">{t('sdea.trainingLogged')}</p>
+            <p className="text-sm text-muted-foreground">{t('sdea.optionallyAttachCertificate')}</p>
             {documentId ? (
-              <p className="text-sm text-status-success">Certificate attached.</p>
+              <p className="text-sm text-status-success">{t('sdea.certificateAttached')}</p>
             ) : (
               <label className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted-foreground cursor-pointer hover:bg-muted">
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                Upload certificate
+                {t('sdea.uploadCertificate')}
                 <input
                   type="file"
                   className="hidden"
@@ -573,7 +587,7 @@ function LogDistributorTrainingModal({
 
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={onDone} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce">
-                Done
+                {t('sdea.done')}
               </button>
             </div>
           </>

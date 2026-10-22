@@ -27,6 +27,8 @@ import { ClinicalTrialApprovalsPanel } from '@/components/pv-cases/clinical-tria
 import { useAuthStore } from '@/lib/store/auth-store'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -39,20 +41,21 @@ function subjectColumns(
   revealedArms: Record<string, string | null>,
   canUnblind: boolean,
   onRevealClick: (subject: ClinicalTrialSubject) => void,
+  t: (key: MessageKey, params?: Record<string, string | number>) => string,
 ): DataTableColumn<ClinicalTrialSubject>[] {
   return [
-    { key: 'subjectCode', label: 'Subject Code', render: (v) => <span className="font-mono text-xs">{v}</span> },
-    { key: 'sex', label: 'Sex', render: (v) => <span className="capitalize">{v}</span> },
-    { key: 'ageYears', label: 'Age', render: (v) => v ?? '—' },
-    { key: 'enrolledAt', label: 'Enrolled', sortable: true, render: (v) => formatDate(v) },
+    { key: 'subjectCode', label: t('clinicalTrialDetail.columnSubjectCode'), render: (v) => <span className="font-mono text-xs">{v}</span> },
+    { key: 'sex', label: t('clinicalTrialDetail.columnSex'), render: (v) => <span className="capitalize">{v}</span> },
+    { key: 'ageYears', label: t('clinicalTrialDetail.columnAge'), render: (v) => v ?? '—' },
+    { key: 'enrolledAt', label: t('clinicalTrialDetail.columnEnrolled'), sortable: true, render: (v) => formatDate(v) },
     {
       key: 'status',
-      label: 'Status',
+      label: t('clinicalTrialDetail.columnStatus'),
       render: (v) => <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground capitalize">{v}</span>,
     },
     {
       key: 'blindingBroken',
-      label: 'Treatment Arm',
+      label: t('clinicalTrialDetail.columnTreatmentArm'),
       render: (_v, row) =>
         revealedArms[row.id] !== undefined ? (
           <span className="flex items-center gap-1 text-xs font-medium text-status-warning">
@@ -60,7 +63,8 @@ function subjectColumns(
           </span>
         ) : (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <EyeOff className="h-3.5 w-3.5" /> Blinded{row.blindingBroken ? ' (previously unblinded)' : ''}
+            <EyeOff className="h-3.5 w-3.5" /> {t('clinicalTrialDetail.blinded')}
+            {row.blindingBroken ? t('clinicalTrialDetail.previouslyUnblinded') : ''}
           </span>
         ),
     },
@@ -70,7 +74,7 @@ function subjectColumns(
       render: (_v, row) =>
         canUnblind && revealedArms[row.id] === undefined ? (
           <button onClick={() => onRevealClick(row)} className="text-xs font-medium text-safemeds-teal hover:underline whitespace-nowrap">
-            Reveal Treatment Arm
+            {t('clinicalTrialDetail.revealTreatmentArm')}
           </button>
         ) : null,
     },
@@ -83,6 +87,7 @@ interface Props {
 
 export function ClinicalTrialDetail({ trialId }: Props) {
   const router = useRouter()
+  const { t } = useTranslation()
   const companyId = useAuthStore((state) => state.currentUser?.companyId)
   const { has } = usePermissions()
   const canManage = has('pv.manage_clinical_trials')
@@ -122,10 +127,11 @@ export function ClinicalTrialDetail({ trialId }: Props) {
       const { rows } = await listRegDossiers({ clinicalTrialId: trialId, limit: 50 })
       setDossiers(rows)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load this trial’s regulatory dossiers.'))
+      setError(getErrorMessage(err, t('clinicalTrialDetail.errorLoadDossiers')))
     } finally {
       setDossiersLoading(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trialId])
 
   useEffect(() => {
@@ -141,10 +147,11 @@ export function ClinicalTrialDetail({ trialId }: Props) {
       try {
         setTrial(await getClinicalTrial(trialId))
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not load this clinical trial.'))
+        setError(getErrorMessage(err, t('clinicalTrialDetail.errorLoad')))
       } finally {
         if (!silent) setLoading(false)
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
     [trialId],
   )
@@ -160,10 +167,11 @@ export function ClinicalTrialDetail({ trialId }: Props) {
         setSubjectsTotalPages(meta.totalPages)
         setSubjectsTotal(meta.total)
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not load enrolled subjects.'))
+        setError(getErrorMessage(err, t('clinicalTrialDetail.errorLoadSubjects')))
       } finally {
         setSubjectsLoading(false)
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
     [trialId, subjectsPage, subjectsLimit],
   )
@@ -194,7 +202,7 @@ export function ClinicalTrialDetail({ trialId }: Props) {
   if (error || !trial) {
     return (
       <div className="space-y-6 p-6">
-        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error ?? 'Trial not found.'}</div>
+        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error ?? t('clinicalTrialDetail.notFound')}</div>
       </div>
     )
   }
@@ -203,16 +211,16 @@ export function ClinicalTrialDetail({ trialId }: Props) {
     try {
       const updated = await updateClinicalTrial(trial.id, { status })
       setTrial({ ...trial, ...updated })
-      setNotice(`Status updated to ${TRIAL_STATUS_LABELS[status]}.`)
+      setNotice(t('clinicalTrialDetail.statusUpdated', { status: TRIAL_STATUS_LABELS[status] }))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not update status.'))
+      setError(getErrorMessage(err, t('clinicalTrialDetail.errorUpdateStatus')))
     }
   }
 
   return (
     <div className="space-y-6 p-6">
       <button onClick={() => router.push('/clinical-trials')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to Clinical Trials
+        <ArrowLeft className="h-4 w-4" /> {t('clinicalTrialDetail.backToList')}
       </button>
 
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -246,50 +254,50 @@ export function ClinicalTrialDetail({ trialId }: Props) {
       {/* Trial-level dashboard — Stage 14's own "open SAEs, upcoming annual renewal" requirement */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Open SAEs</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('clinicalTrialDetail.openSaes')}</p>
           <p className={`mt-1 text-2xl font-display font-bold ${trial.openSaeCaseCount > 0 ? 'text-status-warning' : 'text-foreground'}`}>{trial.openSaeCaseCount}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Enrolled Subjects</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('clinicalTrialDetail.enrolledSubjects')}</p>
           <p className="mt-1 text-2xl font-display font-bold text-foreground">{trial.subjectCount}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Annual Renewal Due</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('clinicalTrialDetail.annualRenewalDue')}</p>
           <p className="mt-1 text-2xl font-display font-bold text-foreground">{formatDate(trial.annualRenewalDueAt)}</p>
-          <p className="mt-1 text-xs text-muted-foreground">AE line listing + DSUR</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('clinicalTrialDetail.aeLineListingDsur')}</p>
         </div>
       </div>
 
       {/* Trial details */}
       <div className="rounded-lg border border-border bg-card p-6">
-        <h2 className="text-sm font-semibold text-foreground mb-4">Trial Details</h2>
+        <h2 className="text-sm font-semibold text-foreground mb-4">{t('clinicalTrialDetail.trialDetails')}</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <p className="text-xs text-muted-foreground">Sponsor</p>
+            <p className="text-xs text-muted-foreground">{t('clinicalTrialDetail.sponsor')}</p>
             <p className="text-sm text-foreground">{trial.sponsor ?? '—'}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Phase</p>
+            <p className="text-xs text-muted-foreground">{t('clinicalTrialDetail.phase')}</p>
             <p className="text-sm text-foreground">{trial.phase ?? '—'}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Blinding</p>
+            <p className="text-xs text-muted-foreground">{t('clinicalTrialDetail.blinding')}</p>
             <p className="text-sm text-foreground">{BLINDING_TYPE_LABELS[trial.blindingType]}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Start Date</p>
+            <p className="text-xs text-muted-foreground">{t('clinicalTrialDetail.startDate')}</p>
             <p className="text-sm text-foreground">{formatDate(trial.startDate)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Ethics Committee</p>
+            <p className="text-xs text-muted-foreground">{t('clinicalTrialDetail.ethicsCommittee')}</p>
             <p className="text-sm text-foreground">{trial.ethicsCommitteeName ?? '—'}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Ethics Committee Contact</p>
+            <p className="text-xs text-muted-foreground">{t('clinicalTrialDetail.ethicsCommitteeContact')}</p>
             <p className="text-sm text-foreground">{trial.ethicsCommitteeContactEmail ?? '—'}</p>
           </div>
           <div className="sm:col-span-2">
-            <p className="text-xs text-muted-foreground">Clinical Trial Portal Reference</p>
+            <p className="text-xs text-muted-foreground">{t('clinicalTrialDetail.portalReference')}</p>
             <p className="text-sm text-foreground">{trial.clinicalTrialPortalReference ?? '—'}</p>
           </div>
         </div>
@@ -301,27 +309,27 @@ export function ClinicalTrialDetail({ trialId }: Props) {
         canManage={canManage}
         onRenewed={(updated) => {
           setTrial({ ...trial, ...updated })
-          setNotice('Approval renewed.')
+          setNotice(t('clinicalTrialDetail.approvalRenewed'))
         }}
       />
 
       {/* RegCloud (Phase 12) Stage 12 — Clinical Trials Regulatory Route: every CTA dossier ever filed for this trial, through the exact same reg_dossier mechanics as any other dossier. */}
       <div className="rounded-lg border border-border bg-card p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-foreground">Regulatory — Clinical Trial Application Dossiers</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('clinicalTrialDetail.regulatoryDossiers')}</h2>
           {canManageDossier && (
             <button
               onClick={() => setShowStartDossier(true)}
               className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce"
             >
-              <Plus className="h-3.5 w-3.5" /> Start CTA Dossier
+              <Plus className="h-3.5 w-3.5" /> {t('clinicalTrialDetail.startCtaDossier')}
             </button>
           )}
         </div>
         {dossiersLoading ? (
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         ) : dossiers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No Clinical Trial Application dossier has been started for this trial yet.</p>
+          <p className="text-sm text-muted-foreground">{t('clinicalTrialDetail.noDossiers')}</p>
         ) : (
           <ul className="space-y-2">
             {dossiers.map((d) => (
@@ -345,20 +353,20 @@ export function ClinicalTrialDetail({ trialId }: Props) {
       {/* Subject roster */}
       <div className="rounded-lg border border-border bg-card p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-foreground">Enrolled Subjects</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('clinicalTrialDetail.enrolledSubjects')}</h2>
           {canManage && (
             <div className="flex gap-2">
               <button
                 onClick={() => setShowBulkImport(true)}
                 className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
               >
-                <UploadCloud className="h-3.5 w-3.5" /> Bulk Import
+                <UploadCloud className="h-3.5 w-3.5" /> {t('clinicalTrialDetail.bulkImport')}
               </button>
               <button
                 onClick={() => setShowEnroll(true)}
                 className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce"
               >
-                <UserPlus className="h-3.5 w-3.5" /> Enroll Subject
+                <UserPlus className="h-3.5 w-3.5" /> {t('clinicalTrialDetail.enrollSubject')}
               </button>
             </div>
           )}
@@ -366,7 +374,7 @@ export function ClinicalTrialDetail({ trialId }: Props) {
 
         <DataTableV2<ClinicalTrialSubject>
           data={subjects}
-          columns={subjectColumns(revealedArms, canUnblind, setRevealTarget)}
+          columns={subjectColumns(revealedArms, canUnblind, setRevealTarget, t)}
           searchable={false}
           exportable={false}
           showDensityToggle={false}
@@ -379,11 +387,11 @@ export function ClinicalTrialDetail({ trialId }: Props) {
           onRowsPerPageChange={handleSubjectsRowsPerPageChange}
           rowsPerPageOptions={[10, 25, 50, 100]}
         />
-        {!subjectsLoading && subjects.length === 0 && <p className="text-sm text-muted-foreground py-6 text-center">No subjects enrolled yet.</p>}
+        {!subjectsLoading && subjects.length === 0 && <p className="text-sm text-muted-foreground py-6 text-center">{t('clinicalTrialDetail.noSubjects')}</p>}
 
         {!canUnblind && (
           <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <ShieldAlert className="h-3.5 w-3.5" /> Revealing a treatment-arm assignment requires the QPPV-held unblinding permission and a fresh electronic signature.
+            <ShieldAlert className="h-3.5 w-3.5" /> {t('clinicalTrialDetail.unblindRequiresSignature')}
           </p>
         )}
       </div>
@@ -437,7 +445,7 @@ export function ClinicalTrialDetail({ trialId }: Props) {
         <SignatureModal
           isOpen={true}
           onClose={() => setRevealTarget(null)}
-          documentTitle={`Reveal treatment arm — subject ${revealTarget.subjectCode}`}
+          documentTitle={t('clinicalTrialDetail.revealTitle', { code: revealTarget.subjectCode })}
           documentId={revealTarget.id}
           onSigned={async ({ signatureToken, intentStatement }) => {
             const subject = revealTarget
@@ -453,6 +461,7 @@ export function ClinicalTrialDetail({ trialId }: Props) {
 }
 
 function EnrollSubjectModal({ trialId, onClose, onEnrolled }: { trialId: string; onClose: () => void; onEnrolled: () => void }) {
+  const { t } = useTranslation()
   const [subjectCode, setSubjectCode] = useState('')
   const [sex, setSex] = useState<PatientSex>('unknown')
   const [ageYears, setAgeYears] = useState('')
@@ -477,7 +486,7 @@ function EnrollSubjectModal({ trialId, onClose, onEnrolled }: { trialId: string;
       })
       onEnrolled()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not enroll this subject.'))
+      setError(getErrorMessage(err, t('clinicalTrialDetail.errorEnroll')))
       setSubmitting(false)
     }
   }
@@ -485,44 +494,44 @@ function EnrollSubjectModal({ trialId, onClose, onEnrolled }: { trialId: string;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Enroll Trial Subject</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('clinicalTrialDetail.enrollModalTitle')}</h2>
 
         <div>
-          <label className={labelClass}>Subject Code *</label>
-          <input value={subjectCode} onChange={(e) => setSubjectCode(e.target.value)} placeholder="e.g. SUBJ-01 — never a name" className={inputClass} />
+          <label className={labelClass}>{t('clinicalTrialDetail.subjectCode')}</label>
+          <input value={subjectCode} onChange={(e) => setSubjectCode(e.target.value)} placeholder={t('clinicalTrialDetail.subjectCodePlaceholder')} className={inputClass} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Sex</label>
+            <label className={labelClass}>{t('clinicalTrialDetail.sex')}</label>
             <select value={sex} onChange={(e) => setSex(e.target.value as PatientSex)} className={inputClass}>
-              <option value="unknown">Unknown</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
+              <option value="unknown">{t('clinicalTrialDetail.unknown')}</option>
+              <option value="male">{t('clinicalTrialDetail.male')}</option>
+              <option value="female">{t('clinicalTrialDetail.female')}</option>
             </select>
           </div>
           <div>
-            <label className={labelClass}>Age (years)</label>
+            <label className={labelClass}>{t('clinicalTrialDetail.ageYears')}</label>
             <input type="number" min={0} max={130} value={ageYears} onChange={(e) => setAgeYears(e.target.value)} className={inputClass} />
           </div>
         </div>
 
         <div>
-          <label className={labelClass}>Enrollment Date *</label>
+          <label className={labelClass}>{t('clinicalTrialDetail.enrollmentDate')}</label>
           <input type="date" value={enrolledAt} onChange={(e) => setEnrolledAt(e.target.value)} className={inputClass} />
         </div>
 
         <div>
-          <label className={labelClass}>Treatment Arm (if already known)</label>
-          <input value={treatmentArm} onChange={(e) => setTreatmentArm(e.target.value)} placeholder="e.g. Arm A (active, 500mg)" className={inputClass} />
-          <p className="mt-1 text-xs text-muted-foreground">Encrypted at rest and blinded by default — only a signature-gated reveal can ever show it again.</p>
+          <label className={labelClass}>{t('clinicalTrialDetail.treatmentArmIfKnown')}</label>
+          <input value={treatmentArm} onChange={(e) => setTreatmentArm(e.target.value)} placeholder={t('clinicalTrialDetail.treatmentArmPlaceholder')} className={inputClass} />
+          <p className="mt-1 text-xs text-muted-foreground">{t('clinicalTrialDetail.treatmentArmHelp')}</p>
         </div>
 
         {error && <p className="text-sm text-status-error">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('clinicalTrialDetail.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -530,7 +539,7 @@ function EnrollSubjectModal({ trialId, onClose, onEnrolled }: { trialId: string;
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Enroll
+            {t('clinicalTrialDetail.enroll')}
           </button>
         </div>
       </div>
@@ -555,6 +564,7 @@ function StartCtaDossierModal({
   onClose: () => void
   onCreated: (dossierId: string) => void
 }) {
+  const { t } = useTranslation()
   const [products, setProducts] = useState<Product[]>([])
   const [authorities, setAuthorities] = useState<{ id: string; name: string; code: string }[]>([])
   const [loadingOptions, setLoadingOptions] = useState(true)
@@ -574,8 +584,9 @@ function StartCtaDossierModal({
         setAuthorities(flatAuthorities)
         setAuthorityId(flatAuthorities[0]?.id ?? '')
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load products/authorities.')))
+      .catch((err) => setError(getErrorMessage(err, t('clinicalTrialDetail.errorLoadProductsAuthorities'))))
       .finally(() => setLoadingOptions(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countryId])
 
   const isValid = productId.length > 0 && authorityId.length > 0 && productClass.trim().length > 0
@@ -588,7 +599,7 @@ function StartCtaDossierModal({
       const created = await createRegDossier({ productId, authorityId, productClass: productClass.trim(), clinicalTrialId: trialId })
       onCreated(created.id)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not start this dossier.'))
+      setError(getErrorMessage(err, t('clinicalTrialDetail.errorStartDossier')))
       setSubmitting(false)
     }
   }
@@ -596,16 +607,16 @@ function StartCtaDossierModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Start Clinical Trial Application Dossier</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('clinicalTrialDetail.startDossierModalTitle')}</h2>
 
         {loadingOptions ? (
           <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
         ) : (
           <>
             <div>
-              <label className={labelClass}>Product (the IMP)</label>
+              <label className={labelClass}>{t('clinicalTrialDetail.productImp')}</label>
               <select value={productId} onChange={(e) => setProductId(e.target.value)} className={inputClass}>
-                {products.length === 0 && <option value="">No products yet — add one first</option>}
+                {products.length === 0 && <option value="">{t('clinicalTrialDetail.noProductsYet')}</option>}
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.brandName}
@@ -614,9 +625,9 @@ function StartCtaDossierModal({
               </select>
             </div>
             <div>
-              <label className={labelClass}>Authority</label>
+              <label className={labelClass}>{t('clinicalTrialDetail.authority')}</label>
               <select value={authorityId} onChange={(e) => setAuthorityId(e.target.value)} className={inputClass}>
-                {authorities.length === 0 && <option value="">No configured authorities for this trial’s country</option>}
+                {authorities.length === 0 && <option value="">{t('clinicalTrialDetail.noConfiguredAuthorities')}</option>}
                 {authorities.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name} ({a.code})
@@ -625,7 +636,7 @@ function StartCtaDossierModal({
               </select>
             </div>
             <div>
-              <label className={labelClass}>Product class</label>
+              <label className={labelClass}>{t('clinicalTrialDetail.productClass')}</label>
               <ProductClassPicker key={authorityId} authorityId={authorityId || undefined} value={productClass} onChange={setProductClass} className={inputClass} />
             </div>
           </>
@@ -635,7 +646,7 @@ function StartCtaDossierModal({
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('clinicalTrialDetail.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -643,7 +654,7 @@ function StartCtaDossierModal({
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Start Dossier
+            {t('clinicalTrialDetail.startDossier')}
           </button>
         </div>
       </div>

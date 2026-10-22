@@ -4,8 +4,10 @@ import { useState, FormEvent } from 'react'
 import { ChevronLeft, CheckCircle2, Loader2, Mail } from 'lucide-react'
 import { AuthLayout } from '@/components/layout/auth-layout'
 import { forgotPassword } from '@/lib/api/password'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export default function ForgotPasswordPage() {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
@@ -38,18 +40,17 @@ export default function ForgotPasswordPage() {
             </div>
           </div>
           <div>
-            <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">Check your email</h1>
-            <p className="text-sm text-[var(--text-muted)]">
-              If an account exists for <span className="font-medium text-[var(--text)]">{email}</span>, a password
-              reset link has been sent. The link expires in 30 minutes.
-            </p>
+            <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">
+              {t('auth.forgotPassword.checkEmailTitle')}
+            </h1>
+            <p className="text-sm text-[var(--text-muted)]">{t('auth.forgotPassword.checkEmailBody', { email })}</p>
           </div>
           <a
             href="/login"
             className="inline-flex items-center gap-2 text-sm text-[var(--primary)] hover:opacity-90 font-medium"
           >
             <ChevronLeft className="h-4 w-4" />
-            Back to sign in
+            {t('auth.login.backToSignIn')}
           </a>
         </div>
       </AuthLayout>
@@ -59,16 +60,14 @@ export default function ForgotPasswordPage() {
   return (
     <AuthLayout>
       <div className="mb-8">
-        <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">Reset your password</h1>
-        <p className="text-sm text-[var(--text-muted)]">
-          Enter your account email and we&apos;ll send you a link to reset your password.
-        </p>
+        <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">{t('auth.forgotPassword.title')}</h1>
+        <p className="text-sm text-[var(--text-muted)]">{t('auth.forgotPassword.subtitle')}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
           <label htmlFor="email" className="block text-sm font-medium text-[var(--text)]">
-            Work email
+            {t('auth.login.workEmail')}
           </label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-muted)] pointer-events-none" />
@@ -91,14 +90,14 @@ export default function ForgotPasswordPage() {
           className="w-full h-10 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          Send reset link
+          {t('auth.forgotPassword.sendResetLink')}
         </button>
       </form>
 
       <div className="mt-6 pt-6 border-t border-[var(--border)] text-center">
         <a href="/login" className="inline-flex items-center gap-2 text-sm text-[var(--primary)] hover:opacity-90 font-medium">
           <ChevronLeft className="h-4 w-4" />
-          Back to sign in
+          {t('auth.login.backToSignIn')}
         </a>
       </div>
     </AuthLayout>

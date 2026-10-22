@@ -8,6 +8,7 @@ import { getErrorMessage } from '@/lib/api/client'
 import { uploadDocument } from '@/lib/api/documents'
 import { useAuthStore } from '@/lib/store/auth-store'
 import { BLINDING_TYPE_LABELS, ClinicalTrialBlindingType, createClinicalTrial } from '@/lib/api/clinical-trials'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -34,6 +35,7 @@ function ApprovalUpload({
   onApprovalDate: (date: string) => void
   onExpiryDate: (date: string) => void
 }) {
+  const { t } = useTranslation()
   const [uploading, setUploading] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -47,7 +49,7 @@ function ApprovalUpload({
       onDocumentId(version.documentId)
       setFileName(file.name)
     } catch (err) {
-      setError(getErrorMessage(err, `Could not upload ${label.toLowerCase()}.`))
+      setError(getErrorMessage(err, t('clinicalTrials.newForm.errorUpload', { label: label.toLowerCase() })))
     } finally {
       setUploading(false)
     }
@@ -67,25 +69,25 @@ function ApprovalUpload({
         {uploading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         {documentId && !uploading && (
           <span className="flex items-center gap-1 text-xs text-status-success">
-            <CheckCircle2 className="h-3.5 w-3.5" /> {fileName ?? 'Uploaded'}
+            <CheckCircle2 className="h-3.5 w-3.5" /> {fileName ?? t('clinicalTrials.newForm.uploaded')}
           </span>
         )}
       </div>
       {error && <p className="text-xs text-status-error">{error}</p>}
       {!documentId && !uploading && (
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
-          <UploadCloud className="h-3.5 w-3.5" /> Required before this trial can be created.
+          <UploadCloud className="h-3.5 w-3.5" /> {t('clinicalTrials.newForm.requiredBeforeCreate')}
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={labelClass}>Date of Approval *</label>
+          <label className={labelClass}>{t('clinicalTrials.newForm.dateOfApproval')}</label>
           <input type="date" value={approvalDate} onChange={(e) => onApprovalDate(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Expiry Date</label>
+          <label className={labelClass}>{t('clinicalTrials.newForm.expiryDate')}</label>
           <input type="date" value={expiryDate} onChange={(e) => onExpiryDate(e.target.value)} className={inputClass} />
-          <p className="mt-1 text-xs text-muted-foreground">Leave blank if the approval has no expiry.</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('clinicalTrials.newForm.leaveBlankNoExpiry')}</p>
         </div>
       </div>
     </div>
@@ -93,6 +95,7 @@ function ApprovalUpload({
 }
 
 export function NewClinicalTrialForm() {
+  const { t } = useTranslation()
   const router = useRouter()
   const companyId = useAuthStore((state) => state.currentUser?.companyId)
   const [countries, setCountries] = useState<Country[]>([])
@@ -165,7 +168,7 @@ export function NewClinicalTrialForm() {
       })
       router.push(`/clinical-trials/${trial.id}`)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this clinical trial.'))
+      setError(getErrorMessage(err, t('clinicalTrials.newForm.errorCreate')))
       setSubmitting(false)
     }
   }
@@ -173,40 +176,38 @@ export function NewClinicalTrialForm() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-6">
       <button onClick={() => router.push('/clinical-trials')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to Clinical Trials
+        <ArrowLeft className="h-4 w-4" /> {t('clinicalTrials.newForm.backToList')}
       </button>
 
       <div>
-        <h1 className="text-2xl font-display font-bold text-foreground">New Clinical Trial</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Sets up the trial a clinical-trial SAE case links back to — required before intake for the clinical_study channel.
-        </p>
+        <h1 className="text-2xl font-display font-bold text-foreground">{t('clinicalTrials.newForm.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('clinicalTrials.newForm.subtitle')}</p>
       </div>
 
       <div className="rounded-lg border border-border bg-card p-6 space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className={labelClass}>Trial / Protocol Reference *</label>
+            <label className={labelClass}>{t('clinicalTrials.newForm.trialReference')}</label>
             <input value={trialReference} onChange={(e) => setTrialReference(e.target.value)} placeholder="e.g. NCT-0001" className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Phase</label>
+            <label className={labelClass}>{t('clinicalTrials.newForm.phase')}</label>
             <input value={phase} onChange={(e) => setPhase(e.target.value)} placeholder="e.g. Phase II/III" className={inputClass} />
           </div>
         </div>
 
         <div>
-          <label className={labelClass}>Trial Name *</label>
+          <label className={labelClass}>{t('clinicalTrials.newForm.trialName')}</label>
           <input value={trialName} onChange={(e) => setTrialName(e.target.value)} className={inputClass} />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className={labelClass}>Sponsor</label>
+            <label className={labelClass}>{t('clinicalTrials.newForm.sponsor')}</label>
             <input value={sponsor} onChange={(e) => setSponsor(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Blinding</label>
+            <label className={labelClass}>{t('clinicalTrials.newForm.blinding')}</label>
             <select value={blindingType} onChange={(e) => setBlindingType(e.target.value as ClinicalTrialBlindingType)} className={inputClass}>
               {Object.entries(BLINDING_TYPE_LABELS).map(([key, label]) => (
                 <option key={key} value={key}>
@@ -219,7 +220,7 @@ export function NewClinicalTrialForm() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className={labelClass}>Country *</label>
+            <label className={labelClass}>{t('clinicalTrials.newForm.country')}</label>
             <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className={inputClass}>
               {countries.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -229,15 +230,15 @@ export function NewClinicalTrialForm() {
             </select>
           </div>
           <div>
-            <label className={labelClass}>Start Date *</label>
+            <label className={labelClass}>{t('clinicalTrials.newForm.startDate')}</label>
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputClass} />
           </div>
         </div>
 
         <div className="border-t border-border pt-5 space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Approvals (required)</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('clinicalTrials.newForm.approvalsRequired')}</p>
           <ApprovalUpload
-            label="Regulatory Authority Approval"
+            label={t('clinicalTrials.newForm.regulatoryAuthorityApproval')}
             companyId={companyId ?? undefined}
             documentId={regulatoryApprovalDocumentId}
             approvalDate={regulatoryApprovalDate}
@@ -247,7 +248,7 @@ export function NewClinicalTrialForm() {
             onExpiryDate={setRegulatoryApprovalExpiryDate}
           />
           <ApprovalUpload
-            label="Ethics Committee Approval"
+            label={t('clinicalTrials.newForm.ethicsCommitteeApproval')}
             companyId={companyId ?? undefined}
             documentId={ethicsApprovalDocumentId}
             approvalDate={ethicsApprovalDate}
@@ -259,26 +260,26 @@ export function NewClinicalTrialForm() {
         </div>
 
         <div className="border-t border-border pt-5 space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ethics Committee & Portal</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('clinicalTrials.newForm.ethicsCommitteeAndPortal')}</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Ethics Committee Name</label>
+              <label className={labelClass}>{t('clinicalTrials.newForm.ethicsCommitteeName')}</label>
               <input value={ethicsCommitteeName} onChange={(e) => setEthicsCommitteeName(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Ethics Committee Contact Email</label>
+              <label className={labelClass}>{t('clinicalTrials.newForm.ethicsCommitteeContactEmail')}</label>
               <input type="email" value={ethicsCommitteeContactEmail} onChange={(e) => setEthicsCommitteeContactEmail(e.target.value)} className={inputClass} />
             </div>
           </div>
           <div>
-            <label className={labelClass}>Clinical Trial Portal Reference</label>
+            <label className={labelClass}>{t('clinicalTrials.newForm.portalReference')}</label>
             <input
               value={clinicalTrialPortalReference}
               onChange={(e) => setClinicalTrialPortalReference(e.target.value)}
-              placeholder="A URL or submission ID on the sponsor's own portal"
+              placeholder={t('clinicalTrials.newForm.portalReferencePlaceholder')}
               className={inputClass}
             />
-            <p className="mt-1 text-xs text-muted-foreground">SafeMeds never integrates with the sponsor's portal directly — this is a reference only, matching Stage 12's E2B "no live gateway" posture.</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('clinicalTrials.newForm.portalReferenceHelp')}</p>
           </div>
         </div>
 
@@ -286,7 +287,7 @@ export function NewClinicalTrialForm() {
 
         <div className="flex justify-end gap-3 border-t border-border pt-5">
           <button onClick={() => router.push('/clinical-trials')} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -294,7 +295,7 @@ export function NewClinicalTrialForm() {
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create Trial
+            {t('clinicalTrials.newForm.createTrial')}
           </button>
         </div>
       </div>

@@ -9,6 +9,7 @@ import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
 import { NewSignalModal } from '@/components/pv-cases/new-signal-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const STATUS_STYLES: Record<SignalStatus, string> = {
   detected: 'bg-status-warning/10 text-status-warning',
@@ -35,6 +36,7 @@ function formatDate(value: string): string {
  * search/sort only.
  */
 export function PvSignalsList() {
+  const { t } = useTranslation()
   const router = useRouter()
   const { has, hasAny } = usePermissions()
   const canView = hasAny('pv.manage_signals', 'pv.view_all')
@@ -53,7 +55,7 @@ export function PvSignalsList() {
     try {
       setSignals(await listSignals())
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load signals.'))
+      setError(getErrorMessage(err, t('signals.list.errorLoad')))
     } finally {
       setLoading(false)
     }
@@ -69,10 +71,16 @@ export function PvSignalsList() {
     setError(null)
     try {
       const result = await scanForSignals()
-      setNotice(result.signalsCreated > 0 ? `Detected ${result.signalsCreated} new signal${result.signalsCreated === 1 ? '' : 's'}.` : 'No new patterns detected.')
+      setNotice(
+        result.signalsCreated > 0
+          ? result.signalsCreated === 1
+            ? t('signals.list.detectedOne')
+            : t('signals.list.detectedMany', { count: result.signalsCreated })
+          : t('signals.list.noNewPatterns'),
+      )
       await load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not run detection.'))
+      setError(getErrorMessage(err, t('signals.list.errorRunDetection')))
     } finally {
       setScanning(false)
     }
@@ -81,22 +89,22 @@ export function PvSignalsList() {
   if (!canView) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Signals</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('signals.list.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view signals. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('signals.list.noPermission')}</p>
         </div>
       </div>
     )
   }
 
   const columns: DataTableColumn<Signal>[] = [
-    { key: 'title', label: 'Title', render: (v) => <span className="font-medium text-foreground">{v as string}</span> },
-    { key: 'productIdentifier', label: 'Product' },
-    { key: 'batchNumber', label: 'Batch', render: (v) => (v as string) || 'All batches' },
+    { key: 'title', label: t('signals.list.columnTitle'), render: (v) => <span className="font-medium text-foreground">{v as string}</span> },
+    { key: 'productIdentifier', label: t('signals.list.columnProduct') },
+    { key: 'batchNumber', label: t('signals.list.columnBatch'), render: (v) => (v as string) || t('signals.list.allBatches') },
     {
       key: 'status',
-      label: 'Status',
+      label: t('signals.list.columnStatus'),
       render: (v) => (
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${STATUS_STYLES[v as SignalStatus] ?? 'bg-muted text-muted-foreground'}`}>
           {SIGNAL_STATUS_LABELS[v as SignalStatus] ?? (v as string)}
@@ -105,20 +113,20 @@ export function PvSignalsList() {
     },
     {
       key: 'detectionMethod',
-      label: 'Detected via',
-      render: (v) => (v === 'pattern_flag' ? 'Automatic pattern flag' : 'Manual'),
+      label: t('signals.list.columnDetectedVia'),
+      render: (v) => (v === 'pattern_flag' ? t('signals.list.automaticPatternFlag') : t('signals.list.manual')),
     },
-    { key: 'strengthOfEvidenceCaseCount', label: 'Cases', render: (v) => (v === null || v === undefined ? '—' : (v as number)) },
-    { key: 'createdAt', label: 'Raised', render: (v) => formatDate(v as string) },
+    { key: 'strengthOfEvidenceCaseCount', label: t('signals.list.columnCases'), render: (v) => (v === null || v === undefined ? '—' : (v as number)) },
+    { key: 'createdAt', label: t('signals.list.columnRaised'), render: (v) => formatDate(v as string) },
   ]
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Signals</h1>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('signals.list.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {signals.length} {signals.length === 1 ? 'signal' : 'signals'} · pattern-flag detection plus manual signal management (GVP Module IX)
+            {signals.length === 1 ? t('signals.list.subtitleOne') : t('signals.list.subtitleMany', { count: signals.length })}
           </p>
         </div>
         {canManage && (
@@ -129,14 +137,14 @@ export function PvSignalsList() {
               className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
             >
               {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Run Detection Now
+              {t('signals.list.runDetectionNow')}
             </button>
             <button
               onClick={() => setShowNew(true)}
               className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
             >
               <Plus className="h-4 w-4" />
-              Raise Signal
+              {t('signals.list.raiseSignal')}
             </button>
           </div>
         )}
@@ -159,7 +167,7 @@ export function PvSignalsList() {
       {!loading && signals.length === 0 && (
         <div className="rounded-lg border border-dashed border-border p-12 text-center">
           <Radar className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">No signals yet. Automatic detection runs daily, or raise one manually.</p>
+          <p className="text-sm text-muted-foreground">{t('signals.list.noSignalsYet')}</p>
         </div>
       )}
 

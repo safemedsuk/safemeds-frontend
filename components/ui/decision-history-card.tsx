@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslation } from '@/lib/i18n/use-translation'
+
 function formatDateTime(value: string): string {
   return new Date(value).toLocaleString()
 }
@@ -29,12 +31,13 @@ interface Props {
  * `transitionHistory` via the exact same mechanism.
  */
 export function DecisionHistoryCard({ entries, resolveLabel }: Props) {
+  const { t } = useTranslation()
   return (
     <div className="rounded-lg border border-border bg-card p-5">
-      <h2 className="mb-1 text-sm font-semibold text-foreground">Decision History</h2>
-      <p className="mb-3 text-xs text-muted-foreground">Every lifecycle transition, with its documented rationale where one was given — sourced live from the audit trail.</p>
+      <h2 className="mb-1 text-sm font-semibold text-foreground">{t('decisionHistory.title')}</h2>
+      <p className="mb-3 text-xs text-muted-foreground">{t('decisionHistory.subtitle')}</p>
       {entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No transitions recorded yet.</p>
+        <p className="text-sm text-muted-foreground">{t('decisionHistory.noTransitions')}</p>
       ) : (
         <ul className="space-y-3">
           {entries.map((entry, idx) => (
@@ -44,7 +47,7 @@ export function DecisionHistoryCard({ entries, resolveLabel }: Props) {
                 {resolveLabel(entry.toStateKey)}
               </p>
               <p className="text-xs text-muted-foreground">
-                {entry.actorName ?? 'Unknown actor'} · {formatDateTime(entry.occurredAt)}
+                {entry.actorName ?? t('decisionHistory.unknownActor')} · {formatDateTime(entry.occurredAt)}
               </p>
               {entry.note && <p className="mt-1 text-sm text-foreground">{entry.note}</p>}
             </li>

@@ -9,19 +9,22 @@ import { ApiRequestError, getErrorMessage } from '@/lib/api/client'
 import { getAllCountries, type Country } from '@/lib/api/countries'
 import { registerCompany, resendCode, uploadLicence, verifyEmail, type CompanyType } from '@/lib/api/auth'
 import { getPasswordRequirements } from '@/lib/password-requirements'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
-const COMPANY_TYPES: Array<{ id: CompanyType; label: string; icon: string }> = [
-  { id: 'manufacturer', label: 'Pharmaceutical Manufacturer', icon: '🏭' },
-  { id: 'importer_distributor', label: 'Importer / Wholesale Distributor', icon: '🚚' },
-  { id: 'pharmacy_chain', label: 'Pharmacy / Retail Chain', icon: '💊' },
-  { id: 'e_pharmacy', label: 'E-Pharmacy', icon: '📱' },
-  { id: 'medical_facility', label: 'Medical Facility (Clinic / Hospital)', icon: '🏥' },
-  { id: 'ngo_social_health', label: 'NGO / Social Health Organization', icon: '🤝' },
-  { id: 'research_institution', label: 'Research Institution', icon: '🔬' },
-  { id: 'other', label: 'Other', icon: '📋' },
+const COMPANY_TYPES: Array<{ id: CompanyType; labelKey: MessageKey; icon: string }> = [
+  { id: 'manufacturer', labelKey: 'auth.register.companyType.manufacturer', icon: '🏭' },
+  { id: 'importer_distributor', labelKey: 'auth.register.companyType.importerDistributor', icon: '🚚' },
+  { id: 'pharmacy_chain', labelKey: 'auth.register.companyType.pharmacyChain', icon: '💊' },
+  { id: 'e_pharmacy', labelKey: 'auth.register.companyType.ePharmacy', icon: '📱' },
+  { id: 'medical_facility', labelKey: 'auth.register.companyType.medicalFacility', icon: '🏥' },
+  { id: 'ngo_social_health', labelKey: 'auth.register.companyType.ngoSocialHealth', icon: '🤝' },
+  { id: 'research_institution', labelKey: 'auth.register.companyType.researchInstitution', icon: '🔬' },
+  { id: 'other', labelKey: 'auth.register.companyType.other', icon: '📋' },
 ]
 
 export default function RegisterPage() {
+  const { t } = useTranslation()
   const router = useRouter()
   const { registrationDraft, setRegistrationDraft, resetRegistration } = useAuthStore()
 
@@ -57,8 +60,9 @@ export default function RegisterPage() {
   useEffect(() => {
     getAllCountries()
       .then(setCountries)
-      .catch(() => setError('Could not load the country list. Please refresh and try again.'))
+      .catch(() => setError(t('auth.register.errorLoadCountries')))
       .finally(() => setCountriesLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // This page always starts the wizard at step 1 with blank fields (there's
@@ -102,14 +106,14 @@ export default function RegisterPage() {
     try {
       if (step === 1) {
         if (!canProceedStep1) {
-          setError('Please fill in all company details')
+          setError(t('auth.register.errorFillCompanyDetails'))
           setLoading(false)
           return
         }
         setStep(2)
       } else if (step === 2) {
         if (!canProceedStep2) {
-          setError('Please complete all required fields and agree to terms')
+          setError(t('auth.register.errorFillRequiredFields'))
           setLoading(false)
           return
         }
@@ -140,7 +144,7 @@ export default function RegisterPage() {
         setStep(3)
       } else if (step === 3) {
         if (verificationCode.length !== 6) {
-          setError('Please enter a valid 6-digit code')
+          setError(t('auth.register.errorInvalidCode'))
           setLoading(false)
           return
         }
@@ -150,7 +154,7 @@ export default function RegisterPage() {
       }
     } catch (err) {
       setUploadProgress(null)
-      setError(getErrorMessage(err, 'An error occurred. Please try again.'))
+      setError(getErrorMessage(err, t('auth.register.errorGeneric')))
     } finally {
       setLoading(false)
     }
@@ -168,7 +172,7 @@ export default function RegisterPage() {
         const details = err.details as { retryAfterSeconds?: number } | undefined
         setResendCooldown(details?.retryAfterSeconds ?? 60)
       } else {
-        setError(getErrorMessage(err, 'Could not resend the code. Please try again.'))
+        setError(getErrorMessage(err, t('auth.register.errorResendFailed')))
       }
     }
   }
@@ -207,10 +211,10 @@ export default function RegisterPage() {
                   s <= step ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'
                 }`}
               >
-                {s === 1 && 'Company'}
-                {s === 2 && 'Account'}
-                {s === 3 && 'Verify'}
-                {s === 4 && 'Complete'}
+                {s === 1 && t('auth.register.stepCompany')}
+                {s === 2 && t('auth.register.stepAccount')}
+                {s === 3 && t('auth.register.stepVerify')}
+                {s === 4 && t('auth.register.stepComplete')}
               </p>
             </div>
           ))}
@@ -220,12 +224,12 @@ export default function RegisterPage() {
         {step === 1 && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-display font-bold text-[var(--text)]">Company Information</h2>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Tell us about your pharmaceutical organization</p>
+              <h2 className="text-2xl font-display font-bold text-[var(--text)]">{t('auth.register.companyInfoTitle')}</h2>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">{t('auth.register.companyInfoSubtitle')}</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[var(--text)] mb-2">Company Name</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">{t('auth.register.companyName')}</label>
               <input
                 type="text"
                 value={companyName}
@@ -236,7 +240,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[var(--text)] mb-2">Company Email</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">{t('auth.register.companyEmail')}</label>
               <input
                 type="email"
                 value={companyEmail}
@@ -244,13 +248,11 @@ export default function RegisterPage() {
                 placeholder="regulatory@pharmatech.co.ke"
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
               />
-              <p className="mt-1.5 text-xs text-[var(--text-muted)]">
-                A company-level contact address, separate from your own login — where renewal and other deadline reminders will be sent.
-              </p>
+              <p className="mt-1.5 text-xs text-[var(--text-muted)]">{t('auth.register.companyEmailHelp')}</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[var(--text)] mb-3">Company Type</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-3">{t('auth.register.companyTypeLabel')}</label>
               <div className="grid grid-cols-1 gap-3">
                 {COMPANY_TYPES.map(type => (
                   <button
@@ -266,7 +268,7 @@ export default function RegisterPage() {
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{type.icon}</span>
                       <div>
-                        <p className="font-medium text-[var(--text)]">{type.label}</p>
+                        <p className="font-medium text-[var(--text)]">{t(type.labelKey)}</p>
                       </div>
                     </div>
                   </button>
@@ -276,14 +278,14 @@ export default function RegisterPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-[var(--text)] mb-2">Regulatory Country</label>
+                <label className="block text-sm font-medium text-[var(--text)] mb-2">{t('auth.register.regulatoryCountry')}</label>
                 <select
                   value={countryId}
                   onChange={e => setCountryId(e.target.value)}
                   disabled={countriesLoading}
                   className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)] disabled:opacity-50"
                 >
-                  <option value="">{countriesLoading ? 'Loading countries...' : 'Select country...'}</option>
+                  <option value="">{countriesLoading ? t('auth.register.loadingCountries') : t('auth.register.selectCountry')}</option>
                   {countries.map(country => (
                     <option key={country.id} value={country.id}>
                       {country.name}
@@ -293,7 +295,7 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--text)] mb-2">Licence Number</label>
+                <label className="block text-sm font-medium text-[var(--text)] mb-2">{t('auth.register.licenceNumber')}</label>
                 <input
                   type="text"
                   value={licenceNumber}
@@ -305,7 +307,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[var(--text)] mb-2">License Document</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">{t('auth.register.licenseDocument')}</label>
               <div className="border-2 border-dashed border-[var(--border)] rounded-lg p-6 bg-[var(--surface)]/50 hover:bg-[var(--surface)] transition-colors">
                 {licenseFile ? (
                   <div className="flex items-center justify-between">
@@ -331,8 +333,8 @@ export default function RegisterPage() {
                 ) : (
                   <div className="text-center">
                     <Upload className="h-8 w-8 text-[var(--text-muted)] mx-auto mb-3" />
-                    <p className="text-sm font-medium text-[var(--text)]">Upload license document</p>
-                    <p className="text-xs text-[var(--text-muted)] mt-1">PDF, JPG or PNG up to 10MB</p>
+                    <p className="text-sm font-medium text-[var(--text)]">{t('auth.register.uploadLicenseDocument')}</p>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">{t('auth.register.uploadHint')}</p>
                     <input
                       type="file"
                       accept=".pdf,.jpg,.jpeg,.png"
@@ -341,7 +343,7 @@ export default function RegisterPage() {
                         if (file && file.size <= 10 * 1024 * 1024) {
                           setLicenseFile(file)
                         } else if (file) {
-                          setError('File must be under 10MB')
+                          setError(t('auth.register.errorFileTooLarge'))
                         }
                       }}
                       className="hidden"
@@ -353,7 +355,7 @@ export default function RegisterPage() {
                         onClick={() => document.getElementById('license-upload')?.click()}
                         className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors"
                       >
-                        Select file
+                        {t('auth.register.selectFile')}
                       </button>
                     </label>
                   </div>
@@ -374,12 +376,12 @@ export default function RegisterPage() {
         {step === 2 && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-display font-bold text-[var(--text)]">Administrator Account</h2>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Create the primary admin account for your company</p>
+              <h2 className="text-2xl font-display font-bold text-[var(--text)]">{t('auth.register.adminAccountTitle')}</h2>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">{t('auth.register.adminAccountSubtitle')}</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[var(--text)] mb-2">Full Name</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">{t('auth.register.fullName')}</label>
               <input
                 type="text"
                 value={adminName}
@@ -390,7 +392,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[var(--text)] mb-2">Email Address</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">{t('auth.register.emailAddress')}</label>
               <input
                 type="email"
                 value={adminEmail}
@@ -402,7 +404,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[var(--text)] mb-2">Phone Number</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">{t('auth.register.phoneNumber')}</label>
               <input
                 type="tel"
                 value={adminPhone}
@@ -414,13 +416,13 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[var(--text)] mb-2">Password</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">{t('auth.register.password')}</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={adminPassword}
                   onChange={e => setAdminPassword(e.target.value)}
-                  placeholder="Enter secure password"
+                  placeholder={t('auth.register.passwordPlaceholder')}
                   autoComplete="new-password"
                   className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)] pr-10"
                 />
@@ -450,7 +452,7 @@ export default function RegisterPage() {
                         req.check(adminPassword) ? 'text-status-success' : 'text-[var(--text-muted)]'
                       }
                     >
-                      {req.label}
+                      {t(req.labelKey, req.labelParams)}
                     </span>
                   </div>
                 ))}
@@ -458,12 +460,12 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[var(--text)] mb-2">Confirm Password</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">{t('auth.register.confirmPassword')}</label>
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={adminPasswordConfirm}
                 onChange={e => setAdminPasswordConfirm(e.target.value)}
-                placeholder="Confirm password"
+                placeholder={t('auth.register.confirmPasswordPlaceholder')}
                 autoComplete="new-password"
                 className={`w-full px-3 py-2 border rounded-lg bg-[var(--bg)] text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-offset-0 ${
                   adminPasswordConfirm
@@ -474,7 +476,7 @@ export default function RegisterPage() {
                 }`}
               />
               {adminPasswordConfirm && !passwordsMatch && (
-                <p className="mt-1 text-xs text-status-error">Passwords do not match</p>
+                <p className="mt-1 text-xs text-status-error">{t('auth.register.passwordsDoNotMatch')}</p>
               )}
             </div>
 
@@ -487,16 +489,16 @@ export default function RegisterPage() {
                 className="mt-1 h-4 w-4 rounded border-[var(--border)] bg-[var(--bg)] cursor-pointer accent-[var(--primary)]"
               />
               <label htmlFor="terms" className="text-sm text-[var(--text-muted)] cursor-pointer">
-                I agree to the SafeMeds <span className="text-[var(--text)] font-medium">Terms of Service</span> and{' '}
-                <span className="text-[var(--text)] font-medium">Data Processing Agreement</span>, and confirm that I am
-                authorized to register this company.
+                {t('auth.register.agreeTermsPrefix')} <span className="text-[var(--text)] font-medium">{t('auth.register.termsOfService')}</span>{' '}
+                {t('auth.register.and')} <span className="text-[var(--text)] font-medium">{t('auth.register.dataProcessingAgreement')}</span>
+                {t('auth.register.agreeTermsSuffix')}
               </label>
             </div>
 
             {uploadProgress !== null && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-[var(--text-muted)]">
-                  <span>Uploading licence document…</span>
+                  <span>{t('auth.register.uploadingLicence')}</span>
                   <span>{uploadProgress}%</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-[var(--muted)] overflow-hidden">
@@ -521,14 +523,14 @@ export default function RegisterPage() {
         {step === 3 && (
           <div className="space-y-6 text-center">
             <div>
-              <h2 className="text-2xl font-display font-bold text-[var(--text)]">Verify Email Address</h2>
+              <h2 className="text-2xl font-display font-bold text-[var(--text)]">{t('auth.register.verifyEmailTitle')}</h2>
               <p className="mt-2 text-sm text-[var(--text-muted)]">
-                We&apos;ve sent a verification code to <span className="font-medium text-[var(--text)]">{adminEmail}</span>
+                {t('auth.register.verifyEmailSubtitle', { email: adminEmail })}
               </p>
             </div>
 
             <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
-              <p className="text-xs text-[var(--text-muted)] mb-3">Enter the 6-digit code:</p>
+              <p className="text-xs text-[var(--text-muted)] mb-3">{t('auth.register.enterSixDigitCode')}</p>
               <input
                 type="text"
                 value={verificationCode}
@@ -541,14 +543,14 @@ export default function RegisterPage() {
             </div>
 
             <p className="text-sm text-[var(--text-muted)]">
-              Didn&apos;t receive the code?{' '}
+              {t('auth.register.didNotReceiveCode')}{' '}
               <button
                 type="button"
                 onClick={handleResendCode}
                 disabled={resendCooldown > 0}
                 className="text-[var(--primary)] hover:underline font-medium disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
               >
-                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend email'}
+                {resendCooldown > 0 ? t('auth.register.resendIn', { seconds: resendCooldown }) : t('auth.register.resendEmail')}
               </button>
             </p>
 
@@ -571,23 +573,21 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <h2 className="text-2xl font-display font-bold text-[var(--text)]">Registration Complete!</h2>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">
-                Your company account is under review. We&apos;ll notify you via email once a decision is made.
-              </p>
+              <h2 className="text-2xl font-display font-bold text-[var(--text)]">{t('auth.register.completeTitle')}</h2>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">{t('auth.register.completeSubtitle')}</p>
             </div>
 
             <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)] space-y-3">
               <div className="text-left">
-                <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Reference Number</p>
+                <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">{t('auth.register.referenceNumber')}</p>
                 <p className="text-sm font-mono text-[var(--text)] mt-1">{registrationDraft?.referenceNumber}</p>
               </div>
               <div className="text-left border-t border-[var(--border)] pt-3">
-                <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Next Steps</p>
+                <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">{t('auth.register.nextSteps')}</p>
                 <ul className="text-sm text-[var(--text-muted)] mt-2 space-y-1">
-                  <li>✓ Your email is verified</li>
-                  <li>✓ Await regulatory review</li>
-                  <li>✓ Log in once your account is approved</li>
+                  <li>✓ {t('auth.register.nextStepEmailVerified')}</li>
+                  <li>✓ {t('auth.register.nextStepAwaitReview')}</li>
+                  <li>✓ {t('auth.register.nextStepLogin')}</li>
                 </ul>
               </div>
             </div>
@@ -603,7 +603,7 @@ export default function RegisterPage() {
               className="flex-1 px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-[var(--text)] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <ChevronLeft className="h-4 w-4" />
-              Back
+              {t('auth.register.back')}
             </button>
           )}
 
@@ -616,11 +616,11 @@ export default function RegisterPage() {
               {loading ? (
                 <>
                   <Loader className="h-4 w-4 animate-spin" />
-                  Processing...
+                  {t('auth.register.processing')}
                 </>
               ) : (
                 <>
-                  {step === 3 ? 'Verify' : 'Next'}
+                  {step === 3 ? t('auth.register.verify') : t('auth.register.next')}
                   {step < 3 && <ChevronRight className="h-4 w-4" />}
                 </>
               )}
@@ -632,7 +632,7 @@ export default function RegisterPage() {
               onClick={handleSignIn}
               className="w-full px-4 py-2 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-medium transition-colors flex items-center justify-center gap-2"
             >
-              Go to Login
+              {t('auth.register.goToLogin')}
               <ChevronRight className="h-4 w-4" />
             </button>
           )}
@@ -642,12 +642,12 @@ export default function RegisterPage() {
         <div className="text-center">
           {step < 4 && (
             <p className="text-sm text-[var(--text-muted)]">
-              Already have an account?{' '}
+              {t('auth.register.alreadyHaveAccount')}{' '}
               <button
                 onClick={handleSignIn}
                 className="text-[var(--primary)] hover:underline font-medium"
               >
-                Sign in
+                {t('auth.register.signIn')}
               </button>
             </p>
           )}

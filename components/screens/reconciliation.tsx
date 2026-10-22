@@ -24,6 +24,7 @@ import {
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -50,6 +51,7 @@ type Tab = 'distributors' | 'unmatched' | 'reports'
  * tenant self-service.
  */
 export function ReconciliationScreen() {
+  const { t } = useTranslation()
   const { has, hasAny } = usePermissions()
   const canView = hasAny('reconciliation.view', 'reconciliation.manage')
   const canManage = has('reconciliation.manage')
@@ -59,19 +61,19 @@ export function ReconciliationScreen() {
   if (!canView) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Reconciliation</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('reconciliation.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view distributor reconciliation. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('reconciliation.noPermission')}</p>
         </div>
       </div>
     )
   }
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: 'distributors', label: 'Distributors', icon: <Users className="h-4 w-4" /> },
-    { key: 'unmatched', label: 'Unmatched Cases', icon: <ShieldAlert className="h-4 w-4" /> },
-    { key: 'reports', label: 'Reports', icon: <FileBarChart className="h-4 w-4" /> },
+    { key: 'distributors', label: t('reconciliation.tabDistributors'), icon: <Users className="h-4 w-4" /> },
+    { key: 'unmatched', label: t('reconciliation.tabUnmatched'), icon: <ShieldAlert className="h-4 w-4" /> },
+    { key: 'reports', label: t('reconciliation.tabReports'), icon: <FileBarChart className="h-4 w-4" /> },
   ]
 
   return (
@@ -79,24 +81,22 @@ export function ReconciliationScreen() {
       <div>
         <div className="flex items-center gap-3">
           <Handshake className="h-6 w-6 text-safemeds-teal" />
-          <h1 className="text-3xl font-display font-bold text-foreground">Reconciliation</h1>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('reconciliation.title')}</h1>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Map incoming cases to your listed distributors, review what hasn&apos;t been reconciled, and archive periodic reconciliation reports.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('reconciliation.subtitle')}</p>
       </div>
 
       <div className="flex gap-1 border-b border-border">
-        {tabs.map((t) => (
+        {tabs.map((tabItem) => (
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
+            key={tabItem.key}
+            onClick={() => setTab(tabItem.key)}
             className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === t.key ? 'border-safemeds-teal text-safemeds-teal' : 'border-transparent text-muted-foreground hover:text-foreground'
+              tab === tabItem.key ? 'border-safemeds-teal text-safemeds-teal' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {t.icon}
-            {t.label}
+            {tabItem.icon}
+            {tabItem.label}
           </button>
         ))}
       </div>
@@ -109,6 +109,7 @@ export function ReconciliationScreen() {
 }
 
 function DistributorsTab({ canManage }: { canManage: boolean }) {
+  const { t } = useTranslation()
   const [result, setResult] = useState<ListDistributorsResult | null>(null)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -122,8 +123,9 @@ function DistributorsTab({ canManage }: { canManage: boolean }) {
     setError(null)
     listDistributors({ q: search.trim() || undefined, limit: 100 })
       .then(setResult)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load distributors.')))
+      .catch((err) => setError(getErrorMessage(err, t('reconciliation.errorLoadDistributors'))))
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search])
 
   useEffect(() => {
@@ -136,7 +138,7 @@ function DistributorsTab({ canManage }: { canManage: boolean }) {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by distributor name…"
+          placeholder={t('reconciliation.searchDistributors')}
           className={`${inputClass} sm:max-w-sm`}
         />
         {canManage && (
@@ -144,7 +146,7 @@ function DistributorsTab({ canManage }: { canManage: boolean }) {
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
           >
-            <Plus className="h-4 w-4" /> Add Distributor
+            <Plus className="h-4 w-4" /> {t('reconciliation.addDistributor')}
           </button>
         )}
       </div>
@@ -160,16 +162,16 @@ function DistributorsTab({ canManage }: { canManage: boolean }) {
         ) : !result || result.distributors.length === 0 ? (
           <div className="p-12 text-center">
             <Users className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">{search ? 'No distributors match this search.' : 'No distributors listed yet.'}</p>
+            <p className="text-sm text-muted-foreground">{search ? t('reconciliation.noDistributorsMatch') : t('reconciliation.noDistributorsYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Name</th>
-                <th className="p-3">Contact</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Tenant Link</th>
+                <th className="p-3">{t('reconciliation.columnName')}</th>
+                <th className="p-3">{t('reconciliation.columnContact')}</th>
+                <th className="p-3">{t('reconciliation.columnStatus')}</th>
+                <th className="p-3">{t('reconciliation.columnTenantLink')}</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
@@ -193,18 +195,18 @@ function DistributorsTab({ canManage }: { canManage: boolean }) {
                   <td className="p-3">
                     {d.distributorCompanyId ? (
                       <span className="flex items-center gap-1 text-xs font-medium text-status-info">
-                        <Link2 className="h-3.5 w-3.5" /> Linked tenant
+                        <Link2 className="h-3.5 w-3.5" /> {t('reconciliation.linkedTenant')}
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Unlink className="h-3.5 w-3.5" /> Not linked
+                        <Unlink className="h-3.5 w-3.5" /> {t('reconciliation.notLinked')}
                       </span>
                     )}
                   </td>
                   <td className="p-3 text-right">
                     {canManage && (
                       <button onClick={() => setEditing(d)} className="text-xs font-medium text-safemeds-teal hover:underline">
-                        Edit
+                        {t('reconciliation.edit')}
                       </button>
                     )}
                   </td>
@@ -215,17 +217,14 @@ function DistributorsTab({ canManage }: { canManage: boolean }) {
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Linking a distributor to its own SafeMeds tenant (for cross-tenant reconciliation) is a platform-side action — contact SafeMeds support to have a
-        distributor&apos;s account linked once they&apos;re also a tenant.
-      </p>
+      <p className="text-xs text-muted-foreground">{t('reconciliation.linkingHelp')}</p>
 
       {showCreate && (
         <DistributorModal
           onClose={() => setShowCreate(false)}
           onSaved={() => {
             setShowCreate(false)
-            setNotice('Distributor added.')
+            setNotice(t('reconciliation.distributorAdded'))
             load()
           }}
         />
@@ -237,7 +236,7 @@ function DistributorsTab({ canManage }: { canManage: boolean }) {
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null)
-            setNotice('Distributor updated.')
+            setNotice(t('reconciliation.distributorUpdated'))
             load()
           }}
         />
@@ -255,6 +254,7 @@ function DistributorModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  const { t } = useTranslation()
   const isEdit = !!distributor
   const [name, setName] = useState(distributor?.name ?? '')
   const [contactEmail, setContactEmail] = useState(distributor?.contactEmail ?? '')
@@ -287,7 +287,7 @@ function DistributorModal({
       }
       onSaved()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save this distributor.'))
+      setError(getErrorMessage(err, t('reconciliation.errorSaveDistributor')))
       setSubmitting(false)
     }
   }
@@ -295,28 +295,28 @@ function DistributorModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">{isEdit ? 'Edit Distributor' : 'Add Distributor'}</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{isEdit ? t('reconciliation.editDistributor') : t('reconciliation.addDistributorTitle')}</h2>
 
         <div>
-          <label className={labelClass}>Distributor Name *</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Meridian Pharma Distributors Ltd" className={inputClass} />
-          <p className="mt-1 text-xs text-muted-foreground">Matched case-insensitively against each case&apos;s own reported organization.</p>
+          <label className={labelClass}>{t('reconciliation.distributorName')}</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('reconciliation.distributorNamePlaceholder')} className={inputClass} />
+          <p className="mt-1 text-xs text-muted-foreground">{t('reconciliation.distributorNameHelp')}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Contact Email</label>
+            <label className={labelClass}>{t('reconciliation.contactEmail')}</label>
             <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Contact Phone</label>
+            <label className={labelClass}>{t('reconciliation.contactPhone')}</label>
             <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className={inputClass} />
           </div>
         </div>
 
         {isEdit && (
           <div>
-            <label className={labelClass}>Status</label>
+            <label className={labelClass}>{t('reconciliation.status')}</label>
             <select value={status} onChange={(e) => setStatus(e.target.value as DistributorStatus)} className={inputClass}>
               {Object.entries(DISTRIBUTOR_STATUS_LABELS).map(([key, label]) => (
                 <option key={key} value={key}>
@@ -331,7 +331,7 @@ function DistributorModal({
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('reconciliation.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -339,7 +339,7 @@ function DistributorModal({
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            {isEdit ? 'Save' : 'Add'}
+            {isEdit ? t('reconciliation.save') : t('reconciliation.add')}
           </button>
         </div>
       </div>
@@ -348,6 +348,7 @@ function DistributorModal({
 }
 
 function UnmatchedTab({ canManage }: { canManage: boolean }) {
+  const { t } = useTranslation()
   const [period, setPeriod] = useState(defaultPeriod())
   const [cases, setCases] = useState<UnmatchedCase[]>([])
   const [distributors, setDistributors] = useState<Distributor[]>([])
@@ -364,8 +365,9 @@ function UnmatchedTab({ canManage }: { canManage: boolean }) {
         setCases(unmatched)
         setDistributors(distResult.distributors)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load unmatched cases.')))
+      .catch((err) => setError(getErrorMessage(err, t('reconciliation.errorLoadUnmatched'))))
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period])
 
   useEffect(() => {
@@ -376,11 +378,11 @@ function UnmatchedTab({ canManage }: { canManage: boolean }) {
     <div className="space-y-4">
       <div className="rounded-lg border border-border bg-card p-4 flex flex-wrap items-end gap-4">
         <div>
-          <label className={labelClass}>Period Start</label>
+          <label className={labelClass}>{t('reconciliation.periodStart')}</label>
           <input type="date" value={period.start} onChange={(e) => setPeriod((p) => ({ ...p, start: e.target.value }))} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Period End</label>
+          <label className={labelClass}>{t('reconciliation.periodEnd')}</label>
           <input type="date" value={period.end} onChange={(e) => setPeriod((p) => ({ ...p, end: e.target.value }))} className={inputClass} />
         </div>
       </div>
@@ -396,16 +398,15 @@ function UnmatchedTab({ canManage }: { canManage: boolean }) {
         ) : cases.length === 0 ? (
           <div className="p-12 text-center">
             <CircleCheck className="mx-auto h-10 w-10 text-status-success/50 mb-3" />
-            <p className="text-sm text-muted-foreground">Every case received in this period is reconciled to a distributor (or confirmed not
-            distributor-sourced).</p>
+            <p className="text-sm text-muted-foreground">{t('reconciliation.allReconciled')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Reference</th>
-                <th className="p-3">Reported Organization</th>
-                <th className="p-3">Received</th>
+                <th className="p-3">{t('reconciliation.columnReference')}</th>
+                <th className="p-3">{t('reconciliation.columnReportedOrganization')}</th>
+                <th className="p-3">{t('reconciliation.columnReceived')}</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
@@ -413,12 +414,12 @@ function UnmatchedTab({ canManage }: { canManage: boolean }) {
               {cases.map((c) => (
                 <tr key={c.caseId} className="border-b border-border last:border-0">
                   <td className="p-3 font-mono text-xs text-foreground">{c.referenceNumber}</td>
-                  <td className="p-3 text-foreground">{c.reporterOrganization || <span className="text-muted-foreground">Not stated</span>}</td>
+                  <td className="p-3 text-foreground">{c.reporterOrganization || <span className="text-muted-foreground">{t('reconciliation.notStated')}</span>}</td>
                   <td className="p-3 text-muted-foreground">{formatDate(c.receivedDate)}</td>
                   <td className="p-3 text-right">
                     {canManage && (
                       <button onClick={() => setReconciling(c)} className="text-xs font-medium text-safemeds-teal hover:underline">
-                        Reconcile
+                        {t('reconciliation.reconcile')}
                       </button>
                     )}
                   </td>
@@ -436,7 +437,7 @@ function UnmatchedTab({ canManage }: { canManage: boolean }) {
           onClose={() => setReconciling(null)}
           onReconciled={() => {
             setReconciling(null)
-            setNotice('Case reconciled.')
+            setNotice(t('reconciliation.caseReconciled'))
             load()
           }}
         />
@@ -456,6 +457,7 @@ function ReconcileCaseModal({
   onClose: () => void
   onReconciled: () => void
 }) {
+  const { t } = useTranslation()
   const [distributorId, setDistributorId] = useState<string>('')
   const [confirmedNotDistributor, setConfirmedNotDistributor] = useState(false)
   const [note, setNote] = useState('')
@@ -475,7 +477,7 @@ function ReconcileCaseModal({
       })
       onReconciled()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not reconcile this case.'))
+      setError(getErrorMessage(err, t('reconciliation.errorReconcile')))
       setSubmitting(false)
     }
   }
@@ -483,13 +485,13 @@ function ReconcileCaseModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Reconcile Case {unmatchedCase.referenceNumber}</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('reconciliation.reconcileCaseTitle', { ref: unmatchedCase.referenceNumber })}</h2>
         <p className="text-sm text-muted-foreground">
-          Reported organization: <span className="text-foreground">{unmatchedCase.reporterOrganization || 'Not stated'}</span>
+          {t('reconciliation.reportedOrganizationLabel')} <span className="text-foreground">{unmatchedCase.reporterOrganization || t('reconciliation.notStated')}</span>
         </p>
 
         <div>
-          <label className={labelClass}>Distributor</label>
+          <label className={labelClass}>{t('reconciliation.distributor')}</label>
           <select
             value={distributorId}
             onChange={(e) => {
@@ -499,7 +501,7 @@ function ReconcileCaseModal({
             disabled={confirmedNotDistributor}
             className={inputClass}
           >
-            <option value="">Select a distributor…</option>
+            <option value="">{t('reconciliation.selectDistributor')}</option>
             {distributors.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -517,11 +519,11 @@ function ReconcileCaseModal({
               if (e.target.checked) setDistributorId('')
             }}
           />
-          Confirmed — this case is not distributor-sourced
+          {t('reconciliation.confirmedNotDistributor')}
         </label>
 
         <div>
-          <label className={labelClass}>Note</label>
+          <label className={labelClass}>{t('reconciliation.note')}</label>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={inputClass} />
         </div>
 
@@ -529,7 +531,7 @@ function ReconcileCaseModal({
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('reconciliation.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -537,7 +539,7 @@ function ReconcileCaseModal({
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save
+            {t('reconciliation.save')}
           </button>
         </div>
       </div>
@@ -545,16 +547,16 @@ function ReconcileCaseModal({
   )
 }
 
-const REPORT_COLUMNS: DataTableColumn<ReconciliationReport>[] = [
-  { key: 'periodStart', label: 'Period', render: (v, row) => `${formatDate(v)} – ${formatDate(row.periodEnd)}` },
-  { key: 'distributorId', label: 'Scope', render: (v) => (v ? 'Single distributor' : 'Whole company') },
-  { key: 'totalCases', label: 'Total' },
-  { key: 'matchedCases', label: 'Matched', render: (v) => <span className="text-status-success">{v}</span> },
-  { key: 'unmatchedCases', label: 'Unmatched', render: (v) => <span className="text-status-warning">{v}</span> },
-  { key: 'generatedAt', label: 'Generated', sortable: true, render: (v) => formatDate(v) },
-]
-
 function ReportsTab({ canManage }: { canManage: boolean }) {
+  const { t } = useTranslation()
+  const REPORT_COLUMNS: DataTableColumn<ReconciliationReport>[] = [
+    { key: 'periodStart', label: t('reconciliation.columnPeriod'), render: (v, row) => `${formatDate(v)} – ${formatDate(row.periodEnd)}` },
+    { key: 'distributorId', label: t('reconciliation.columnScope'), render: (v) => (v ? t('reconciliation.singleDistributor') : t('reconciliation.wholeCompany')) },
+    { key: 'totalCases', label: t('reconciliation.columnTotal') },
+    { key: 'matchedCases', label: t('reconciliation.columnMatched'), render: (v) => <span className="text-status-success">{v}</span> },
+    { key: 'unmatchedCases', label: t('reconciliation.columnUnmatched'), render: (v) => <span className="text-status-warning">{v}</span> },
+    { key: 'generatedAt', label: t('reconciliation.columnGenerated'), sortable: true, render: (v) => formatDate(v) },
+  ]
   const [reports, setReports] = useState<ReconciliationReport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -575,8 +577,9 @@ function ReportsTab({ canManage }: { canManage: boolean }) {
         setTotalPages(meta.totalPages)
         setTotal(meta.total)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load reconciliation reports.')))
+      .catch((err) => setError(getErrorMessage(err, t('reconciliation.errorLoadReports'))))
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit])
 
   useEffect(() => {
@@ -596,7 +599,7 @@ function ReportsTab({ canManage }: { canManage: boolean }) {
             onClick={() => setShowGenerate(true)}
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
           >
-            <Plus className="h-4 w-4" /> Generate Report
+            <Plus className="h-4 w-4" /> {t('reconciliation.generateReport')}
           </button>
         )}
       </div>
@@ -607,7 +610,7 @@ function ReportsTab({ canManage }: { canManage: boolean }) {
       {!loading && reports.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <FileBarChart className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">No reconciliation reports generated yet.</p>
+          <p className="text-sm text-muted-foreground">{t('reconciliation.noReportsYet')}</p>
         </div>
       ) : (
         <DataTableV2<ReconciliationReport>
@@ -632,7 +635,7 @@ function ReportsTab({ canManage }: { canManage: boolean }) {
           onClose={() => setShowGenerate(false)}
           onGenerated={() => {
             setShowGenerate(false)
-            setNotice('Reconciliation report generated.')
+            setNotice(t('reconciliation.reportGenerated'))
             setPage(1)
             load()
           }}
@@ -645,6 +648,7 @@ function ReportsTab({ canManage }: { canManage: boolean }) {
 }
 
 function GenerateReportModal({ onClose, onGenerated }: { onClose: () => void; onGenerated: (report: ReconciliationReport) => void }) {
+  const { t } = useTranslation()
   const [period, setPeriod] = useState(defaultPeriod())
   const [distributors, setDistributors] = useState<Distributor[]>([])
   const [distributorId, setDistributorId] = useState('')
@@ -668,7 +672,7 @@ function GenerateReportModal({ onClose, onGenerated }: { onClose: () => void; on
       })
       onGenerated(report)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not generate this report.'))
+      setError(getErrorMessage(err, t('reconciliation.errorGenerateReport')))
       setSubmitting(false)
     }
   }
@@ -676,23 +680,23 @@ function GenerateReportModal({ onClose, onGenerated }: { onClose: () => void; on
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Generate Reconciliation Report</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('reconciliation.generateReportTitle')}</h2>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Period Start</label>
+            <label className={labelClass}>{t('reconciliation.periodStart')}</label>
             <input type="date" value={period.start} onChange={(e) => setPeriod((p) => ({ ...p, start: e.target.value }))} className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Period End</label>
+            <label className={labelClass}>{t('reconciliation.periodEnd')}</label>
             <input type="date" value={period.end} onChange={(e) => setPeriod((p) => ({ ...p, end: e.target.value }))} className={inputClass} />
           </div>
         </div>
 
         <div>
-          <label className={labelClass}>Distributor (optional — leave blank for whole company)</label>
+          <label className={labelClass}>{t('reconciliation.distributorOptional')}</label>
           <select value={distributorId} onChange={(e) => setDistributorId(e.target.value)} className={inputClass}>
-            <option value="">All distributors</option>
+            <option value="">{t('reconciliation.allDistributors')}</option>
             {distributors.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -701,15 +705,13 @@ function GenerateReportModal({ onClose, onGenerated }: { onClose: () => void; on
           </select>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          This report is archived permanently once generated — it&apos;s never overwritten. Generate a new one any time to get a fresh snapshot.
-        </p>
+        <p className="text-xs text-muted-foreground">{t('reconciliation.archivedHelp')}</p>
 
         {error && <p className="text-sm text-status-error">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('reconciliation.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -717,7 +719,7 @@ function GenerateReportModal({ onClose, onGenerated }: { onClose: () => void; on
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Generate
+            {t('reconciliation.generate')}
           </button>
         </div>
       </div>
@@ -726,6 +728,7 @@ function GenerateReportModal({ onClose, onGenerated }: { onClose: () => void; on
 }
 
 function ReportDetailModal({ report, onClose }: { report: ReconciliationReport; onClose: () => void }) {
+  const { t } = useTranslation()
   const [crossTenant, setCrossTenant] = useState<Record<string, CrossTenantSummary | 'loading' | 'error'>>({})
 
   const loadCrossTenant = (distributorId: string) => {
@@ -740,35 +743,35 @@ function ReportDetailModal({ report, onClose }: { report: ReconciliationReport; 
       <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-lg border border-border bg-card p-6 space-y-4">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="font-display font-bold text-lg text-foreground">Reconciliation Report</h2>
+            <h2 className="font-display font-bold text-lg text-foreground">{t('reconciliation.reportTitle')}</h2>
             <p className="text-sm text-muted-foreground">
               {formatDate(report.periodStart)} – {formatDate(report.periodEnd)}
             </p>
           </div>
           <button onClick={onClose} className="text-sm text-muted-foreground hover:text-foreground">
-            Close
+            {t('reconciliation.close')}
           </button>
         </div>
 
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-lg border border-border p-3 text-center">
-            <p className="text-xs text-muted-foreground">Total</p>
+            <p className="text-xs text-muted-foreground">{t('reconciliation.total')}</p>
             <p className="text-xl font-display font-bold text-foreground">{report.totalCases}</p>
           </div>
           <div className="rounded-lg border border-border p-3 text-center">
-            <p className="text-xs text-muted-foreground">Matched</p>
+            <p className="text-xs text-muted-foreground">{t('reconciliation.matched')}</p>
             <p className="text-xl font-display font-bold text-status-success">{report.matchedCases}</p>
           </div>
           <div className="rounded-lg border border-border p-3 text-center">
-            <p className="text-xs text-muted-foreground">Unmatched</p>
+            <p className="text-xs text-muted-foreground">{t('reconciliation.unmatched')}</p>
             <p className="text-xl font-display font-bold text-status-warning">{report.unmatchedCases}</p>
           </div>
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-foreground mb-2">By Distributor</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-2">{t('reconciliation.byDistributor')}</h3>
           {report.snapshot.byDistributor.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No matched cases in this period.</p>
+            <p className="text-sm text-muted-foreground">{t('reconciliation.noMatchedCases')}</p>
           ) : (
             <div className="space-y-2">
               {report.snapshot.byDistributor.map((b) => {
@@ -777,19 +780,21 @@ function ReportDetailModal({ report, onClose }: { report: ReconciliationReport; 
                   <div key={b.distributorId} className="rounded-lg border border-border p-3">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium text-foreground">{b.distributorName}</p>
-                      <p className="text-sm text-muted-foreground">{b.caseCount} cases</p>
+                      <p className="text-sm text-muted-foreground">{t('reconciliation.casesCount', { n: b.caseCount })}</p>
                     </div>
                     {!ct && (
                       <button onClick={() => loadCrossTenant(b.distributorId)} className="mt-1 text-xs font-medium text-safemeds-teal hover:underline">
-                        Check cross-tenant summary
+                        {t('reconciliation.checkCrossTenantSummary')}
                       </button>
                     )}
-                    {ct === 'loading' && <p className="mt-1 text-xs text-muted-foreground">Loading…</p>}
-                    {ct === 'error' && <p className="mt-1 text-xs text-muted-foreground">Not linked to a SafeMeds tenant, or read failed.</p>}
+                    {ct === 'loading' && <p className="mt-1 text-xs text-muted-foreground">{t('reconciliation.loading')}</p>}
+                    {ct === 'error' && <p className="mt-1 text-xs text-muted-foreground">{t('reconciliation.notLinkedOrFailed')}</p>}
                     {ct && typeof ct === 'object' && (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Distributor tenant logged {ct.distributorTenantCaseCount} case(s) sent to this manufacturer in the same period (vs.{' '}
-                        {ct.manufacturerMatchedCaseCount} matched here).
+                        {t('reconciliation.crossTenantSummaryText', {
+                          distCount: ct.distributorTenantCaseCount,
+                          matchedCount: ct.manufacturerMatchedCaseCount,
+                        })}
                       </p>
                     )}
                   </div>
@@ -800,15 +805,15 @@ function ReportDetailModal({ report, onClose }: { report: ReconciliationReport; 
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-foreground mb-2">Unmatched ({report.snapshot.unmatched.length})</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-2">{t('reconciliation.unmatchedCount', { n: report.snapshot.unmatched.length })}</h3>
           {report.snapshot.unmatched.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Every case in this period reconciled.</p>
+            <p className="text-sm text-muted-foreground">{t('reconciliation.allReconciledShort')}</p>
           ) : (
             <ul className="space-y-1">
               {report.snapshot.unmatched.map((u) => (
                 <li key={u.caseId} className="text-sm text-foreground flex justify-between">
                   <span className="font-mono text-xs">{u.referenceNumber}</span>
-                  <span className="text-muted-foreground">{u.reporterOrganization || 'Not stated'}</span>
+                  <span className="text-muted-foreground">{u.reporterOrganization || t('reconciliation.notStated')}</span>
                 </li>
               ))}
             </ul>

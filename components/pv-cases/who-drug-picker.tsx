@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, Loader2, Search, X } from 'lucide-react'
 import { WhoDrugTerm } from '@/lib/api/pv-cases'
 import { searchWhoDrug } from '@/lib/api/who-drug'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   /** Set when this suspect product already has a coded WHODrug term — shows the "coded" state instead of the search box. */
@@ -21,6 +22,7 @@ interface Props {
  * tenant's product list.
  */
 export function WhoDrugPicker({ codedTerm, onSelect, onClear, busy }: Props) {
+  const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<WhoDrugTerm[]>([])
   const [open, setOpen] = useState(false)
@@ -71,7 +73,7 @@ export function WhoDrugPicker({ codedTerm, onSelect, onClear, busy }: Props) {
           {codedTerm.atcCode && <span className="flex-shrink-0 text-xs text-muted-foreground">{codedTerm.atcCode}</span>}
         </div>
         {onClear && (
-          <button onClick={onClear} disabled={busy} className="flex-shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50" title="Recode">
+          <button onClick={onClear} disabled={busy} className="flex-shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50" title={t('whoDrugPicker.recode')}>
             <X className="h-4 w-4" />
           </button>
         )}
@@ -91,7 +93,7 @@ export function WhoDrugPicker({ codedTerm, onSelect, onClear, busy }: Props) {
           }}
           onFocus={() => setOpen(true)}
           disabled={busy}
-          placeholder="Search WHODrug by trade name or substance"
+          placeholder={t('whoDrugPicker.searchPlaceholder')}
           className="w-full rounded-lg border border-input bg-background pl-8 pr-8 py-2 text-sm text-foreground disabled:opacity-50"
         />
         {loading && <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />}
@@ -99,7 +101,7 @@ export function WhoDrugPicker({ codedTerm, onSelect, onClear, busy }: Props) {
 
       {open && query.trim().length >= 2 && (
         <div className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-card shadow-lg max-h-56 overflow-y-auto">
-          {results.length === 0 && !loading && <p className="p-3 text-xs text-muted-foreground">No WHODrug match for &quot;{query.trim()}&quot;.</p>}
+          {results.length === 0 && !loading && <p className="p-3 text-xs text-muted-foreground">{t('whoDrugPicker.noMatch', { query: query.trim() })}</p>}
           {results.map((term) => (
             <button
               key={term.id}

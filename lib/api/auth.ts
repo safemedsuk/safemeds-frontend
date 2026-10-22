@@ -1,4 +1,4 @@
-import { ApiRequestError, API_BASE_URL, del, get, post } from './client'
+import { ApiRequestError, API_BASE_URL, del, get, patch, post } from './client'
 import { validateUploadSize } from '../upload-limits'
 
 export type CompanyType =
@@ -38,8 +38,15 @@ export interface SafeUser {
   roleKeys: string[]
   platformRole: string | null
   mustChangePassword: boolean
+  /** UI display language only (never affects generated documents) — see todo-i18n.md. Defaults 'en'. */
+  preferredLocale: string
   /** Resolved server-side from roleKeys/platformRole at login/refresh time — usePermissions() reads this directly. The server still enforces every action independently; this only drives what the UI shows. */
   permissions?: string[]
+}
+
+export async function updatePreferredLocale(locale: string): Promise<{ preferredLocale: string }> {
+  const { data } = await patch<{ preferredLocale: string }>('/users/me/locale', { preferredLocale: locale })
+  return data
 }
 
 export interface SecurityPolicySummary {

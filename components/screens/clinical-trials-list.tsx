@@ -7,6 +7,7 @@ import { getErrorMessage } from '@/lib/api/client'
 import { ClinicalTrial, listClinicalTrials, TRIAL_STATUS_LABELS } from '@/lib/api/clinical-trials'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const STATUS_STYLES: Record<string, string> = {
   active: 'bg-status-success/10 text-status-success',
@@ -27,6 +28,7 @@ function formatDate(value: string): string {
  * never recomputed client-side.
  */
 export function ClinicalTrialsList() {
+  const { t } = useTranslation()
   const router = useRouter()
   const { has, hasAny } = usePermissions()
   const canView = hasAny('pv.capture_case', 'pv.view_all', 'pv.manage_clinical_trials')
@@ -60,7 +62,7 @@ export function ClinicalTrialsList() {
         setTotal(meta.total)
       })
       .catch((err) => {
-        if (!cancelled) setError(getErrorMessage(err, 'Could not load clinical trials.'))
+        if (!cancelled) setError(getErrorMessage(err, t('clinicalTrials.list.errorLoad')))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -74,42 +76,42 @@ export function ClinicalTrialsList() {
   if (!canView) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Clinical Trials</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('clinicalTrials.list.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view clinical trials. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('clinicalTrials.list.noPermission')}</p>
         </div>
       </div>
     )
   }
 
   const columns: DataTableColumn<ClinicalTrial>[] = [
-    { key: 'trialReference', label: 'Reference', render: (v) => <span className="font-medium text-foreground font-mono text-sm">{v as string}</span> },
-    { key: 'trialName', label: 'Trial' },
-    { key: 'sponsor', label: 'Sponsor', render: (v) => (v as string) || '—' },
+    { key: 'trialReference', label: t('clinicalTrials.list.columnReference'), render: (v) => <span className="font-medium text-foreground font-mono text-sm">{v as string}</span> },
+    { key: 'trialName', label: t('clinicalTrials.list.columnTrial') },
+    { key: 'sponsor', label: t('clinicalTrials.list.columnSponsor'), render: (v) => (v as string) || '—' },
     {
       key: 'status',
-      label: 'Status',
+      label: t('clinicalTrials.list.columnStatus'),
       render: (v) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${STATUS_STYLES[v as string] ?? 'bg-muted text-muted-foreground'}`}>{TRIAL_STATUS_LABELS[v as keyof typeof TRIAL_STATUS_LABELS] ?? (v as string)}</span>,
     },
     {
       key: 'openSaeCaseCount',
-      label: 'Open SAEs',
+      label: t('clinicalTrials.list.columnOpenSaes'),
       render: (v) => (
         <span className={`text-sm font-medium ${(v as number) > 0 ? 'text-status-warning' : 'text-muted-foreground'}`}>{v as number}</span>
       ),
     },
-    { key: 'subjectCount', label: 'Subjects' },
-    { key: 'annualRenewalDueAt', label: 'Annual Renewal Due', render: (v) => formatDate(v as string) },
+    { key: 'subjectCount', label: t('clinicalTrials.list.columnSubjects') },
+    { key: 'annualRenewalDueAt', label: t('clinicalTrials.list.columnAnnualRenewalDue'), render: (v) => formatDate(v as string) },
   ]
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Clinical Trials</h1>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('clinicalTrials.list.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {total} {total === 1 ? 'trial' : 'trials'} · solicited SAE reporting, subject enrollment, and treatment-arm unblinding
+            {total === 1 ? t('clinicalTrials.list.subtitleOne') : t('clinicalTrials.list.subtitleMany', { count: total })}
           </p>
         </div>
         {canCreate && (
@@ -118,13 +120,13 @@ export function ClinicalTrialsList() {
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
           >
             <Plus className="h-4 w-4" />
-            New Trial
+            {t('clinicalTrials.list.newTrial')}
           </button>
         )}
       </div>
 
       <div className="rounded-lg border border-border bg-card p-4">
-        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Search reference or trial name</label>
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('clinicalTrials.list.searchLabel')}</label>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -153,10 +155,10 @@ export function ClinicalTrialsList() {
       {!loading && trials.length === 0 && (
         <div className="rounded-lg border border-dashed border-border p-12 text-center">
           <FlaskConical className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">{search ? 'No trials match this search.' : 'No clinical trials set up yet.'}</p>
+          <p className="text-sm text-muted-foreground">{search ? t('clinicalTrials.list.noMatchSearch') : t('clinicalTrials.list.noTrialsYet')}</p>
           {canCreate && !search && (
             <button onClick={() => router.push('/clinical-trials/new')} className="mt-3 text-sm font-medium text-safemeds-teal hover:underline">
-              Set up your first trial
+              {t('clinicalTrials.list.setUpFirstTrial')}
             </button>
           )}
         </div>

@@ -5,8 +5,10 @@ import { AlertCircle, CheckCircle2, Loader2, ShieldAlert } from 'lucide-react'
 import { ApiRequestError } from '@/lib/api/client'
 import { getSecurityPolicy, updateSecurityPolicy, type SecurityPolicy } from '@/lib/api/security-policy'
 import { usePermissions } from '@/lib/hooks/use-permissions'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export function SecurityPolicyCard() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('security_policy.manage')
   const [policy, setPolicy] = useState<SecurityPolicy | null>(null)
@@ -29,7 +31,7 @@ export function SecurityPolicyCard() {
       setSessionTimeoutMinutes(data.sessionTimeoutMinutes)
       setMfaRequiredForSignatureRoles(data.mfaRequiredForSignatureRoles)
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not load the security policy.')
+      setError(err instanceof ApiRequestError ? err.message : t('settings.securityPolicy.errorLoad'))
     } finally {
       setLoading(false)
     }
@@ -54,7 +56,7 @@ export function SecurityPolicyCard() {
       setPolicy(updated)
       setSaved(true)
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not save the security policy.')
+      setError(err instanceof ApiRequestError ? err.message : t('settings.securityPolicy.errorSave'))
     } finally {
       setSaving(false)
     }
@@ -63,7 +65,7 @@ export function SecurityPolicyCard() {
   if (loading) {
     return (
       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 flex items-center justify-center text-[var(--text-muted)] text-sm">
-        <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading policy…
+        <Loader2 className="h-4 w-4 animate-spin mr-2" /> {t('settings.securityPolicy.loading')}
       </div>
     )
   }
@@ -71,7 +73,7 @@ export function SecurityPolicyCard() {
   if (!policy) {
     return (
       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 text-sm text-[var(--text-muted)]">
-        {error ?? 'Security policy unavailable.'}
+        {error ?? t('settings.securityPolicy.unavailable')}
       </div>
     )
   }
@@ -80,9 +82,9 @@ export function SecurityPolicyCard() {
     <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
       <h3 className="font-semibold text-foreground mb-1 flex items-center gap-2 text-sm">
         <ShieldAlert className="h-4 w-4" />
-        Security Policy
+        {t('settings.securityPolicy.title')}
       </h3>
-      <p className="text-xs text-[var(--text-muted)] mb-4">Applies to every user in your company</p>
+      <p className="text-xs text-[var(--text-muted)] mb-4">{t('settings.securityPolicy.subtitle')}</p>
 
       {error && (
         <div className="mb-3 p-2.5 rounded-lg bg-status-error/10 border border-status-error text-status-error text-xs flex items-center gap-2">
@@ -94,7 +96,7 @@ export function SecurityPolicyCard() {
       <div className="space-y-4">
         <div>
           <label className="flex items-center justify-between text-xs font-medium text-[var(--text)] mb-1.5">
-            <span>Minimum password length</span>
+            <span>{t('settings.securityPolicy.minPasswordLength')}</span>
             <span className="font-mono">{minPasswordLength}</span>
           </label>
           <input
@@ -106,13 +108,13 @@ export function SecurityPolicyCard() {
             disabled={!canManage}
             className="w-full accent-[var(--primary)] disabled:opacity-50"
           />
-          <p className="text-[10px] text-[var(--text-muted)] mt-1">Platform floor is 12 characters.</p>
+          <p className="text-[10px] text-[var(--text-muted)] mt-1">{t('settings.securityPolicy.platformFloor')}</p>
         </div>
 
         <div>
           <label className="flex items-center justify-between text-xs font-medium text-[var(--text)] mb-1.5">
-            <span>Session timeout</span>
-            <span className="font-mono">{sessionTimeoutMinutes} min</span>
+            <span>{t('settings.securityPolicy.sessionTimeout')}</span>
+            <span className="font-mono">{t('settings.securityPolicy.sessionTimeoutMinutes', { minutes: sessionTimeoutMinutes })}</span>
           </label>
           <input
             type="range"
@@ -135,15 +137,13 @@ export function SecurityPolicyCard() {
             className="h-4 w-4 mt-0.5 rounded border-[var(--border)]"
           />
           <span className="text-xs text-[var(--text)]">
-            Require MFA for signature-gated roles
-            <span className="block text-[10px] text-[var(--text-muted)] mt-0.5">
-              QPPV, Quality Manager, and Regulatory Affairs Officer will be prompted to set up MFA on next sign-in.
-            </span>
+            {t('settings.securityPolicy.requireMfa')}
+            <span className="block text-[10px] text-[var(--text-muted)] mt-0.5">{t('settings.securityPolicy.requireMfaHelp')}</span>
           </span>
         </label>
 
         {!canManage && (
-          <p className="text-[10px] text-[var(--text-muted)] italic">Only a System Administrator can change these settings.</p>
+          <p className="text-[10px] text-[var(--text-muted)] italic">{t('settings.securityPolicy.onlyAdminCanChange')}</p>
         )}
 
         {canManage && (
@@ -155,10 +155,10 @@ export function SecurityPolicyCard() {
           {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {saved && !dirty && !saving ? (
             <>
-              <CheckCircle2 className="h-3.5 w-3.5" /> Saved
+              <CheckCircle2 className="h-3.5 w-3.5" /> {t('settings.securityPolicy.saved')}
             </>
           ) : (
-            'Save changes'
+            t('settings.securityPolicy.saveChanges')
           )}
         </button>
         )}

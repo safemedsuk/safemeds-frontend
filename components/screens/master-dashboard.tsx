@@ -8,6 +8,7 @@ import { ProductComplianceRow, ReportingDashboard, getReportingDashboard } from 
 import { Notification, listNotifications } from '@/lib/api/notifications'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { ReportingDashboardPanel } from '@/components/reporting/dashboard-panel'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const CASE_STAGE_PALETTE = ['#0C5446', '#27B89C', '#B08900', '#8B5CF6', '#DC5F5F', '#5B7079']
 
@@ -15,20 +16,21 @@ function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleDateString() : '—'
 }
 
-function timeAgo(value: string): string {
+function timeAgo(value: string, t: (key: 'dashboard.master.minutesAgo' | 'dashboard.master.hoursAgo' | 'dashboard.master.daysAgo', params: Record<string, number>) => string): string {
   const diffMs = Date.now() - new Date(value).getTime()
   const mins = Math.round(diffMs / 60000)
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 60) return t('dashboard.master.minutesAgo', { minutes: mins })
   const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.round(hours / 24)}d ago`
+  if (hours < 24) return t('dashboard.master.hoursAgo', { hours })
+  return t('dashboard.master.daysAgo', { days: Math.round(hours / 24) })
 }
 
 /** A dependency-free SVG donut chart — matching `StageBar`'s own "no charting library needed" precedent for a single proportional breakdown. */
 function CaseStatusDonut({ byState }: { byState: { stateKey: string; count: number }[] }) {
+  const { t } = useTranslation()
   const total = byState.reduce((sum, s) => sum + s.count, 0)
   if (total === 0) {
-    return <p className="text-sm text-muted-foreground">No open cases right now.</p>
+    return <p className="text-sm text-muted-foreground">{t('dashboard.master.noOpenCases')}</p>
   }
 
   const radius = 60
@@ -79,8 +81,9 @@ function CaseStatusDonut({ byState }: { byState: { stateKey: string; count: numb
 }
 
 function ProductComplianceTable({ rows }: { rows: ProductComplianceRow[] }) {
+  const { t } = useTranslation()
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">No products in the catalog yet.</p>
+    return <p className="text-sm text-muted-foreground">{t('dashboard.master.noProductsYet')}</p>
   }
   const atRisk = rows.filter((r) => r.overdueDeadlines > 0 || r.registrationExpiringSoon || r.registrationStatus === 'expired' || r.openQueries > 0)
   const ordered = [...atRisk, ...rows.filter((r) => !atRisk.includes(r))]
@@ -90,11 +93,11 @@ function ProductComplianceTable({ rows }: { rows: ProductComplianceRow[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <th className="py-1.5 pr-4">Product</th>
-            <th className="py-1.5 pr-4">Open Cases</th>
-            <th className="py-1.5 pr-4">Overdue Deadlines</th>
-            <th className="py-1.5 pr-4">Registration</th>
-            <th className="py-1.5 pr-4">Open Queries</th>
+            <th className="py-1.5 pr-4">{t('dashboard.master.columnProduct')}</th>
+            <th className="py-1.5 pr-4">{t('dashboard.master.columnOpenCases')}</th>
+            <th className="py-1.5 pr-4">{t('dashboard.master.columnOverdueDeadlines')}</th>
+            <th className="py-1.5 pr-4">{t('dashboard.master.columnRegistration')}</th>
+            <th className="py-1.5 pr-4">{t('dashboard.master.columnOpenQueries')}</th>
           </tr>
         </thead>
         <tbody>
@@ -106,7 +109,9 @@ function ProductComplianceTable({ rows }: { rows: ProductComplianceRow[] }) {
                 <td className="py-1.5 pr-4 text-foreground">{r.openCases}</td>
                 <td className={`py-1.5 pr-4 ${r.overdueDeadlines > 0 ? 'font-semibold text-status-error' : 'text-foreground'}`}>{r.overdueDeadlines}</td>
                 <td className={`py-1.5 pr-4 ${r.registrationStatus === 'expired' ? 'text-status-error' : r.registrationExpiringSoon ? 'text-status-warning' : 'text-foreground'}`}>
-                  {r.registrationStatus ? `${r.registrationStatus} · exp. ${formatDate(r.registrationExpiresOn)}` : 'Not registered'}
+                  {r.registrationStatus
+                    ? t('dashboard.master.registrationExpires', { status: r.registrationStatus, date: formatDate(r.registrationExpiresOn) })
+                    : t('dashboard.master.notRegistered')}
                 </td>
                 <td className={`py-1.5 pr-4 ${r.openQueries > 0 ? 'font-semibold text-status-warning' : 'text-foreground'}`}>{r.openQueries}</td>
                 {flagged && <td className="py-1.5"><AlertTriangle className="h-3.5 w-3.5 text-status-warning" /></td>}
@@ -133,6 +138,7 @@ function ProductComplianceTable({ rows }: { rows: ProductComplianceRow[] }) {
  * the real scope boundary for this pass (QualCloud has no schema yet).
  */
 export function MasterDashboard() {
+  const { t } = useTranslation()
   const router = useRouter()
   const { has } = usePermissions()
 
@@ -150,7 +156,7 @@ export function MasterDashboard() {
         setNotifications(n.rows.slice(0, 6))
       })
       .catch((err) => {
-        if (!cancelled) setError(getErrorMessage(err, 'Could not load the master dashboard.'))
+        if (!cancelled) setError(getErrorMessage(err, t('dashboard.master.errorLoad')))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -171,8 +177,8 @@ export function MasterDashboard() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Master Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">The unified, real-time view across Pharmacovigilance and Regulatory — every product's live compliance status, what's at risk, what's overdue.</p>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('dashboard.master.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.master.subtitle')}</p>
       </div>
 
       {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error}</div>}
@@ -183,17 +189,17 @@ export function MasterDashboard() {
 
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="rounded-lg border border-border bg-card p-4 lg:col-span-1">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Open Cases by Stage</p>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('dashboard.master.openCasesByStage')}</p>
               <CaseStatusDonut byState={dashboard.cases.byState} />
             </div>
 
             <div className="rounded-lg border border-border bg-card p-4 lg:col-span-2">
               <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <Bell className="h-3.5 w-3.5" />
-                Recent Notifications
+                {t('dashboard.master.recentNotifications')}
               </p>
               {notifications.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nothing unread — you&apos;re caught up.</p>
+                <p className="text-sm text-muted-foreground">{t('dashboard.master.caughtUp')}</p>
               ) : (
                 <div className="space-y-2">
                   {notifications.map((n) => (
@@ -202,11 +208,11 @@ export function MasterDashboard() {
                         <p className="truncate text-sm font-medium text-foreground">{n.title}</p>
                         {n.body && <p className="truncate text-xs text-muted-foreground">{n.body}</p>}
                       </div>
-                      <span className="flex-shrink-0 whitespace-nowrap text-xs text-muted-foreground">{timeAgo(n.createdAt)}</span>
+                      <span className="flex-shrink-0 whitespace-nowrap text-xs text-muted-foreground">{timeAgo(n.createdAt, t)}</span>
                     </div>
                   ))}
                   <button onClick={() => router.push('/tasks')} className="text-xs font-medium text-safemeds-teal hover:underline">
-                    View all in Task Inbox →
+                    {t('dashboard.master.viewAllInTaskInbox')}
                   </button>
                 </div>
               )}
@@ -216,7 +222,7 @@ export function MasterDashboard() {
           <div className="rounded-lg border border-border bg-card p-4">
             <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <PackageSearch className="h-3.5 w-3.5" />
-              Product Compliance — What Needs Attention
+              {t('dashboard.master.productComplianceTitle')}
             </p>
             <ProductComplianceTable rows={dashboard.productCompliance} />
           </div>
@@ -224,52 +230,52 @@ export function MasterDashboard() {
           {dashboard.qualcloud.available ? (
             <div className="rounded-lg border border-border bg-card p-4">
               <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                QualCloud (Quality)
+                {t('dashboard.master.qualcloudQuality')}
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
                   <p className="text-2xl font-bold text-foreground">{dashboard.qualcloud.capasOverdue}</p>
-                  <p className="text-xs text-muted-foreground">CAPAs overdue</p>
+                  <p className="text-xs text-muted-foreground">{t('dashboard.master.capasOverdue')}</p>
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{dashboard.qualcloud.changeControlsInProgress}</p>
-                  <p className="text-xs text-muted-foreground">Changes in progress</p>
+                  <p className="text-xs text-muted-foreground">{t('dashboard.master.changesInProgress')}</p>
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{dashboard.qualcloud.documentsPendingApproval}</p>
-                  <p className="text-xs text-muted-foreground">Docs pending approval</p>
+                  <p className="text-xs text-muted-foreground">{t('dashboard.master.docsPendingApproval')}</p>
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{dashboard.qualcloud.trainingOverdue}</p>
-                  <p className="text-xs text-muted-foreground">Training overdue</p>
+                  <p className="text-xs text-muted-foreground">{t('dashboard.master.trainingOverdue')}</p>
                 </div>
               </div>
               {dashboard.qualcloud.deviationsOpenBySeverity.length > 0 && (
                 <div className="mt-4 flex flex-wrap gap-2">
                   {dashboard.qualcloud.deviationsOpenBySeverity.map((d) => (
                     <span key={d.severity} className="rounded-full bg-muted px-2.5 py-1 text-xs text-foreground">
-                      {d.count} {d.severity} deviation(s)
+                      {t('dashboard.master.deviationCount', { count: d.count, severity: d.severity })}
                     </span>
                   ))}
                 </div>
               )}
               {dashboard.qualcloud.metrics && (
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Right-first-time:{' '}
-                  {dashboard.qualcloud.metrics.rightFirstTimeRate === null
-                    ? 'n/a'
-                    : `${dashboard.qualcloud.metrics.rightFirstTimeRate}%`}{' '}
-                  · {dashboard.qualcloud.metrics.openTrendFlags} open trend flag(s)
+                  {t('dashboard.master.rightFirstTime', {
+                    value:
+                      dashboard.qualcloud.metrics.rightFirstTimeRate === null
+                        ? t('dashboard.master.notApplicable')
+                        : `${dashboard.qualcloud.metrics.rightFirstTimeRate}%`,
+                    count: dashboard.qualcloud.metrics.openTrendFlags,
+                  })}
                 </p>
               )}
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-border bg-muted/20 p-6 text-center">
               <Construction className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-              <p className="text-sm font-medium text-foreground">QualCloud (Quality) — Module Access Not Yet On</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                QualCloud is fully built — this section fills in once the module is entitled for this company.
-              </p>
+              <p className="text-sm font-medium text-foreground">{t('dashboard.master.qualcloudNotOnTitle')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('dashboard.master.qualcloudNotOnBody')}</p>
             </div>
           )}
         </>
@@ -278,7 +284,7 @@ export function MasterDashboard() {
       {has('reports.view') && (
         <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
           <ShieldAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-          <p>Product compliance is capped to your 50 most recently added products — see Master Data for the full catalog.</p>
+          <p>{t('dashboard.master.productComplianceCapNote')}</p>
         </div>
       )}
     </div>

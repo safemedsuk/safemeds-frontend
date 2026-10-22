@@ -20,8 +20,10 @@ import { getRoleCatalog, RoleWithPermissions } from '@/lib/api/roles'
 import { TENANT_ROLES, tenantRoleLabel } from '@/lib/tenant-roles'
 import { type Country } from '@/lib/api/countries'
 import { getCompanyMarkets, listFacilities, type Facility } from '@/lib/api/company'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export function UsersRoles() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canView = has('users.view')
   const canInvite = has('users.invite')
@@ -52,7 +54,7 @@ export function UsersRoles() {
     setError(null)
     listUsers({ limit: 100 })
       .then(({ users: rows }) => setUsers(rows))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load users.')))
+      .catch((err) => setError(getErrorMessage(err, t('users.list.loadUsersFailed'))))
       .finally(() => setLoading(false))
   }
 
@@ -96,35 +98,35 @@ export function UsersRoles() {
       setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
       setEditingUser(null)
     } catch (err) {
-      setActionError(getErrorMessage(err, 'Could not update roles.'))
+      setActionError(getErrorMessage(err, t('users.list.updateRolesFailed')))
     } finally {
       setBusyUserId(null)
     }
   }
 
   const handleDeactivate = async (user: TenantUser) => {
-    if (!confirm(`Deactivate ${user.fullName}? They will be signed out everywhere immediately.`)) return
+    if (!confirm(t('users.list.confirmDeactivate', { name: user.fullName }))) return
     setBusyUserId(user.id)
     setActionError(null)
     try {
       const updated = await deactivateUser(user.id)
       setUsers((prev) => prev.map((u) => (u.id === user.id ? updated : u)))
     } catch (err) {
-      setActionError(getErrorMessage(err, 'Could not deactivate this user.'))
+      setActionError(getErrorMessage(err, t('users.list.deactivateFailed')))
     } finally {
       setBusyUserId(null)
     }
   }
 
   const handleResetPassword = async (user: TenantUser) => {
-    if (!confirm(`Force ${user.fullName} to set a new password on next login?`)) return
+    if (!confirm(t('users.list.confirmForceReset', { name: user.fullName }))) return
     setBusyUserId(user.id)
     setActionError(null)
     try {
       await adminResetPassword(user.id)
       setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, mustChangePassword: true } : u)))
     } catch (err) {
-      setActionError(getErrorMessage(err, 'Could not force a password reset for this user.'))
+      setActionError(getErrorMessage(err, t('users.list.resetPasswordFailed')))
     } finally {
       setBusyUserId(null)
     }
@@ -133,15 +135,15 @@ export function UsersRoles() {
   const columns: DataTableColumn<TenantUser>[] = [
     {
       key: 'fullName',
-      label: 'User',
+      label: t('users.list.columnUser'),
       sortable: true,
       render: (_value, user) => (
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 font-medium text-foreground truncate">
             {user.fullName}
             {user.isExternal && (
-              <span className="rounded-full bg-status-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-status-warning whitespace-nowrap" title="External consultant">
-                External
+              <span className="rounded-full bg-status-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-status-warning whitespace-nowrap" title={t('users.list.externalTooltip')}>
+                {t('users.list.externalBadge')}
               </span>
             )}
           </p>
@@ -151,7 +153,7 @@ export function UsersRoles() {
     },
     {
       key: 'roleKeys',
-      label: 'Roles',
+      label: t('users.list.columnRoles'),
       render: (_value, user) => (
         <div className="flex flex-wrap gap-1">
           {user.roleKeys.map((key) => (
@@ -159,7 +161,7 @@ export function UsersRoles() {
               key={key}
               className="rounded-full bg-safemeds-teal/10 px-2 py-0.5 text-xs font-medium text-safemeds-teal whitespace-nowrap"
             >
-              {tenantRoleLabel(key)}
+              {tenantRoleLabel(key, t)}
             </span>
           ))}
         </div>
@@ -167,13 +169,13 @@ export function UsersRoles() {
     },
     {
       key: 'status',
-      label: 'Status',
+      label: t('users.list.columnStatus'),
       sortable: true,
       render: (_value, user) => (
         <div className="flex items-center gap-1.5">
           <StatusBadge status={user.status} />
           {user.mustChangePassword && (
-            <span title="Must change password on next login" className="text-status-warning">
+            <span title={t('users.list.mustChangePasswordTooltip')} className="text-status-warning">
               <KeyRound className="h-3.5 w-3.5" />
             </span>
           )}
@@ -182,19 +184,19 @@ export function UsersRoles() {
     },
     {
       key: 'createdAt',
-      label: 'Joined',
+      label: t('users.list.columnJoined'),
       sortable: true,
       render: (value) => <span className="text-muted-foreground">{new Date(value).toLocaleDateString()}</span>,
     },
     {
       key: 'id',
-      label: 'Actions',
+      label: t('users.list.columnActions'),
       align: 'right',
       render: (_value, user) => (
         <div className="flex justify-end gap-1">
           <button
             onClick={() => setHistoryUser(user)}
-            title="View activity history"
+            title={t('users.list.viewHistoryTooltip')}
             className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"
           >
             <History className="h-4 w-4" />
@@ -202,7 +204,7 @@ export function UsersRoles() {
           {canManageRoles && (
             <button
               onClick={() => startEditingRoles(user)}
-              title="Edit roles"
+              title={t('users.list.editRolesTooltip')}
               className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"
             >
               <ShieldCheck className="h-4 w-4" />
@@ -212,7 +214,7 @@ export function UsersRoles() {
             <button
               onClick={() => handleResetPassword(user)}
               disabled={busyUserId === user.id}
-              title="Force password reset"
+              title={t('users.list.forcePasswordResetTooltip')}
               className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
             >
               <KeyRound className="h-4 w-4" />
@@ -222,7 +224,7 @@ export function UsersRoles() {
             <button
               onClick={() => handleDeactivate(user)}
               disabled={busyUserId === user.id}
-              title="Deactivate user"
+              title={t('users.list.deactivateTooltip')}
               className="rounded-lg p-1.5 text-muted-foreground hover:bg-status-error/10 hover:text-status-error transition-colors disabled:opacity-50"
             >
               <UserX className="h-4 w-4" />
@@ -236,12 +238,10 @@ export function UsersRoles() {
   if (!canView) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Users & Roles</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('users.list.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">
-            You don&apos;t have permission to view this page. Contact your System Administrator.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('users.list.noPermission')}</p>
         </div>
       </div>
     )
@@ -251,8 +251,8 @@ export function UsersRoles() {
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Users & Roles</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Manage user accounts and permissions</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('users.list.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('users.list.subtitle')}</p>
         </div>
         {canInvite && (
           <div className="flex items-center gap-2">
@@ -261,14 +261,14 @@ export function UsersRoles() {
               className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors"
             >
               <Upload className="h-4 w-4" />
-              Bulk Import
+              {t('users.list.bulkImport')}
             </button>
             <button
               onClick={() => setInviteModalOpen(true)}
               className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
             >
               <Plus className="h-4 w-4" />
-              Add User
+              {t('users.list.addUser')}
             </button>
           </div>
         )}
@@ -295,21 +295,25 @@ export function UsersRoles() {
       )}
 
       {canInvite && (
-        <CollapsibleSection title="Pending Invitations" icon={<UserPlus className="h-4 w-4 text-muted-foreground" />}>
+        <CollapsibleSection title={t('users.list.pendingInvitations')} icon={<UserPlus className="h-4 w-4 text-muted-foreground" />}>
           <PendingInvitationsSection refreshKey={invitationsRefreshKey} />
         </CollapsibleSection>
       )}
 
-      <CollapsibleSection title="Security Policy" icon={<ShieldCheck className="h-4 w-4 text-muted-foreground" />}>
+      <CollapsibleSection title={t('users.list.securityPolicy')} icon={<ShieldCheck className="h-4 w-4 text-muted-foreground" />}>
         <SecurityPolicyCard />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Personnel Licences" icon={<ShieldCheck className="h-4 w-4 text-muted-foreground" />} defaultOpen={false}>
+      <CollapsibleSection title={t('users.list.personnelLicences')} icon={<ShieldCheck className="h-4 w-4 text-muted-foreground" />} defaultOpen={false}>
         <PersonnelLicencesSection />
       </CollapsibleSection>
 
       {roleCatalog.length > 0 && (
-        <CollapsibleSection title="Permissions by Role" icon={<Lock className="h-4 w-4 text-muted-foreground" />}>
+        // role.name/description and permission.description are backend
+        // reference content (the RBAC catalog), not frontend UI chrome —
+        // deliberately out of scope for this pass, see todo-i18n.md's own
+        // "What's explicitly NOT in this build" section.
+        <CollapsibleSection title={t('users.list.permissionsByRole')} icon={<Lock className="h-4 w-4 text-muted-foreground" />}>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {roleCatalog.map((role) => (
               <div key={role.key} className="rounded-lg border border-border p-3">
@@ -325,7 +329,7 @@ export function UsersRoles() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-xs text-muted-foreground italic">No permissions assigned yet.</p>
+                  <p className="text-xs text-muted-foreground italic">{t('users.list.noPermissionsAssigned')}</p>
                 )}
               </div>
             ))}
@@ -342,7 +346,7 @@ export function UsersRoles() {
       {loading && (
         <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading users...
+          {t('users.list.loadingUsers')}
         </div>
       )}
 
@@ -352,7 +356,7 @@ export function UsersRoles() {
         <DataTableV2
           data={users}
           columns={columns}
-          title={`Team (${users.length})`}
+          title={t('users.list.teamTableTitle', { count: users.length })}
           exportable={false}
           showDensityToggle={false}
           rowsPerPage={10}
@@ -360,7 +364,7 @@ export function UsersRoles() {
       )}
 
       {editingUser && (
-        <Modal title={`Edit roles — ${editingUser.fullName}`} onClose={() => setEditingUser(null)}>
+        <Modal title={t('users.list.editRolesModalTitle', { name: editingUser.fullName })} onClose={() => setEditingUser(null)}>
           <div className="space-y-3">
             <div className="flex flex-wrap gap-1.5">
               {TENANT_ROLES.map((role) => (
@@ -374,13 +378,13 @@ export function UsersRoles() {
                     onChange={() => toggleDraftRole(role.key)}
                     className="h-3.5 w-3.5"
                   />
-                  {role.label}
+                  {tenantRoleLabel(role.key, t)}
                 </label>
               ))}
             </div>
             <label className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-xs cursor-pointer hover:bg-[var(--surface-raised)] w-fit">
               <input type="checkbox" checked={draftIsExternal} onChange={(e) => setDraftIsExternal(e.target.checked)} className="h-3.5 w-3.5" />
-              External consultant
+              {t('users.list.externalConsultant')}
             </label>
             <div className="flex gap-2 pt-2">
               <button
@@ -393,14 +397,14 @@ export function UsersRoles() {
                 ) : (
                   <Check className="h-3.5 w-3.5" />
                 )}
-                Save
+                {t('users.list.save')}
               </button>
               <button
                 onClick={() => setEditingUser(null)}
                 className="flex items-center gap-1 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--text)] hover:bg-[var(--surface-raised)]"
               >
                 <X className="h-3.5 w-3.5" />
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
 
@@ -410,7 +414,7 @@ export function UsersRoles() {
       )}
 
       {historyUser && (
-        <Modal title={`Activity history — ${historyUser.fullName}`} onClose={() => setHistoryUser(null)} maxWidth="max-w-2xl">
+        <Modal title={t('users.list.activityHistoryModalTitle', { name: historyUser.fullName })} onClose={() => setHistoryUser(null)} maxWidth="max-w-2xl">
           <RecordHistory recordType="app_user" recordId={historyUser.id} />
         </Modal>
       )}

@@ -10,6 +10,7 @@ import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { BuildRmpModal } from '@/components/rmp/build-rmp-modal'
 import { BulkImportRmpsModal } from '@/components/rmp/bulk-import-rmps-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -32,6 +33,7 @@ function formatDate(value: string | null): string {
  * company-wide.
  */
 export function RiskManagementPlansScreen() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('rmp.manage')
 
@@ -64,11 +66,12 @@ export function RiskManagementPlansScreen() {
     setError(null)
     listRmp(productId)
       .then(setVersions)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load RMP versions.')))
+      .catch((err) => setError(getErrorMessage(err, t('rmp.errorLoadVersions'))))
       .finally(() => {
         if (!opts.silent) setLoading(false)
       })
-  }, [productId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, t])
 
   useEffect(() => {
     load()
@@ -82,10 +85,10 @@ export function RiskManagementPlansScreen() {
     try {
       const version = await uploadDocument('risk_management_plan', rmpId, file, { title: 'RMP document' })
       await attachRmpDocument(rmpId, version.documentId)
-      setNotice('Document attached.')
+      setNotice(t('rmp.documentAttached'))
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not upload this document.'))
+      setError(getErrorMessage(err, t('rmp.errorUploadDocument')))
     } finally {
       setUploadingFor(null)
     }
@@ -95,10 +98,10 @@ export function RiskManagementPlansScreen() {
     setError(null)
     try {
       await activateRmp(id)
-      setNotice('RMP activated.')
+      setNotice(t('rmp.activated'))
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not activate this RMP.'))
+      setError(getErrorMessage(err, t('rmp.errorActivate')))
     }
   }
 
@@ -108,10 +111,10 @@ export function RiskManagementPlansScreen() {
     try {
       await updateRmpRenewal(id, renewalDraft)
       setEditingRenewalFor(null)
-      setNotice('Renewal date updated.')
+      setNotice(t('rmp.renewalDateUpdated'))
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not update the renewal date.'))
+      setError(getErrorMessage(err, t('rmp.errorUpdateRenewal')))
     }
   }
 
@@ -121,9 +124,9 @@ export function RiskManagementPlansScreen() {
         <div>
           <div className="flex items-center gap-3">
             <ClipboardList className="h-6 w-6 text-safemeds-teal" />
-            <h1 className="text-3xl font-display font-bold text-foreground">Risk Management Plans</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground">{t('rmp.title')}</h1>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">Per-product RMP: current version, submission, and renewal tracking.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('rmp.subtitle')}</p>
         </div>
         {canManage && (
           <div className="flex items-center gap-2">
@@ -131,14 +134,14 @@ export function RiskManagementPlansScreen() {
               onClick={() => setShowBulkImport(true)}
               className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
             >
-              <Upload className="h-4 w-4" /> Bulk Import
+              <Upload className="h-4 w-4" /> {t('rmp.bulkImport')}
             </button>
             {productId && (
               <button
                 onClick={() => setShowCreate(true)}
                 className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
               >
-                New Draft
+                {t('rmp.newDraft')}
               </button>
             )}
           </div>
@@ -146,9 +149,9 @@ export function RiskManagementPlansScreen() {
       </div>
 
       <div className="rounded-lg border border-border bg-card p-4">
-        <label className={labelClass}>Product</label>
+        <label className={labelClass}>{t('rmp.product')}</label>
         <select value={productId} onChange={(e) => setProductId(e.target.value)} className={`${inputClass} sm:max-w-sm`}>
-          <option value="">Select a product…</option>
+          <option value="">{t('rmp.selectProduct')}</option>
           {products.map((p) => (
             <option key={p.id} value={p.id}>
               {p.brandName}
@@ -160,18 +163,20 @@ export function RiskManagementPlansScreen() {
       {!productId ? (
         <div className="rounded-lg border border-dashed border-border p-12 text-center">
           <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">Select a product to view or manage its RMP.</p>
+          <p className="text-sm text-muted-foreground">{t('rmp.selectProductToView')}</p>
         </div>
       ) : (
         <>
           {activeVersion ? (
             <div className="rounded-lg border border-status-success bg-status-success/10 p-4 text-sm text-status-success">
-              Version {activeVersion.version} is active. {activeVersion.nextRenewalDueAt ? `Next renewal due ${formatDate(activeVersion.nextRenewalDueAt)}.` : 'No renewal date set yet.'}
+              {activeVersion.nextRenewalDueAt
+                ? t('rmp.versionActiveWithRenewal', { version: activeVersion.version, date: formatDate(activeVersion.nextRenewalDueAt) })
+                : t('rmp.versionActiveNoRenewal', { version: activeVersion.version })}
             </div>
           ) : (
             <div className="rounded-lg border border-status-warning bg-status-warning/10 p-4 text-sm text-status-warning flex items-start gap-2">
               <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
-              No active RMP for this product — build or upload one, then activate it.
+              {t('rmp.noActiveRmp')}
             </div>
           )}
 
@@ -186,17 +191,17 @@ export function RiskManagementPlansScreen() {
             ) : versions.length === 0 ? (
               <div className="p-12 text-center">
                 <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-                <p className="text-sm text-muted-foreground">No RMP versions yet for this product.</p>
+                <p className="text-sm text-muted-foreground">{t('rmp.noVersionsYet')}</p>
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    <th className="p-3">Version</th>
-                    <th className="p-3">Title</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3">Document</th>
-                    <th className="p-3">Next Renewal</th>
+                    <th className="p-3">{t('rmp.columnVersion')}</th>
+                    <th className="p-3">{t('rmp.columnTitle')}</th>
+                    <th className="p-3">{t('rmp.columnStatus')}</th>
+                    <th className="p-3">{t('rmp.columnDocument')}</th>
+                    <th className="p-3">{t('rmp.columnNextRenewal')}</th>
                     <th className="p-3"></th>
                   </tr>
                 </thead>
@@ -208,16 +213,16 @@ export function RiskManagementPlansScreen() {
                       <td className="p-3">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[v.status]}`}>{v.status}</span>
                       </td>
-                      <td className="p-3 text-muted-foreground">{v.documentId ? 'Attached' : '—'}</td>
+                      <td className="p-3 text-muted-foreground">{v.documentId ? t('rmp.attached') : '—'}</td>
                       <td className="p-3 text-muted-foreground">
                         {editingRenewalFor === v.id ? (
                           <div className="flex items-center gap-1.5">
                             <input type="date" value={renewalDraft} onChange={(e) => setRenewalDraft(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs" />
                             <button onClick={() => handleSaveRenewal(v.id)} className="text-xs font-medium text-safemeds-teal hover:underline">
-                              Save
+                              {t('rmp.save')}
                             </button>
                             <button onClick={() => setEditingRenewalFor(null)} className="text-xs text-muted-foreground hover:underline">
-                              Cancel
+                              {t('common.cancel')}
                             </button>
                           </div>
                         ) : (
@@ -244,7 +249,7 @@ export function RiskManagementPlansScreen() {
                                   className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
                                 >
                                   <Sparkles className="h-3.5 w-3.5" />
-                                  Build
+                                  {t('rmp.build')}
                                 </button>
                                 <button
                                   onClick={() => {
@@ -255,17 +260,17 @@ export function RiskManagementPlansScreen() {
                                   className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
                                 >
                                   {uploadingFor === v.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                                  Upload
+                                  {t('rmp.upload')}
                                 </button>
                               </>
                             )}
                             <button
                               onClick={() => handleActivate(v.id)}
                               disabled={!v.documentId}
-                              title={!v.documentId ? 'Attach a document before activating' : undefined}
+                              title={!v.documentId ? t('rmp.attachBeforeActivating') : undefined}
                               className="rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-40"
                             >
-                              Activate
+                              {t('rmp.activate')}
                             </button>
                           </div>
                         )}
@@ -297,7 +302,7 @@ export function RiskManagementPlansScreen() {
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false)
-            setNotice('Draft created.')
+            setNotice(t('rmp.draftCreated'))
             load()
           }}
         />
@@ -307,7 +312,7 @@ export function RiskManagementPlansScreen() {
         <BulkImportRmpsModal
           onClose={() => setShowBulkImport(false)}
           onImported={() => {
-            setNotice('RMPs imported — select a product above to view its new draft.')
+            setNotice(t('rmp.importedSelectProduct'))
             load()
           }}
         />
@@ -321,7 +326,7 @@ export function RiskManagementPlansScreen() {
           onSaved={() => load({ silent: true })}
           onGenerated={() => {
             setBuildingRmp(null)
-            setNotice('RMP document generated.')
+            setNotice(t('rmp.documentGenerated'))
             load()
           }}
         />
@@ -331,6 +336,7 @@ export function RiskManagementPlansScreen() {
 }
 
 function CreateRmpModal({ productId, onClose, onCreated }: { productId: string; onClose: () => void; onCreated: () => void }) {
+  const { t } = useTranslation()
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [nextRenewalDueAt, setNextRenewalDueAt] = useState('')
@@ -347,7 +353,7 @@ function CreateRmpModal({ productId, onClose, onCreated }: { productId: string; 
       await createRmp({ productId, title: title.trim(), summary: summary.trim() || undefined, nextRenewalDueAt: nextRenewalDueAt || undefined })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this draft.'))
+      setError(getErrorMessage(err, t('rmp.errorCreateDraft')))
       setSubmitting(false)
     }
   }
@@ -355,20 +361,20 @@ function CreateRmpModal({ productId, onClose, onCreated }: { productId: string; 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">New RMP Draft</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('rmp.newDraftModalTitle')}</h2>
 
         <div>
-          <label className={labelClass}>Title *</label>
+          <label className={labelClass}>{t('rmp.titleRequired')}</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. RMP v1" className={inputClass} />
         </div>
 
         <div>
-          <label className={labelClass}>Summary</label>
+          <label className={labelClass}>{t('rmp.summary')}</label>
           <textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={3} className={inputClass} />
         </div>
 
         <div>
-          <label className={labelClass}>Next renewal due (optional)</label>
+          <label className={labelClass}>{t('rmp.nextRenewalDueOptional')}</label>
           <input type="date" value={nextRenewalDueAt} onChange={(e) => setNextRenewalDueAt(e.target.value)} className={inputClass} />
         </div>
 
@@ -376,7 +382,7 @@ function CreateRmpModal({ productId, onClose, onCreated }: { productId: string; 
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -384,7 +390,7 @@ function CreateRmpModal({ productId, onClose, onCreated }: { productId: string; 
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create
+            {t('rmp.create')}
           </button>
         </div>
       </div>

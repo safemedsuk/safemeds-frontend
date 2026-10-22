@@ -13,6 +13,8 @@ import { useAuthStore } from '@/lib/store/auth-store'
 import { ApiRequestError } from '@/lib/api/client'
 import { login, type LoginSuccessResult } from '@/lib/api/auth'
 import { challengeMfa } from '@/lib/api/mfa'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 type ErrorType = 'INVALID_CREDENTIALS' | 'ACCOUNT_DEACTIVATED' | 'COMPANY_SUSPENDED' | 'ACCOUNT_LOCKED' | null
 
@@ -22,22 +24,22 @@ interface ErrorDisplay {
   details?: string
 }
 
-const ERROR_COPY: Record<Exclude<ErrorType, null>, { message: string; details: string }> = {
+const ERROR_COPY_KEYS: Record<Exclude<ErrorType, null>, { messageKey: MessageKey; detailsKey: MessageKey }> = {
   INVALID_CREDENTIALS: {
-    message: 'Sign in unsuccessful',
-    details: 'The email or password you entered is incorrect. Please try again.',
+    messageKey: 'auth.login.errorInvalidCredentialsTitle',
+    detailsKey: 'auth.login.errorInvalidCredentialsDetails',
   },
   ACCOUNT_DEACTIVATED: {
-    message: 'Account deactivated',
-    details: 'This account has been deactivated. Contact your administrator for assistance.',
+    messageKey: 'auth.login.errorAccountDeactivatedTitle',
+    detailsKey: 'auth.login.errorAccountDeactivatedDetails',
   },
   COMPANY_SUSPENDED: {
-    message: 'Company account suspended',
-    details: 'Your company account has been suspended. Contact support for more information.',
+    messageKey: 'auth.login.errorCompanySuspendedTitle',
+    detailsKey: 'auth.login.errorCompanySuspendedDetails',
   },
   ACCOUNT_LOCKED: {
-    message: 'Account locked',
-    details: 'Too many failed sign-in attempts. Try again once the lockout period ends.',
+    messageKey: 'auth.login.errorAccountLockedTitle',
+    detailsKey: 'auth.login.errorAccountLockedDetails',
   },
 }
 
@@ -50,6 +52,7 @@ const ERROR_STYLES: Record<Exclude<ErrorType, null>, string> = {
 
 export default function LoginPage() {
   const router = useRouter()
+  const { t } = useTranslation()
   const { setCurrentUser, setSecurityPolicy, setIsAuthenticated, setMfaEnabled, lockoutUntil, setLockoutUntil } =
     useAuthStore()
 
@@ -97,8 +100,13 @@ export default function LoginPage() {
   // MFA_PENDING_TOKEN_INVALID.
   useEffect(() => {
     if (!mfaSessionExpired) return
-    setError({ type: null, message: 'Verification window expired', details: 'Please sign in again.' })
+    setError({
+      type: null,
+      message: t('auth.login.errorVerificationExpiredTitle'),
+      details: t('auth.login.errorVerificationExpiredDetails'),
+    })
     resetMfaChallenge()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mfaSessionExpired])
 
   const finishLogin = (result: LoginSuccessResult, cameFromMfaChallenge: boolean) => {
@@ -153,10 +161,14 @@ export default function LoginPage() {
           setAttemptsRemaining(null)
         }
 
-        const copy = code ? ERROR_COPY[code] : undefined
-        setError(copy ? { type: code, ...copy } : { type: null, message: 'Sign in failed', details: err.message })
+        const copy = code ? ERROR_COPY_KEYS[code] : undefined
+        setError(
+          copy
+            ? { type: code, message: t(copy.messageKey), details: t(copy.detailsKey) }
+            : { type: null, message: t('auth.login.errorSignInFailedTitle'), details: err.message },
+        )
       } else {
-        setError({ type: null, message: 'An error occurred', details: 'Please try again later.' })
+        setError({ type: null, message: t('auth.login.errorGenericTitle'), details: t('auth.login.errorGenericDetails') })
       }
     } finally {
       setIsLoading(false)
@@ -178,16 +190,20 @@ export default function LoginPage() {
     } catch (err) {
       if (err instanceof ApiRequestError) {
         if (err.code === 'MFA_PENDING_TOKEN_INVALID') {
-          setError({ type: null, message: 'Session expired', details: err.message || 'Please sign in again.' })
+          setError({
+            type: null,
+            message: t('auth.login.errorSessionExpiredTitle'),
+            details: err.message || t('auth.login.errorVerificationExpiredDetails'),
+          })
           resetMfaChallenge()
         } else {
           const details = err.details as { attemptsRemaining?: number } | undefined
           setMfaAttemptsRemaining(typeof details?.attemptsRemaining === 'number' ? details.attemptsRemaining : null)
-          setError({ type: null, message: 'Verification failed', details: err.message })
+          setError({ type: null, message: t('auth.login.errorVerificationFailedTitle'), details: err.message })
           setMfaCode('')
         }
       } else {
-        setError({ type: null, message: 'An error occurred', details: 'Please try again later.' })
+        setError({ type: null, message: t('auth.login.errorGenericTitle'), details: t('auth.login.errorGenericDetails') })
       }
     } finally {
       setIsLoading(false)
@@ -235,7 +251,7 @@ export default function LoginPage() {
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between gap-3 mb-1">
-              <h1 className="text-2xl font-display font-semibold text-[var(--text)]">Two-factor verification</h1>
+              <h1 className="text-2xl font-display font-semibold text-[var(--text)]">{t('auth.login.mfaTitle')}</h1>
               {mfaCountdownLabel && (
                 <span
                   className={`font-mono text-sm tabular-nums rounded-full px-2.5 py-1 border ${
@@ -243,16 +259,14 @@ export default function LoginPage() {
                       ? 'text-status-error bg-status-error/10 border-status-error/30'
                       : 'text-[var(--text-muted)] bg-[var(--bg-secondary)] border-[var(--border)]'
                   }`}
-                  title="Time left before you need to sign in again"
+                  title={t('auth.login.mfaTimeLeftTooltip')}
                 >
                   {mfaCountdownLabel}
                 </span>
               )}
             </div>
             <p className="text-sm text-[var(--text-muted)]">
-              {useRecoveryCode
-                ? 'Enter one of your unused recovery codes.'
-                : 'Enter the 6-digit code from your authenticator app.'}
+              {useRecoveryCode ? t('auth.login.mfaSubtitleRecovery') : t('auth.login.mfaSubtitleAuthenticator')}
             </p>
           </div>
         </div>
@@ -263,8 +277,9 @@ export default function LoginPage() {
           <div className="rounded-lg border bg-status-warning/10 border-status-warning/30 text-status-warning p-3 mb-6 flex gap-2 text-sm">
             <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
             <span>
-              {mfaAttemptsRemaining} attempt{mfaAttemptsRemaining === 1 ? '' : 's'} left before you&apos;ll need to
-              sign in again.
+              {mfaAttemptsRemaining === 1
+                ? t('auth.login.mfaAttemptsLeftOne')
+                : t('auth.login.mfaAttemptsLeftMany', { count: mfaAttemptsRemaining })}
             </span>
           </div>
         )}
@@ -273,7 +288,7 @@ export default function LoginPage() {
           {useRecoveryCode ? (
             <div className="space-y-2">
               <label htmlFor="recoveryCode" className="block text-sm font-medium text-[var(--text)]">
-                Recovery code
+                {t('auth.login.recoveryCodeLabel')}
               </label>
               <input
                 id="recoveryCode"
@@ -289,7 +304,7 @@ export default function LoginPage() {
           ) : (
             <div className="space-y-2">
               <label htmlFor="mfaCode" className="block text-sm font-medium text-[var(--text)]">
-                Authentication code
+                {t('auth.login.authenticationCodeLabel')}
               </label>
               <input
                 id="mfaCode"
@@ -312,7 +327,7 @@ export default function LoginPage() {
             className="w-full h-10 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
           >
             {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Verify
+            {t('auth.login.verify')}
           </button>
         </form>
 
@@ -325,7 +340,7 @@ export default function LoginPage() {
             }}
             className="text-sm text-[var(--primary)] hover:opacity-90 font-medium"
           >
-            {useRecoveryCode ? 'Use authenticator code instead' : "Can't access your authenticator? Use a recovery code"}
+            {useRecoveryCode ? t('auth.login.useAuthenticatorInstead') : t('auth.login.useRecoveryCodeInstead')}
           </button>
           <div>
             <button
@@ -336,7 +351,7 @@ export default function LoginPage() {
               }}
               className="text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
             >
-              Back to sign in
+              {t('auth.login.backToSignIn')}
             </button>
           </div>
         </div>
@@ -348,10 +363,8 @@ export default function LoginPage() {
     <AuthLayout>
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">Sign in</h1>
-        <p className="text-sm text-[var(--text-muted)]">
-          Access your compliance management platform
-        </p>
+        <h1 className="text-2xl font-display font-semibold text-[var(--text)] mb-2">{t('auth.login.title')}</h1>
+        <p className="text-sm text-[var(--text-muted)]">{t('auth.login.subtitle')}</p>
       </div>
 
       {/* Error Messages */}
@@ -369,12 +382,14 @@ export default function LoginPage() {
           <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="font-semibold text-sm mb-1">
-              {attemptsRemaining} attempt{attemptsRemaining === 1 ? '' : 's'} remaining
+              {attemptsRemaining === 1
+                ? t('auth.login.attemptsRemainingOne')
+                : t('auth.login.attemptsRemainingMany', { count: attemptsRemaining })}
             </p>
             <p className="text-sm opacity-90">
               {attemptsRemaining === 1
-                ? 'One more incorrect attempt will lock your account for 15 minutes.'
-                : `Your account will be locked for 15 minutes after ${attemptsRemaining} more failed attempts.`}
+                ? t('auth.login.attemptsRemainingBodyOne')
+                : t('auth.login.attemptsRemainingBodyMany', { count: attemptsRemaining })}
             </p>
           </div>
         </div>
@@ -383,11 +398,8 @@ export default function LoginPage() {
       {/* Locked Out State */}
       {isLockedOut && (
         <div className="bg-status-warning/10 border border-status-warning/30 rounded-lg p-4 mb-6">
-          <p className="text-sm text-status-warning font-semibold mb-2">Account temporarily locked</p>
-          <p className="text-xs text-[var(--text-muted)] mb-3">
-            Too many failed sign-in attempts. For your security, this account is locked until the countdown below
-            reaches zero.
-          </p>
+          <p className="text-sm text-status-warning font-semibold mb-2">{t('auth.login.lockedOutTitle')}</p>
+          <p className="text-xs text-[var(--text-muted)] mb-3">{t('auth.login.lockedOutBody')}</p>
           <p className="font-mono text-2xl text-status-warning tabular-nums">{countdownLabel}</p>
         </div>
       )}
@@ -397,7 +409,7 @@ export default function LoginPage() {
         {/* Email */}
         <div className="space-y-2">
           <label htmlFor="email" className="block text-sm font-medium text-[var(--text)]">
-            Work email
+            {t('auth.login.workEmail')}
           </label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-muted)] pointer-events-none" />
@@ -417,7 +429,7 @@ export default function LoginPage() {
         {/* Password */}
         <div className="space-y-2">
           <label htmlFor="password" className="block text-sm font-medium text-[var(--text)]">
-            Password
+            {t('auth.login.password')}
           </label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-muted)] pointer-events-none" />
@@ -453,13 +465,13 @@ export default function LoginPage() {
             className="h-4 w-4 rounded border-[var(--border)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <label htmlFor="keep-signed-in" className="text-sm text-[var(--text)] cursor-pointer select-none">
-            Keep me signed in on this device
+            {t('auth.login.keepSignedIn')}
           </label>
         </div>
 
         {keepSignedIn && (
           <p className="text-xs text-status-warning bg-status-warning/10 border border-status-warning/30 rounded-lg p-3">
-            ⚠ Shared workstations should not use this option. Ensure only you use this device before enabling.
+            ⚠ {t('auth.login.keepSignedInWarning')}
           </p>
         )}
 
@@ -470,7 +482,7 @@ export default function LoginPage() {
           className="w-full h-10 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-          {isLockedOut ? 'Account Locked' : 'Sign in'}
+          {isLockedOut ? t('auth.login.accountLockedButton') : t('auth.login.title')}
         </button>
       </form>
 
@@ -480,12 +492,12 @@ export default function LoginPage() {
           href="/forgot-password"
           className="block text-center text-sm text-[var(--primary)] hover:opacity-90 font-medium"
         >
-          Forgot your password?
+          {t('auth.login.forgotPassword')}
         </a>
         <div className="text-center text-xs text-[var(--text-muted)]">
-          New to SafeMeds?{' '}
+          {t('auth.login.newToSafeMeds')}{' '}
           <a href="/register" className="text-[var(--primary)] hover:opacity-90 font-medium">
-            Register your company
+            {t('auth.login.registerYourCompany')}
           </a>
         </div>
       </div>

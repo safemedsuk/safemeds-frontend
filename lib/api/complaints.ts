@@ -17,6 +17,11 @@ export const COMPLAINT_CHANNEL_LABELS: Record<ComplaintChannel, string> = {
 }
 
 export const COMPLAINT_CLASSIFICATIONS = ['quality_complaint', 'possible_ae'] as const
+/** Pass A2 (item 4d) — exactly two outcomes, with the wording the business uses. The backend values are unchanged. */
+export const COMPLAINT_CLASSIFICATION_LABELS: Record<ComplaintClassification, string> = {
+  quality_complaint: 'Product Quality Complaint Only',
+  possible_ae: 'Product Quality Complaint with Adverse Event',
+}
 export type ComplaintClassification = (typeof COMPLAINT_CLASSIFICATIONS)[number]
 
 export interface Complaint {
@@ -96,14 +101,7 @@ export async function resolveComplaint(id: string, resolutionNote: string): Prom
   return data
 }
 
-export interface OpenCapaForComplaintInput {
-  title: string
-  correctiveAction: string
-  preventiveAction?: string
-  rootCauseCategory?: string
-  ownerUserId?: string
-  dueDate?: string
-}
+export type OpenCapaForComplaintInput = import('./capa-allocation').CapaAllocationInput
 
 export async function openCapaForComplaint(id: string, input: OpenCapaForComplaintInput): Promise<Capa> {
   const { data } = await post<Capa>(`/quality/complaints/${id}/capa`, input)

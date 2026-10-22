@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, ArrowLeft, Link2, Loader2, Search } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Link2, Loader2, Plus, Search, ShieldAlert } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import { PvCase, listPvCases } from '@/lib/api/pv-cases'
 import { getRecall, linkRecallCases, RECALL_STATUS_LABELS, RecallDetail as RecallDetailType } from '@/lib/api/recalls'
+import { createRiskAssessment, listRiskAssessments, RiskAssessment } from '@/lib/api/quality'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { WorkflowActionsPanel } from '@/components/pv-cases/workflow-actions-panel'
@@ -56,6 +57,194 @@ interface Props {
  * one already exists — a QualCloud root-cause CAPA reference. Neither
  * link is a shared workflow instance.
  */
+/**
+ * QualCloud Phase 1 Pass B (item A6) — says which step comes next and why, in plain language.
+ * Statuses mirror the recall's own lifecycle (RecallWorkflowGuards); the text is guidance, the
+ * workflow buttons below are what actually move the recall.
+ */
+const NEXT_STEP_GUIDANCE: Record<string, string> = {
+  draft: 'Next: move this recall to Under assessment. Then build the product and batch scope and freeze it, because approval needs a frozen scope.',
+  under_assessment:
+    'Next: finish the product and batch scope and freeze it, add the countries, and complete the risk assessment. Approval is blocked until a frozen scope and a risk assessment both exist.',
+  approved: 'Next: notify the stakeholders. Send their portal links and messages so they can confirm receipt and count stock.',
+  notification: 'Next: record each delivery and stakeholder stock count, so the recall can be carried out (execution).',
+  execution: 'Next: reconcile stock. Show what is recovered, quarantined, destroyed and still outstanding, then move to reconciliation.',
+  reconciliation: 'Next: confirm the reconciliation and move the recall to Closure pending.',
+  closure_pending:
+    'Next: close the recall. Closure is blocked until every obligation is met, discrepancies are resolved, recovered stock is destroyed with a certificate, and a root-cause CAPA is linked.',
+  closed: 'Closed. Nothing further is needed. The record stays in the audit trail.',
+  cancelled: 'Cancelled. The record is kept for the audit trail.',
+}
+
+function RecallNextStepBanner({ status }: { status: string }) {
+  const text = NEXT_STEP_GUIDANCE[status]
+  if (!text) return null
+  return <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-foreground">{text}</div>
+}
+
+const RISK_LEVEL_STYLES: Record<string, string> = {
+  low: 'bg-status-success/10 text-status-success',
+  medium: 'bg-status-warning/10 text-status-warning',
+  high: 'bg-status-error/10 text-status-error',
+}
+
+/**
+ * Real-usage item (7 Oct 2026) — approval ("under_assessment → approved")
+ * is blocked until a risk assessment exists for this recall
+ * (`RecallWorkflowGuards`), but the Risk Register (Controlled Documents)
+ * had no way to create one already linked. This section shows what's
+ * already linked and lets a user open one directly against this recall.
+ */
+function RecallRiskAssessmentSection({
+  recallId,
+  recallRef,
+  productName,
+}: {
+  recallId: string
+  recallRef: string | null
+  productName: string
+}) {
+  const [risks, setRisks] = useState<RiskAssessment[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+
+  const load = useCallback(() => {
+    listRiskAssessments({ sourceRecordType: 'recall', sourceRecordId: recallId, limit: 10 })
+      .then((page) => setRisks(page.rows))
+      .catch((err) => setError(getErrorMessage(err, 'Could not load the risk assessment.')))
+  }, [recallId])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Risk Assessment</p>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+        >
+          <Plus className="h-3.5 w-3.5" /> New Risk Assessment for this Recall
+        </button>
+      </div>
+      {error && <p className="text-xs text-status-error">{error}</p>}
+      {risks === null ? (
+        <p className="text-xs text-muted-foreground">Loading…</p>
+      ) : risks.length === 0 ? (
+        <div className="flex items-start gap-2 text-xs text-status-warning">
+          <ShieldAlert className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+          <p>No risk assessment is linked yet. Approval is blocked until one exists — create one above.</p>
+        </div>
+      ) : (
+        <ul className="space-y-1">
+          {risks.map((r) => (
+            <li key={r.id} className="flex items-center justify-between text-sm">
+              <span className="text-foreground">{r.title}</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${RISK_LEVEL_STYLES[r.riskLevel] ?? ''}`}>
+                {r.riskLevel} ({r.score})
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-[11px] text-muted-foreground">The full register is on Controlled Documents → Risk Register.</p>
+
+      {showCreate && (
+        <RecallRiskAssessmentModal
+          recallId={recallId}
+          defaultTitle={`Recall risk assessment — ${recallRef ?? ''} ${productName}`.trim()}
+          onClose={() => setShowCreate(false)}
+          onCreated={() => {
+            setShowCreate(false)
+            load()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function RecallRiskAssessmentModal({
+  recallId,
+  defaultTitle,
+  onClose,
+  onCreated,
+}: {
+  recallId: string
+  defaultTitle: string
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [title, setTitle] = useState(defaultTitle)
+  const [severity, setSeverity] = useState(3)
+  const [probability, setProbability] = useState(3)
+  const [mitigationActions, setMitigationActions] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async () => {
+    if (!title.trim()) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      await createRiskAssessment({
+        title: title.trim(),
+        sourceRecordType: 'recall',
+        sourceRecordId: recallId,
+        severity,
+        probability,
+        mitigationActions: mitigationActions.trim() || undefined,
+      })
+      onCreated()
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not record this risk assessment.'))
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
+        <h3 className="font-display font-bold text-base text-foreground">New Risk Assessment for this Recall</h3>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">Title *</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Severity (1–5) *</label>
+            <input type="number" min={1} max={5} value={severity} onChange={(e) => setSeverity(Number(e.target.value))} className={inputClass} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Probability (1–5) *</label>
+            <input type="number" min={1} max={5} value={probability} onChange={(e) => setProbability(Number(e.target.value))} className={inputClass} />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">Mitigation Actions</label>
+          <textarea value={mitigationActions} onChange={(e) => setMitigationActions(e.target.value)} rows={2} className={inputClass} />
+        </div>
+        {error && <p className="text-sm text-status-error">{error}</p>}
+        <div className="flex justify-end gap-3 pt-2">
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!title.trim() || submitting}
+            className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
+          >
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            Record
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function RecallDetail({ recallId }: Props) {
   const router = useRouter()
   const { has } = usePermissions()
@@ -159,6 +348,8 @@ export function RecallDetail({ recallId }: Props) {
         </div>
       )}
 
+      <RecallNextStepBanner status={recall.status} />
+
       <WorkflowActionsPanel workflowInstanceId={recall.workflowInstanceId} onTransitioned={refresh} />
 
       <RecordTasksPanel recordType="recall" recordId={recall.id} />
@@ -170,6 +361,8 @@ export function RecallDetail({ recallId }: Props) {
       <RecallCountriesSection recallId={recall.id} onChanged={refresh} />
 
       <RecallScopeSection recallId={recall.id} onChanged={refresh} />
+
+      <RecallRiskAssessmentSection recallId={recall.id} recallRef={recall.ref} productName={recall.product.brandName} />
 
       <RecallDistributionSection recallId={recall.id} />
 

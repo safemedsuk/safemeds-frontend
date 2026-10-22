@@ -15,6 +15,7 @@ import {
 } from '@/lib/api/environmental-monitoring-stability'
 import { listProducts } from '@/lib/api/master-data'
 import { listFacilities } from '@/lib/api/company'
+import { listSpecifications, SpecificationParameter } from '@/lib/api/quality'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 
@@ -295,6 +296,7 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
   const [showCreate, setShowCreate] = useState(false)
   const [detail, setDetail] = useState<StabilityStudy | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [detailParameters, setDetailParameters] = useState<SpecificationParameter[]>([])
 
   const [productId, setProductId] = useState('')
   const [storageCondition, setStorageCondition] = useState(STORAGE_CONDITIONS[0].value)
@@ -335,7 +337,21 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
   async function openDetail(id: string) {
     setDetailLoading(true)
     try {
-      setDetail(await getStabilityStudy(id))
+      const study = await getStabilityStudy(id)
+      setDetail(study)
+      // The parameters a result can be recorded against come from the
+      // study's own linked specification, falling back to any
+      // specification for the same product so a result can still be
+      // recorded against a study created before specifications existed.
+      try {
+        const specs = await listSpecifications({ productId: study.productId, limit: 50 })
+        const preferred = study.specificationId
+          ? specs.rows.find((s) => s.id === study.specificationId)
+          : specs.rows[0]
+        setDetailParameters(preferred?.parameters ?? specs.rows.flatMap((s) => s.parameters))
+      } catch {
+        setDetailParameters([])
+      }
     } catch (err) {
       setError(getErrorMessage(err, 'Could not load the study.'))
     } finally {
@@ -461,7 +477,7 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
                 </thead>
                 <tbody>
                   {(detail.timepoints ?? []).map((t) => (
-                    <TimepointRow key={t.id} timepoint={t} canManage={canManage} onRecord={recordResult} />
+                    <TimepointRow key={t.id} timepoint={t} canManage={canManage} parameters={detailParameters} onRecord={recordResult} />
                   ))}
                 </tbody>
               </table>
@@ -479,15 +495,17 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
 function TimepointRow({
   timepoint,
   canManage,
+  parameters,
   onRecord,
 }: {
   timepoint: import('@/lib/api/environmental-monitoring-stability').StabilityTimepoint
   canManage: boolean
+  parameters: SpecificationParameter[]
   onRecord: (timepointId: string, pullDate: string, parameterId: string, result: string) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [pullDate, setPullDate] = useState(new Date().toISOString().slice(0, 10))
-  const [parameterId, setParameterId] = useState('')
+  const [parameterId, setParameterId] = useState(parameters[0]?.id ?? '')
   const [result, setResult] = useState('')
 
   return (
@@ -509,14 +527,28 @@ function TimepointRow({
           {editing ? (
             <div className="space-y-1">
               <input type="date" className={inputClass} value={pullDate} onChange={(e) => setPullDate(e.target.value)} />
-              <input className={inputClass} placeholder="Parameter ID" value={parameterId} onChange={(e) => setParameterId(e.target.value)} />
+              {parameters.length === 0 ? (
+                <p className="text-[11px] text-status-warning">
+                  No specification parameters found for this study&apos;s product. Add a specification with parameters first.
+                </p>
+              ) : (
+                <select className={inputClass} value={parameterId} onChange={(e) => setParameterId(e.target.value)}>
+                  {parameters.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.parameterName}
+                      {p.unit ? ` (${p.unit})` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
               <input className={inputClass} placeholder="Result" value={result} onChange={(e) => setResult(e.target.value)} />
               <button
+                disabled={!parameterId}
                 onClick={() => {
                   onRecord(timepoint.id, pullDate, parameterId, result)
                   setEditing(false)
                 }}
-                className="rounded-lg bg-safemeds-teal px-3 py-1 text-xs font-medium text-white"
+                className="rounded-lg bg-safemeds-teal px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
               >
                 Save
               </button>

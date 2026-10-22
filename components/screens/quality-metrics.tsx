@@ -17,6 +17,9 @@ import {
   listManagementReviews,
   recordManagementReviewActions,
   scheduleManagementReview,
+  addManagementReviewAttendee,
+  withdrawManagementReviewAttendee,
+  ManagementReviewAttendee,
 } from '@/lib/api/management-reviews'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
@@ -357,7 +360,9 @@ function ManagementReviewsTab({ canManage }: { canManage: boolean }) {
 function ScheduleReviewModal({ onClose, onScheduled }: { onClose: () => void; onScheduled: () => void }) {
   const [period, setPeriod] = useState('')
   const [reviewDate, setReviewDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [attendees, setAttendees] = useState('')
+  const [attendees, setAttendees] = useState<{ name: string; roleOrOrganisation: string }[]>([])
+  const [attendeeName, setAttendeeName] = useState('')
+  const [attendeeRole, setAttendeeRole] = useState('')
   const [nextReviewDueAt, setNextReviewDueAt] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -372,7 +377,10 @@ function ScheduleReviewModal({ onClose, onScheduled }: { onClose: () => void; on
       await scheduleManagementReview({
         period: period.trim(),
         reviewDate,
-        attendees: attendees.trim() || undefined,
+        attendeeRows: attendees.map((a) => ({
+          name: a.name,
+          roleOrOrganisation: a.roleOrOrganisation.trim() || undefined,
+        })),
         nextReviewDueAt: nextReviewDueAt || undefined,
       })
       onScheduled()
@@ -397,7 +405,42 @@ function ScheduleReviewModal({ onClose, onScheduled }: { onClose: () => void; on
         </div>
         <div>
           <label className={labelClass}>Attendees</label>
-          <input value={attendees} onChange={(e) => setAttendees(e.target.value)} className={inputClass} />
+          <p className="mb-2 text-[11px] text-muted-foreground">Add each person by name. You can add or remove people later too.</p>
+          {attendees.length > 0 && (
+            <ul className="mb-2 space-y-1 text-sm">
+              {attendees.map((a, index) => (
+                <li key={`${a.name}-${index}`} className="flex items-center justify-between gap-2">
+                  <span className="text-foreground">
+                    {a.name}
+                    {a.roleOrOrganisation && <span className="text-muted-foreground"> · {a.roleOrOrganisation}</span>}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-xs text-status-error hover:underline"
+                    onClick={() => setAttendees((prev) => prev.filter((_, i) => i !== index))}
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <input value={attendeeName} onChange={(e) => setAttendeeName(e.target.value)} placeholder="Full name" className={inputClass} />
+            <input value={attendeeRole} onChange={(e) => setAttendeeRole(e.target.value)} placeholder="Role or organisation" className={inputClass} />
+          </div>
+          <button
+            type="button"
+            disabled={attendeeName.trim().length < 2}
+            onClick={() => {
+              setAttendees((prev) => [...prev, { name: attendeeName.trim(), roleOrOrganisation: attendeeRole }])
+              setAttendeeName('')
+              setAttendeeRole('')
+            }}
+            className="mt-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
+          >
+            Add attendee
+          </button>
         </div>
         <div>
           <label className={labelClass}>Next Review Due</label>
@@ -429,6 +472,9 @@ function ReviewDetailModal({
 }) {
   const [review, setReview] = useState<ManagementReview | null>(null)
   const [loading, setLoading] = useState(true)
+  const [attendeeName, setAttendeeName] = useState('')
+  const [attendeeRole, setAttendeeRole] = useState('')
+  const [attendeeError, setAttendeeError] = useState<string | null>(null)
   const [description, setDescription] = useState('')
   const [openCapa, setOpenCapa] = useState(false)
   const [rootCauseCategory, setRootCauseCategory] = useState('')
@@ -464,7 +510,70 @@ function ReviewDetailModal({
         ) : (
           <>
             <h2 className="font-display font-bold text-lg text-foreground">{review.period} — {formatDate(review.reviewDate)}</h2>
-            {review.attendees && <p className="text-xs text-muted-foreground">Attendees: {review.attendees}</p>}
+            <div className="rounded-lg border border-border p-3 text-sm">
+              <p className="mb-2 font-medium text-foreground">Attendees</p>
+              {(review.attendeeRows ?? []).length === 0 && !review.attendees && (
+                <p className="text-xs text-muted-foreground">No attendees recorded.</p>
+              )}
+              {review.attendees && (review.attendeeRows ?? []).length === 0 && (
+                <p className="text-xs text-muted-foreground">Recorded before attendee lists: {review.attendees}</p>
+              )}
+              <ul className="space-y-1">
+                {(review.attendeeRows ?? []).map((a: ManagementReviewAttendee) => (
+                  <li key={a.id} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-foreground">
+                      {a.name}
+                      {a.roleOrOrganisation && <span className="text-muted-foreground"> · {a.roleOrOrganisation}</span>}
+                    </span>
+                    {canManage && (
+                      <button
+                        type="button"
+                        className="text-status-error hover:underline"
+                        onClick={async () => {
+                          setAttendeeError(null)
+                          try {
+                            await withdrawManagementReviewAttendee(reviewId, a.id)
+                            setReview(await getManagementReview(reviewId))
+                          } catch (err) {
+                            setAttendeeError(getErrorMessage(err, 'Could not remove this attendee.'))
+                          }
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {canManage && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <input value={attendeeName} onChange={(e) => setAttendeeName(e.target.value)} placeholder="Full name" className={inputClass} />
+                  <input value={attendeeRole} onChange={(e) => setAttendeeRole(e.target.value)} placeholder="Role or organisation" className={inputClass} />
+                  <button
+                    type="button"
+                    disabled={attendeeName.trim().length < 2}
+                    onClick={async () => {
+                      setAttendeeError(null)
+                      try {
+                        await addManagementReviewAttendee(reviewId, {
+                          name: attendeeName.trim(),
+                          roleOrOrganisation: attendeeRole.trim() || undefined,
+                        })
+                        setAttendeeName('')
+                        setAttendeeRole('')
+                        setReview(await getManagementReview(reviewId))
+                      } catch (err) {
+                        setAttendeeError(getErrorMessage(err, 'Could not add this attendee.'))
+                      }
+                    }}
+                    className="col-span-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                  >
+                    Add attendee
+                  </button>
+                </div>
+              )}
+              {attendeeError && <p className="mt-2 text-xs text-status-error">{attendeeError}</p>}
+            </div>
 
             <div className="rounded-lg border border-border p-3 text-sm">
               <p className="text-foreground">Deviations: {review.metricsSnapshot.deviationsOpened} opened / {review.metricsSnapshot.deviationsClosed} closed</p>

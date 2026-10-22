@@ -1,11 +1,14 @@
 'use client'
 
+import { OpenCapaModal } from '@/components/internal-audits/open-capa-modal'
+import { RecordDocumentUpload } from '@/components/quality/record-document-upload'
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2, ShieldAlert } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import {
   COMPLAINT_CHANNEL_LABELS,
+  COMPLAINT_CLASSIFICATION_LABELS,
   COMPLAINT_CLASSIFICATIONS,
   ComplaintDetail,
   classifyComplaint,
@@ -89,8 +92,11 @@ export function QualityComplaintDetail({ complaintId }: { complaintId: string })
         <div>
           <p className="font-mono text-xs text-muted-foreground">{complaint.complaintNumber}</p>
           <h1 className="text-2xl font-display font-bold text-foreground">
-            {COMPLAINT_CHANNEL_LABELS[complaint.channel as keyof typeof COMPLAINT_CHANNEL_LABELS] ?? complaint.channel} complaint
+            Product Quality Complaint
           </h1>
+          <p className="mt-1 text-sm text-foreground">
+            Source: {COMPLAINT_CHANNEL_LABELS[complaint.channel as keyof typeof COMPLAINT_CHANNEL_LABELS] ?? complaint.channel}
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">Logged {formatDateTime(complaint.createdAt)}</p>
         </div>
         <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">{STATUS_LABELS[complaint.status] ?? complaint.status}</span>
@@ -128,10 +134,22 @@ export function QualityComplaintDetail({ complaintId }: { complaintId: string })
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Classification</p>
           <p className="text-sm text-foreground">
-            {complaint.classification === 'possible_ae' ? 'Possible Adverse Event' : 'Quality Complaint'}
+            {complaint.classification ? COMPLAINT_CLASSIFICATION_LABELS[complaint.classification as keyof typeof COMPLAINT_CLASSIFICATION_LABELS] : ''}
             {complaint.severity && ` — ${complaint.severity}`}
           </p>
         </div>
+      )}
+
+      {canResolve && complaint.status !== 'resolved' && complaint.status !== 'closed' && (
+        <RecordDocumentUpload
+          title="Substantiating documents (required to resolve)"
+          description="Records that substantiate the complaint or show it was investigated and found unfounded. Resolving the complaint is blocked until at least one is attached."
+          uploadPath={`/quality/complaints/${complaint.id}/substantiation`}
+          listRecordType="quality_complaint_substantiation"
+          recordId={complaint.id}
+          onUploaded={() => setNotice('Substantiating document attached.')}
+          canUpload={canResolve}
+        />
       )}
 
       {complaint.status === 'investigating' && canResolve && (
@@ -187,9 +205,10 @@ export function QualityComplaintDetail({ complaintId }: { complaintId: string })
 
       {showOpenCapa && (
         <OpenCapaModal
+          contextNote="This CAPA is opened against this complaint. Owner, both due dates and the root cause are required, as for every CAPA."
+          submit={(input) => openCapaForComplaint(complaint.id, input).then(() => undefined)}
           onClose={() => setShowOpenCapa(false)}
-          onSubmit={async (input) => {
-            await openCapaForComplaint(complaint.id, input)
+          onOpened={() => {
             setShowOpenCapa(false)
             setNotice('CAPA opened.')
             refresh()
@@ -237,7 +256,7 @@ function ClassifyModal({
           {COMPLAINT_CLASSIFICATIONS.map((c) => (
             <label key={c} className="flex items-center gap-2 rounded-lg border border-border p-2.5 text-sm text-foreground hover:bg-muted cursor-pointer">
               <input type="radio" name="classification" checked={classification === c} onChange={() => setClassification(c)} />
-              <span className="font-medium">{c === 'possible_ae' ? 'Possible Adverse Event' : 'Quality Complaint'}</span>
+              <span className="font-medium">{COMPLAINT_CLASSIFICATION_LABELS[c]}</span>
             </label>
           ))}
         </div>
@@ -311,70 +330,3 @@ function ResolveModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (r
   )
 }
 
-function OpenCapaModal({
-  onClose,
-  onSubmit,
-}: {
-  onClose: () => void
-  onSubmit: (input: { title: string; correctiveAction: string; preventiveAction?: string; rootCauseCategory?: string }) => Promise<void>
-}) {
-  const [title, setTitle] = useState('')
-  const [correctiveAction, setCorrectiveAction] = useState('')
-  const [preventiveAction, setPreventiveAction] = useState('')
-  const [rootCauseCategory, setRootCauseCategory] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const isValid = title.trim().length > 0 && correctiveAction.trim().length > 0
-
-  const handleSubmit = async () => {
-    if (!isValid) return
-    setSubmitting(true)
-    setError(null)
-    try {
-      await onSubmit({
-        title: title.trim(),
-        correctiveAction: correctiveAction.trim(),
-        preventiveAction: preventiveAction.trim() || undefined,
-        rootCauseCategory: rootCauseCategory.trim() || undefined,
-      })
-    } catch (err) {
-      setError(getErrorMessage(err, 'Could not open this CAPA.'))
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
-      <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4 my-8">
-        <h3 className="font-display font-bold text-base text-foreground">Open CAPA</h3>
-        <div>
-          <label className={labelClass}>Title *</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>Corrective Action *</label>
-          <textarea value={correctiveAction} onChange={(e) => setCorrectiveAction(e.target.value)} rows={3} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>Preventive Action</label>
-          <textarea value={preventiveAction} onChange={(e) => setPreventiveAction(e.target.value)} rows={2} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>Root-Cause Category</label>
-          <input value={rootCauseCategory} onChange={(e) => setRootCauseCategory(e.target.value)} className={inputClass} />
-        </div>
-        {error && <p className="text-sm text-status-error">{error}</p>}
-        <div className="flex justify-end gap-3 pt-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
-          </button>
-          <button onClick={handleSubmit} disabled={!isValid || submitting} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50">
-            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Open CAPA
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}

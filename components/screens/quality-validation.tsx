@@ -261,11 +261,10 @@ function CreateProtocolModal({ onClose, onCreated }: { onClose: () => void; onCr
   const [validationType, setValidationType] = useState<ValidationType>('process')
   const [approach, setApproach] = useState('traditional_three_batch')
   const [gampCategory, setGampCategory] = useState('4_configured')
-  const [documentNumber, setDocumentNumber] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const isValid = title.trim().length > 0 && documentNumber.trim().length > 0
+  const isValid = title.trim().length > 0
 
   const handleSubmit = async () => {
     if (!isValid) return
@@ -277,7 +276,6 @@ function CreateProtocolModal({ onClose, onCreated }: { onClose: () => void; onCr
         validationType,
         approach: validationType === 'process' ? approach : undefined,
         gampCategory: validationType === 'computer_system' ? gampCategory : undefined,
-        documentNumber: documentNumber.trim(),
       })
       onCreated()
     } catch (err) {
@@ -305,10 +303,9 @@ function CreateProtocolModal({ onClose, onCreated }: { onClose: () => void; onCr
               ))}
             </select>
           </div>
-          <div>
-            <label className={labelClass}>Document Number *</label>
-            <input value={documentNumber} onChange={(e) => setDocumentNumber(e.target.value)} className={inputClass} placeholder="e.g. VAL-CLN-001" />
-          </div>
+          <p className="text-xs text-muted-foreground md:col-span-2">
+            The protocol&apos;s controlled document number is assigned automatically on creation.
+          </p>
         </div>
 
         {validationType === 'process' && (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { ClipboardCheck, Loader2, Package, Plus, ShieldAlert, Wrench } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import {
@@ -16,7 +16,14 @@ import {
   listEquipment,
   listSpecifications,
   listSuppliers,
+  listMaintenanceRecords,
+  listSupplierReviews,
+  MaintenanceRecord,
   monitorSupplier,
+  SupplierReview,
+  uploadEquipmentValidationReport,
+  uploadSupplierGmpCertificate,
+  uploadSupplierReviewChecklist,
   recordEquipmentQualificationEvent,
   recordMaintenance,
   scheduleSupplierAudit,
@@ -287,6 +294,19 @@ function SupplierQualifyModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // ── Pass B (D1) GMP certificate: approval is refused until one is on file.
+  const [gmpAttached, setGmpAttached] = useState(Boolean(supplier.gmpCertificateDocumentId))
+  // ── Pass B (D2/D3) biennial review: checklist, notes and history.
+  const [checklistDocumentId, setChecklistDocumentId] = useState<string | null>(null)
+  const [checklistName, setChecklistName] = useState<string | null>(null)
+  const [reviewNotes, setReviewNotes] = useState('')
+  const [reviews, setReviews] = useState<SupplierReview[]>([])
+
+  useEffect(() => {
+    if (tab !== 'monitor') return
+    listSupplierReviews(supplier.id).then(setReviews).catch(() => setReviews([]))
+  }, [tab, supplier.id])
+
   // ── Incoming-goods CoA intake ──────────────────────────────────────
   const [materialSpecs, setMaterialSpecs] = useState<Specification[]>([])
   const [materialSpecId, setMaterialSpecId] = useState('')
@@ -387,13 +407,37 @@ function SupplierQualifyModal({
 
         {tab === 'approve' && (
           <div className="space-y-3">
+            <div className="rounded-lg border border-[var(--border)] p-3">
+              <p className="text-xs font-medium text-[var(--text)]">GMP certificate</p>
+              <p className="mb-2 text-[11px] text-[var(--text-muted)]">
+                The supplier&apos;s GMP certificate must be on file before the supplier can be approved. Suspending or
+                disqualifying does not need one.
+              </p>
+              {gmpAttached ? (
+                <p className="text-xs text-emerald-700">Certificate on file.</p>
+              ) : (
+                <p className="text-xs text-amber-700">No certificate on file yet. Approval is blocked until one is uploaded.</p>
+              )}
+              <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs">
+                Upload GMP certificate
+                <input
+                  type="file"
+                  className="hidden"
+                  disabled={submitting}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) run(async () => { await uploadSupplierGmpCertificate(supplier.id, file); setGmpAttached(true) }, 'GMP certificate uploaded.')
+                  }}
+                />
+              </label>
+            </div>
             <div>
               <label className={labelClass}>Note (optional)</label>
               <input value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} />
             </div>
             <div className="flex gap-2">
               <button
-                disabled={submitting}
+                disabled={submitting || !gmpAttached}
                 onClick={() => run(() => approveSupplier(supplier.id, { approvalStatus: 'approved', note }), 'Supplier approved.')}
                 className="flex-1 rounded-lg bg-status-success px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
@@ -419,17 +463,76 @@ function SupplierQualifyModal({
 
         {tab === 'monitor' && (
           <div className="space-y-3">
+            <p className="text-xs text-[var(--text-muted)]">
+              A performance review is due every two years. Upload the review checklist, add the performance flag, then
+              record the review. The next review is due two years after this one.
+            </p>
+            <div className="rounded-lg border border-[var(--border)] p-3">
+              <p className="text-xs font-medium text-[var(--text)]">Review checklist</p>
+              <p className="mb-2 text-[11px] text-[var(--text-muted)]">
+                {checklistName ? `Attached: ${checklistName}` : 'No checklist attached to this review yet.'}
+              </p>
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs">
+                {checklistName ? 'Replace checklist' : 'Upload checklist'}
+                <input
+                  type="file"
+                  className="hidden"
+                  disabled={submitting}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    run(async () => {
+                      const uploaded = await uploadSupplierReviewChecklist(supplier.id, file)
+                      setChecklistDocumentId(uploaded.documentId)
+                      setChecklistName(file.name)
+                    }, 'Review checklist uploaded.')
+                  }}
+                />
+              </label>
+            </div>
             <div>
               <label className={labelClass}>Performance Flag</label>
               <input value={flag} onChange={(e) => setFlag(e.target.value)} placeholder="e.g. Late delivery on PO-1042" className={inputClass} />
             </div>
+            <div>
+              <label className={labelClass}>Review notes (optional)</label>
+              <textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} rows={2} className={inputClass} />
+            </div>
             <button
-              disabled={submitting || !flag.trim()}
-              onClick={() => run(() => monitorSupplier(supplier.id, flag.trim()), 'Performance flag logged.')}
+              disabled={submitting || !flag.trim() || !checklistDocumentId}
+              onClick={() =>
+                run(async () => {
+                  await monitorSupplier(supplier.id, {
+                    flag: flag.trim(),
+                    checklistDocumentId: checklistDocumentId!,
+                    notes: reviewNotes.trim() || undefined,
+                  })
+                  setFlag('')
+                  setReviewNotes('')
+                  setChecklistDocumentId(null)
+                  setChecklistName(null)
+                  setReviews(await listSupplierReviews(supplier.id))
+                }, 'Performance review recorded.')
+              }
               className="w-full rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
             >
-              Log Flag
+              Record review
             </button>
+            {reviews.length > 0 && (
+              <div className="rounded-lg border border-[var(--border)] p-3">
+                <p className="mb-2 text-xs font-medium text-[var(--text)]">Review history</p>
+                <ul className="space-y-2 text-xs">
+                  {reviews.map((r) => (
+                    <li key={r.id}>
+                      <span className="font-medium">{new Date(r.reviewedAt).toLocaleDateString()}</span> ·{' '}
+                      {r.performanceFlags.join('; ') || 'No flags'} · next review{' '}
+                      {new Date(r.nextReviewDueAt).toLocaleDateString()}
+                      {r.checklistDocument && <span className="text-[var(--text-muted)]"> · checklist: {r.checklistDocument.title}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
@@ -593,6 +696,47 @@ function CreateSupplierModal({ onClose, onCreated }: { onClose: () => void; onCr
   )
 }
 
+const DUE_BADGE: Record<string, { label: string; className: string }> = {
+  overdue: { label: 'Overdue', className: 'bg-status-error/15 text-status-error' },
+  due_soon: { label: 'Due soon', className: 'bg-status-warning/15 text-status-warning' },
+  current: { label: 'Current', className: 'bg-status-success/15 text-status-success' },
+  not_scheduled: { label: 'Not scheduled', className: 'bg-muted text-muted-foreground' },
+}
+
+function DueBadge({ status }: { status?: string }) {
+  const meta = DUE_BADGE[status ?? 'not_scheduled'] ?? DUE_BADGE.not_scheduled
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}>{meta.label}</span>
+}
+
+function fmtDate(value: string | null | undefined): string {
+  return value ? new Date(value).toLocaleDateString() : '—'
+}
+
+function MaintenanceLog({ logs }: { logs: MaintenanceRecord[] | undefined }) {
+  if (!logs) return <p className="text-xs text-muted-foreground">Loading…</p>
+  if (logs.length === 0) return <p className="text-xs text-muted-foreground">No maintenance entries yet.</p>
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="text-left text-muted-foreground">
+          <th className="pb-2 font-medium">Date</th>
+          <th className="pb-2 font-medium">Description</th>
+          <th className="pb-2 font-medium">Next due</th>
+        </tr>
+      </thead>
+      <tbody>
+        {logs.map((entry) => (
+          <tr key={entry.id} className="border-t border-border">
+            <td className="py-1.5">{fmtDate(entry.maintenanceDate)}</td>
+            <td className="py-1.5">{entry.description}</td>
+            <td className="py-1.5">{fmtDate(entry.nextDueAt)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 function EquipmentTab({ canManage }: { canManage: boolean }) {
   const [equipment, setEquipment] = useState<Equipment[]>([])
   const [loading, setLoading] = useState(true)
@@ -600,6 +744,18 @@ function EquipmentTab({ canManage }: { canManage: boolean }) {
   const [notice, setNotice] = useTimedMessage()
   const [showCreate, setShowCreate] = useState(false)
   const [qualifying, setQualifying] = useState<Equipment | null>(null)
+  const [maintenanceFor, setMaintenanceFor] = useState<Equipment | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [logs, setLogs] = useState<Record<string, MaintenanceRecord[]>>({})
+
+  /** Pass B (C2): the full maintenance log is fetched on expand, never stored on the row. */
+  const toggleLog = (equipmentId: string) => {
+    if (expandedId === equipmentId) return setExpandedId(null)
+    setExpandedId(equipmentId)
+    listMaintenanceRecords(equipmentId)
+      .then((rows) => setLogs((prev) => ({ ...prev, [equipmentId]: rows })))
+      .catch((err) => setError(getErrorMessage(err, 'Could not load the maintenance log.')))
+  }
 
   const load = useCallback(() => {
     setLoading(true)
@@ -664,13 +820,16 @@ function EquipmentTab({ canManage }: { canManage: boolean }) {
                 <th className="p-3">Type</th>
                 <th className="p-3">Asset Tag</th>
                 <th className="p-3">Qualification Status</th>
+                <th className="p-3">Calibration</th>
+                <th className="p-3">Maintenance</th>
                 <th className="p-3">Active</th>
                 {canManage && <th className="p-3">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {equipment.map((e) => (
-                <tr key={e.id} className="border-b border-border last:border-0">
+                <Fragment key={e.id}>
+                <tr className="border-b border-border last:border-0">
                   <td className="p-3 text-foreground font-medium">{e.name}</td>
                   <td className="p-3 text-muted-foreground">{e.equipmentType.replace(/_/g, ' ')}</td>
                   <td className="p-3 text-muted-foreground">{e.assetTag ?? '—'}</td>
@@ -691,11 +850,34 @@ function EquipmentTab({ canManage }: { canManage: boolean }) {
                       <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-muted text-foreground">{QUALIFICATION_STATUS_LABELS[e.qualificationStatus]}</span>
                     )}
                   </td>
+                  <td className="p-3">
+                    <DueBadge status={e.calibrationStatus} />
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Last {fmtDate(e.lastCalibratedAt)} · next {fmtDate(e.calibrationDueAt)}
+                    </div>
+                  </td>
+                  <td className="p-3">
+                    <DueBadge status={e.maintenanceStatus} />
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {e.latestMaintenance
+                        ? `${fmtDate(e.latestMaintenance.maintenanceDate)}: ${e.latestMaintenance.description}`
+                        : 'No maintenance logged'}
+                    </div>
+                  </td>
                   <td className="p-3 text-muted-foreground">{e.isActive ? 'Yes' : 'No'}</td>
                   {canManage && (
                     <td className="p-3 space-x-3">
                       <button onClick={() => setQualifying(e)} className="text-xs text-safemeds-teal hover:underline inline-flex items-center gap-1">
                         <ClipboardCheck className="h-3.5 w-3.5" /> Qualify
+                      </button>
+                      <button
+                        onClick={() => setMaintenanceFor(e)}
+                        className="text-xs text-safemeds-teal hover:underline"
+                      >
+                        Log maintenance
+                      </button>
+                      <button onClick={() => toggleLog(e.id)} className="text-xs text-muted-foreground hover:underline">
+                        {expandedId === e.id ? 'Hide log' : 'Maintenance log'}
                       </button>
                       {e.isActive && (
                         <button onClick={() => handleDeactivate(e)} className="text-xs text-status-error hover:underline">
@@ -705,6 +887,14 @@ function EquipmentTab({ canManage }: { canManage: boolean }) {
                     </td>
                   )}
                 </tr>
+                {expandedId === e.id && (
+                  <tr className="border-b border-border bg-muted/40">
+                    <td colSpan={canManage ? 8 : 7} className="p-3">
+                      <MaintenanceLog logs={logs[e.id]} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -727,9 +917,26 @@ function EquipmentTab({ canManage }: { canManage: boolean }) {
           equipment={qualifying}
           onClose={() => setQualifying(null)}
           onChanged={(message) => {
+            const id = qualifying.id
             setQualifying(null)
             setNotice(message)
             load()
+            listMaintenanceRecords(id).then((rows) => setLogs((prev) => ({ ...prev, [id]: rows }))).catch(() => undefined)
+          }}
+        />
+      )}
+
+      {maintenanceFor && (
+        <EquipmentQualifyModal
+          equipment={maintenanceFor}
+          initialTab="maintenance"
+          onClose={() => setMaintenanceFor(null)}
+          onChanged={(message) => {
+            const id = maintenanceFor.id
+            setMaintenanceFor(null)
+            setNotice(message)
+            load()
+            listMaintenanceRecords(id).then((rows) => setLogs((prev) => ({ ...prev, [id]: rows }))).catch(() => undefined)
           }}
         />
       )}
@@ -747,14 +954,19 @@ function EquipmentTab({ canManage }: { canManage: boolean }) {
  */
 function EquipmentQualifyModal({
   equipment,
+  initialTab = 'qualification',
   onClose,
   onChanged,
 }: {
   equipment: Equipment
+  initialTab?: 'qualification' | 'maintenance'
   onClose: () => void
   onChanged: (message: string) => void
 }) {
-  const [tab, setTab] = useState<'qualification' | 'maintenance'>('qualification')
+  const [tab, setTab] = useState<'qualification' | 'maintenance'>(initialTab)
+  // Pass B (C3): a passing step cites a validation report uploaded against this equipment first.
+  const [reportDocumentId, setReportDocumentId] = useState<string | null>(null)
+  const [reportName, setReportName] = useState<string | null>(null)
   const [stage, setStage] = useState<'dq' | 'iq' | 'oq' | 'pq'>('dq')
   const [result, setResult] = useState<'pass' | 'fail'>('pass')
   const [notes, setNotes] = useState('')
@@ -816,15 +1028,47 @@ function EquipmentQualifyModal({
                 <option value="fail">Fail</option>
               </select>
             </div>
+            {result === 'pass' && (
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs font-medium text-foreground">Validation report</p>
+                <p className="mb-2 text-[11px] text-muted-foreground">
+                  A passed {stage.toUpperCase()} needs its validation report. Upload it first, then record the event.
+                </p>
+                <p className="text-xs text-muted-foreground">{reportName ? `Attached: ${reportName}` : 'No report attached yet.'}</p>
+                <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs">
+                  {reportName ? 'Replace report' : 'Upload validation report'}
+                  <input
+                    type="file"
+                    className="hidden"
+                    disabled={submitting}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      run(async () => {
+                        const uploaded = await uploadEquipmentValidationReport(equipment.id, file)
+                        setReportDocumentId(uploaded.documentId)
+                        setReportName(file.name)
+                      }, 'Validation report uploaded.')
+                    }}
+                  />
+                </label>
+              </div>
+            )}
             <div>
               <label className={labelClass}>Notes</label>
               <input value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} />
             </div>
             <button
-              disabled={submitting}
+              disabled={submitting || (result === 'pass' && !reportDocumentId)}
               onClick={() =>
                 run(
-                  () => recordEquipmentQualificationEvent(equipment.id, { stage, result, notes: notes.trim() || undefined }),
+                  () =>
+                    recordEquipmentQualificationEvent(equipment.id, {
+                      stage,
+                      result,
+                      notes: notes.trim() || undefined,
+                      ...(result === 'pass' && reportDocumentId ? { reportDocumentId } : {}),
+                    }),
                   `${stage.toUpperCase()} event recorded.`,
                 )
               }

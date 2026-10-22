@@ -1,5 +1,8 @@
 'use client'
 
+import { OpenCapaModal } from '@/components/internal-audits/open-capa-modal'
+import { RecordDocumentUpload } from '@/components/quality/record-document-upload'
+import { CAPA_STATUS_LABELS, type Capa } from '@/lib/api/internal-audits'
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, ArrowLeft, Info, Loader2, ShieldAlert } from 'lucide-react'
@@ -51,6 +54,8 @@ function formatDateTime(value: string | null): string {
  * every other transition (investigating → capa_pending, the final
  * signature-gated close) runs through the panel exactly as-is.
  */
+type LinkedCapa = Capa & { owner?: { id: string; fullName: string } | null }
+
 export function QualityDeviationDetail({ deviationId }: { deviationId: string }) {
   const router = useRouter()
   const { has } = usePermissions()
@@ -200,6 +205,59 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
         />
       )}
 
+      {canLog && (deviation.status === 'investigating' || deviation.investigation) && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <RecordDocumentUpload
+            title="Investigation evidence"
+            description="Attach supporting files for the investigation (photos, logs, witness statements) as soon as you have them — you don't need to save the investigation record first. Each file is stored and audited against this deviation."
+            uploadPath={`/quality/deviations/${deviation.id}/investigation/evidence`}
+            listRecordType="deviation_investigation_evidence"
+            recordId={deviation.id}
+            onUploaded={() => setNotice('Evidence attached.')}
+            canUpload={canLog}
+          />
+          <RecordDocumentUpload
+            title="Investigation report (required)"
+            description="The completed investigation report. The investigation cannot be completed until this document is attached."
+            uploadPath={`/quality/deviations/${deviation.id}/investigation/report`}
+            listRecordType="deviation_investigation_report"
+            recordId={deviation.id}
+            onUploaded={() => setNotice('Investigation report attached.')}
+            canUpload={canLog}
+          />
+        </div>
+      )}
+
+      <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Linked CAPAs</p>
+        {deviation.capas.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No CAPA is linked to this deviation yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs text-muted-foreground">
+                  <th className="py-2 pr-3 font-medium">Root cause</th>
+                  <th className="py-2 pr-3 font-medium">Owner</th>
+                  <th className="py-2 pr-3 font-medium">Corrective due</th>
+                  <th className="py-2 pr-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(deviation.capas as LinkedCapa[]).map((c) => (
+                  <tr key={c.id} className="border-b border-border last:border-0">
+                    <td className="py-2 pr-3 text-foreground">{c.rootCause ?? c.title}</td>
+                    <td className="py-2 pr-3 text-foreground">{c.owner?.fullName ?? 'Unassigned'}</td>
+                    <td className="py-2 pr-3 text-foreground">{c.correctiveActionDueDate ?? c.dueDate ?? '—'}</td>
+                    <td className="py-2 pr-3 text-foreground">{CAPA_STATUS_LABELS[c.status] ?? c.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {showInvestigation && (
         <RecordInvestigationModal
           deviationId={deviation.id}
@@ -215,7 +273,8 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
 
       {showOpenCapa && (
         <OpenCapaModal
-          deviationId={deviation.id}
+          contextNote="This CAPA is opened against this deviation. Owner, both due dates and the root cause are required, as for every CAPA."
+          submit={(input) => openCapaForDeviation(deviation.id, input).then(() => undefined)}
           onClose={() => setShowOpenCapa(false)}
           onOpened={() => {
             setShowOpenCapa(false)
@@ -363,80 +422,3 @@ function RecordInvestigationModal({
   )
 }
 
-function OpenCapaModal({ deviationId, onClose, onOpened }: { deviationId: string; onClose: () => void; onOpened: () => void }) {
-  const [title, setTitle] = useState('')
-  const [correctiveAction, setCorrectiveAction] = useState('')
-  const [preventiveAction, setPreventiveAction] = useState('')
-  const [rootCauseCategory, setRootCauseCategory] = useState('')
-  const [dueDate, setDueDate] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const isValid = title.trim().length > 0 && correctiveAction.trim().length > 0
-
-  const handleSubmit = async () => {
-    if (!isValid) return
-    setSubmitting(true)
-    setError(null)
-    try {
-      await openCapaForDeviation(deviationId, {
-        title: title.trim(),
-        correctiveAction: correctiveAction.trim(),
-        preventiveAction: preventiveAction.trim() || undefined,
-        rootCauseCategory: rootCauseCategory.trim() || undefined,
-        dueDate: dueDate || undefined,
-      })
-      onOpened()
-    } catch (err) {
-      setError(getErrorMessage(err, 'Could not open this CAPA.'))
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
-      <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4 my-8">
-        <h3 className="font-display font-bold text-base text-foreground">Open CAPA for this Deviation</h3>
-
-        <div>
-          <label className={labelClass}>Title *</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>Corrective Action *</label>
-          <textarea value={correctiveAction} onChange={(e) => setCorrectiveAction(e.target.value)} rows={3} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>Preventive Action</label>
-          <textarea value={preventiveAction} onChange={(e) => setPreventiveAction(e.target.value)} rows={2} className={inputClass} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelClass}>Root-Cause Category</label>
-            <input value={rootCauseCategory} onChange={(e) => setRootCauseCategory(e.target.value)} placeholder="e.g. operator_error" className={inputClass} />
-          </div>
-          <div>
-            <label className={labelClass}>Due Date</label>
-            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={inputClass} />
-          </div>
-        </div>
-
-        {error && <p className="text-sm text-status-error">{error}</p>}
-
-        <div className="flex justify-end gap-3 pt-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!isValid || submitting}
-            className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
-          >
-            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Open CAPA
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}

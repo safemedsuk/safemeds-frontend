@@ -1,12 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Check, FileText, Info, Loader2, Plus, ShieldAlert, Sliders, UserPlus, X } from 'lucide-react'
+import { AlertTriangle, Check, Download, FileText, Info, Loader2, Plus, ShieldAlert, Sliders, UserPlus, X } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import {
   acknowledgeDocument,
   assignReaders,
+  listAssignableReaders,
+  type AssignableReader,
   createRiskAssessment,
+  downloadRiskRegister,
   createSop,
   createSpecification,
   DocumentAcknowledgment,
@@ -29,8 +32,15 @@ import {
   SpecificationParameterInput,
   upsertRetentionPolicy,
 } from '@/lib/api/quality'
-import { listUsers, TenantUser } from '@/lib/api/users'
 import { WorkflowActionsPanel } from '@/components/pv-cases/workflow-actions-panel'
+import { CreateSpecificationModal, SpecificationParameterTable } from '@/components/quality/specification-parts'
+import { ProductDetailModal } from '@/components/quality/product-detail-modal'
+import { listBatches, listProducts, Product } from '@/lib/api/master-data'
+import { listRecalls } from '@/lib/api/recalls'
+import { listDeviations } from '@/lib/api/deviations'
+import { listOos } from '@/lib/api/oos'
+import { listComplaints } from '@/lib/api/complaints'
+import { listChangeControls } from '@/lib/api/change-controls'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useAuthStore } from '@/lib/store/auth-store'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
@@ -196,9 +206,9 @@ function DocumentsTab({ canManage }: { canManage: boolean }) {
       {showCreate && (
         <CreateSopModal
           onClose={() => setShowCreate(false)}
-          onCreated={() => {
+          onCreated={(documentNumber) => {
             setShowCreate(false)
-            setNotice('Controlled document created as a draft.')
+            setNotice(`Controlled document ${documentNumber} created as a draft.`)
             load()
           }}
         />
@@ -215,6 +225,8 @@ function DocumentsTab({ canManage }: { canManage: boolean }) {
     </div>
   )
 }
+
+const READER_ASSIGNABLE_STATES = ['draft', 'in_review', 'approved', 'effective']
 
 const SOP_STATUS_STYLES: Record<string, string> = {
   draft: 'bg-muted text-foreground',
@@ -247,24 +259,36 @@ function SopDetailModal({
   const currentUser = useAuthStore((state) => state.currentUser)
   const [sop, setSop] = useState<SopDetail | null>(null)
   const [acknowledgments, setAcknowledgments] = useState<DocumentAcknowledgment[]>([])
-  const [users, setUsers] = useState<TenantUser[]>([])
+  const [readers, setReaders] = useState<AssignableReader[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useTimedMessage()
   const [showAssign, setShowAssign] = useState(false)
   const [busy, setBusy] = useState(false)
 
+  // Pass A root cause of the "loads forever" report: this used to fetch the
+  // document, its readers and `GET /users` (gated `users.view`, which a
+  // QUALITY_ASSOCIATE does not hold) in ONE Promise.all, so the users call
+  // 403'd, the whole load failed, and `sop` stayed null — and the render
+  // showed a spinner whenever `!sop`, so the error was never shown. The
+  // document itself now loads on its own, the reader list is a separate,
+  // non-fatal call, and a failed load renders its real error.
   const load = useCallback((silent = false) => {
     if (!silent) setLoading(true)
     setError(null)
-    Promise.all([getSop(sopId), listAcknowledgmentsForDocument(sopId), listUsers({ status: 'active', limit: 100 })])
-      .then(([sopRes, ackRes, usersRes]) => {
-        setSop(sopRes)
-        setAcknowledgments(ackRes)
-        setUsers(usersRes.users)
+    getSop(sopId)
+      .then((sopRes) => setSop(sopRes))
+      .catch((err) => {
+        setSop(null)
+        setError(getErrorMessage(err, 'Could not load this document.'))
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load this document.')))
       .finally(() => setLoading(false))
+    listAcknowledgmentsForDocument(sopId)
+      .then((ackRes) => setAcknowledgments(ackRes))
+      .catch((err) => setError((prev) => prev ?? getErrorMessage(err, 'Could not load the reader list.')))
+    listAssignableReaders()
+      .then((list) => setReaders(list))
+      .catch(() => setReaders([]))
   }, [sopId])
 
   useEffect(() => load(), [load])
@@ -274,7 +298,7 @@ function SopDetailModal({
     onChanged()
   }
 
-  const userLabel = (userId: string) => users.find((u) => u.id === userId)?.fullName ?? userId
+  const userLabel = (userId: string) => readers.find((u) => u.id === userId)?.fullName ?? 'Assigned reader'
 
   const myAssignment = sop && currentUser ? acknowledgments.find((a) => a.userId === currentUser.id && a.versionAcknowledged === sop.currentVersion) : undefined
 
@@ -310,7 +334,15 @@ function SopDetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
       <div className="w-full max-w-2xl rounded-lg border border-border bg-card p-6 space-y-5 my-8">
-        {loading || !sop ? (
+        {!loading && !sop && error ? (
+          <div className="space-y-4 p-6">
+            <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-sm text-status-error">{error}</div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => load()} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">Try again</button>
+              <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">Close</button>
+            </div>
+          </div>
+        ) : loading || !sop ? (
           <div className="flex items-center justify-center p-12">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
@@ -346,6 +378,12 @@ function SopDetailModal({
               key={sop.status}
               workflowInstanceId={sop.workflowInstanceId}
               onTransitioned={refresh}
+              requireNote={['retired']}
+              noteHelp={{
+                title: () => 'Reason for retiring this document',
+                body: 'Retiring removes the document from use. Record why (e.g. superseded by another procedure, no longer applicable). The reason is kept in the audit trail.',
+                placeholder: 'e.g. Superseded by SOP-QA-014, process no longer in use',
+              }}
             />
 
             {canManage && sop.status === 'effective' && (
@@ -362,7 +400,7 @@ function SopDetailModal({
             <div className="rounded-lg border border-border p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Read &amp; Understand Tracking</p>
-                {canManage && sop.status === 'effective' && (
+                {canManage && READER_ASSIGNABLE_STATES.includes(sop.status) && (
                   <button
                     onClick={() => setShowAssign(true)}
                     className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
@@ -374,19 +412,33 @@ function SopDetailModal({
 
               {myAssignment && !myAssignment.acknowledgedAt && (
                 <div className="flex items-center justify-between rounded-lg border border-status-warning/30 bg-status-warning/5 p-2.5">
-                  <p className="text-xs text-foreground">You&apos;ve been assigned to read this document (v{myAssignment.versionAcknowledged}).</p>
-                  <button
-                    onClick={handleAcknowledge}
-                    disabled={busy}
-                    className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
-                  >
-                    <Check className="h-3.5 w-3.5" /> Acknowledge
-                  </button>
+                  <p className="text-xs text-foreground">
+                    You&apos;ve been assigned to read this document (v{myAssignment.versionAcknowledged}).
+                    {sop.status !== 'effective' && (
+                      <span className="block text-muted-foreground">
+                        This version is still {sop.status.replace(/_/g, ' ')} — you can acknowledge it once it becomes effective.
+                      </span>
+                    )}
+                  </p>
+                  {sop.status === 'effective' ? (
+                    <button
+                      onClick={handleAcknowledge}
+                      disabled={busy}
+                      className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
+                    >
+                      <Check className="h-3.5 w-3.5" /> Acknowledge
+                    </button>
+                  ) : (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Not yet effective</span>
+                  )}
                 </div>
               )}
 
               {acknowledgments.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No readers assigned yet.</p>
+                <p className="text-xs text-muted-foreground">
+                  No readers assigned yet.
+                  {canManage && READER_ASSIGNABLE_STATES.includes(sop.status) && ' Use "Assign Readers" above to choose who must read this document.'}
+                </p>
               ) : (
                 <table className="w-full text-xs">
                   <thead>
@@ -424,7 +476,7 @@ function SopDetailModal({
         <AssignReadersModal
           sopId={sop.id}
           alreadyAssignedUserIds={acknowledgments.map((a) => a.userId)}
-          users={users}
+          users={readers}
           onClose={() => setShowAssign(false)}
           onAssigned={() => {
             setShowAssign(false)
@@ -446,7 +498,7 @@ function AssignReadersModal({
 }: {
   sopId: string
   alreadyAssignedUserIds: string[]
-  users: TenantUser[]
+  users: AssignableReader[]
   onClose: () => void
   onAssigned: () => void
 }) {
@@ -511,22 +563,28 @@ function AssignReadersModal({
   )
 }
 
-function CreateSopModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [documentNumber, setDocumentNumber] = useState('')
+function CreateSopModal({ onClose, onCreated }: { onClose: () => void; onCreated: (documentNumber: string) => void }) {
   const [title, setTitle] = useState('')
   const [documentType, setDocumentType] = useState('sop')
+  const [manualNumber, setManualNumber] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const isValid = documentNumber.trim().length > 0 && title.trim().length > 0
+  const isValid = title.trim().length > 0
+  const manualTrimmed = manualNumber.trim()
+  const manualNumericOnly = manualTrimmed.length > 0 && /^\d+$/.test(manualTrimmed)
 
   const handleSubmit = async () => {
     if (!isValid) return
     setSubmitting(true)
     setError(null)
     try {
-      await createSop({ documentNumber: documentNumber.trim(), title: title.trim(), documentType })
-      onCreated()
+      const created = await createSop({
+        title: title.trim(),
+        documentType,
+        ...(manualTrimmed ? { documentNumber: manualTrimmed } : {}),
+      })
+      onCreated(created.documentNumber)
     } catch (err) {
       setError(getErrorMessage(err, 'Could not create this document.'))
       setSubmitting(false)
@@ -538,10 +596,10 @@ function CreateSopModal({ onClose, onCreated }: { onClose: () => void; onCreated
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
         <h2 className="font-display font-bold text-lg text-foreground">New Controlled Document</h2>
 
-        <div>
-          <label className={labelClass}>Document Number *</label>
-          <input value={documentNumber} onChange={(e) => setDocumentNumber(e.target.value)} placeholder="e.g. SOP-QA-001" className={inputClass} />
-        </div>
+        <p className="text-xs text-muted-foreground">
+          SafeMeds assigns the document number from your company&apos;s numbering scheme (set under Company Profile → Document numbering).
+          The number is shown once the document is created.
+        </p>
 
         <div>
           <label className={labelClass}>Title *</label>
@@ -562,6 +620,21 @@ function CreateSopModal({ onClose, onCreated }: { onClose: () => void; onCreated
           </select>
         </div>
 
+        <div>
+          <label className={labelClass}>Document number (optional)</label>
+          <input
+            value={manualNumber}
+            onChange={(e) => setManualNumber(e.target.value)}
+            placeholder="Leave blank to generate, e.g. WHO-SOP-0001"
+            className={inputClass}
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Type your own only if your company manages numbers by hand. It cannot be digits only (such as 0001), because
+            system-generated numbers would otherwise also begin at 0001. It must be unique, ignoring case.
+          </p>
+          {manualNumericOnly && <p className="mt-1 text-[11px] text-status-error">A document number cannot be digits only. Add a company or type identifier.</p>}
+        </div>
+
         {error && <p className="text-sm text-status-error">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
@@ -570,7 +643,7 @@ function CreateSopModal({ onClose, onCreated }: { onClose: () => void; onCreated
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!isValid || submitting}
+            disabled={!isValid || submitting || manualNumericOnly}
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -584,25 +657,61 @@ function CreateSopModal({ onClose, onCreated }: { onClose: () => void; onCreated
 
 function SpecificationsTab({ canManage }: { canManage: boolean }) {
   const [specs, setSpecs] = useState<Specification[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useTimedMessage()
   const [showCreate, setShowCreate] = useState(false)
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null)
+  const [pickedProductId, setPickedProductId] = useState('')
 
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
-    listSpecifications({ page: 1, limit: 50 })
-      .then((res) => setSpecs(res.rows))
+    Promise.all([listSpecifications({ page: 1, limit: 100 }), listProducts({ page: 1, limit: 100 })])
+      .then(([specRes, productRes]) => {
+        setSpecs(specRes.rows)
+        setProducts(productRes.rows)
+      })
       .catch((err) => setError(getErrorMessage(err, 'Could not load specifications.')))
       .finally(() => setLoading(false))
   }, [])
 
   useEffect(load, [load])
 
+  const productName = (id: string | null) => {
+    if (!id) return null
+    const p = products.find((x) => x.id === id)
+    return p ? p.brandName : 'Unknown product'
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex items-end gap-2">
+          <div className="min-w-[260px]">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">View a product</label>
+            <select
+              value={pickedProductId}
+              onChange={(e) => setPickedProductId(e.target.value)}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
+            >
+              <option value="">Choose a product…</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.brandName} — {p.genericName} {p.strength}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            disabled={!pickedProductId}
+            onClick={() => setViewingProduct(products.find((p) => p.id === pickedProductId) ?? null)}
+            className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
+          >
+            Open product
+          </button>
+        </div>
         {canManage && (
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors">
             <Plus className="h-4 w-4" /> New Specification
@@ -630,6 +739,14 @@ function SpecificationsTab({ canManage }: { canManage: boolean }) {
                 <div>
                   <span className="font-mono text-xs text-muted-foreground">{spec.specificationNumber}</span>
                   <p className="font-medium text-foreground">{spec.title}</p>
+                  {spec.productId && (
+                    <button
+                      onClick={() => setViewingProduct(products.find((p) => p.id === spec.productId) ?? null)}
+                      className="mt-1 text-xs text-safemeds-teal hover:underline"
+                    >
+                      Product: {productName(spec.productId)}
+                    </button>
+                  )}
                 </div>
                 <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground capitalize">{spec.specificationType.replace(/_/g, ' ')}</span>
               </div>
@@ -664,6 +781,7 @@ function SpecificationsTab({ canManage }: { canManage: boolean }) {
 
       {showCreate && (
         <CreateSpecificationModal
+          products={products}
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false)
@@ -672,110 +790,36 @@ function SpecificationsTab({ canManage }: { canManage: boolean }) {
           }}
         />
       )}
-    </div>
-  )
-}
 
-function CreateSpecificationModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [specificationNumber, setSpecificationNumber] = useState('')
-  const [title, setTitle] = useState('')
-  const [specificationType, setSpecificationType] = useState('finished_product')
-  const [parameters, setParameters] = useState<SpecificationParameterInput[]>([{ parameterName: '' }])
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const isValid = specificationNumber.trim().length > 0 && title.trim().length > 0
-
-  const updateParameter = (index: number, patch: Partial<SpecificationParameterInput>) => {
-    setParameters((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)))
-  }
-
-  const handleSubmit = async () => {
-    if (!isValid) return
-    setSubmitting(true)
-    setError(null)
-    try {
-      await createSpecification({
-        specificationNumber: specificationNumber.trim(),
-        title: title.trim(),
-        specificationType,
-        parameters: parameters.filter((p) => p.parameterName.trim().length > 0),
-      })
-      onCreated()
-    } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this specification.'))
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
-      <div className="w-full max-w-lg rounded-lg border border-border bg-card p-6 space-y-4 my-8">
-        <h2 className="font-display font-bold text-lg text-foreground">New Specification</h2>
-
-        <div>
-          <label className={labelClass}>Specification Number *</label>
-          <input value={specificationNumber} onChange={(e) => setSpecificationNumber(e.target.value)} placeholder="e.g. SPEC-001" className={inputClass} />
-        </div>
-
-        <div>
-          <label className={labelClass}>Title *</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Paracetamol 500mg Tablets" className={inputClass} />
-        </div>
-
-        <div>
-          <label className={labelClass}>Specification Type *</label>
-          <select value={specificationType} onChange={(e) => setSpecificationType(e.target.value)} className={inputClass}>
-            <option value="finished_product">Finished Product</option>
-            <option value="raw_material">Raw Material</option>
-            <option value="api">API</option>
-            <option value="packaging">Packaging</option>
-            <option value="in_process">In-Process</option>
-          </select>
-        </div>
-
-        <div>
-          <label className={labelClass}>Test Parameters</label>
-          <div className="space-y-2">
-            {parameters.map((p, i) => (
-              <div key={i} className="grid grid-cols-4 gap-2">
-                <input placeholder="Parameter" value={p.parameterName} onChange={(e) => updateParameter(i, { parameterName: e.target.value })} className={inputClass} />
-                <input placeholder="Lower" value={p.lowerLimit ?? ''} onChange={(e) => updateParameter(i, { lowerLimit: e.target.value })} className={inputClass} />
-                <input placeholder="Upper" value={p.upperLimit ?? ''} onChange={(e) => updateParameter(i, { upperLimit: e.target.value })} className={inputClass} />
-                <input placeholder="Unit" value={p.unit ?? ''} onChange={(e) => updateParameter(i, { unit: e.target.value })} className={inputClass} />
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => setParameters((prev) => [...prev, { parameterName: '' }])}
-            className="mt-2 text-xs text-safemeds-teal hover:underline"
-          >
-            + Add another parameter
-          </button>
-        </div>
-
-        {error && <p className="text-sm text-status-error">{error}</p>}
-
-        <div className="flex justify-end gap-3 pt-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!isValid || submitting}
-            className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
-          >
-            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create Draft
-          </button>
-        </div>
-      </div>
+      {viewingProduct && (
+        <ProductDetailModal
+          product={viewingProduct}
+          products={products}
+          canManage={canManage}
+          onClose={() => {
+            setViewingProduct(null)
+            load()
+          }}
+        />
+      )}
     </div>
   )
 }
 
 function RiskRegisterTab({ canManage }: { canManage: boolean }) {
+  const [exporting, setExporting] = useState<'xlsx' | 'csv' | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const exportRegister = async (format: 'xlsx' | 'csv') => {
+    setExporting(format)
+    setExportError(null)
+    try {
+      await downloadRiskRegister(format)
+    } catch (err) {
+      setExportError(getErrorMessage(err, 'The risk register could not be exported.'))
+    } finally {
+      setExporting(null)
+    }
+  }
   const [risks, setRisks] = useState<RiskAssessment[]>([])
   const [definitions, setDefinitions] = useState<SeverityDefinition[]>([])
   const [loading, setLoading] = useState(true)
@@ -819,7 +863,22 @@ function RiskRegisterTab({ canManage }: { canManage: boolean }) {
         </div>
       )}
 
-      <div className="flex justify-end">
+      {exportError && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-sm text-status-error">{exportError}</div>}
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={() => exportRegister('xlsx')}
+          disabled={exporting !== null}
+          className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
+        >
+          {exporting === 'xlsx' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export Excel
+        </button>
+        <button
+          onClick={() => exportRegister('csv')}
+          disabled={exporting !== null}
+          className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
+        >
+          {exporting === 'csv' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export CSV
+        </button>
         {canManage && (
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors">
             <Plus className="h-4 w-4" /> New Risk Assessment
@@ -885,8 +944,38 @@ function RiskRegisterTab({ canManage }: { canManage: boolean }) {
   )
 }
 
-function CreateRiskAssessmentModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [title, setTitle] = useState('')
+/**
+ * Real-usage item (7 Oct 2026) — the record types a risk assessment can be
+ * linked to, each with a short search-and-pick list so a user never types
+ * a record id. Must match `risk-register-export.util.ts`'s own known types.
+ */
+const RISK_SOURCE_TYPES: { value: string; label: string }[] = [
+  { value: '', label: 'Standalone (not linked to a record)' },
+  { value: 'recall', label: 'Recall' },
+  { value: 'deviation', label: 'Deviation' },
+  { value: 'oos', label: 'OOS/OOT Investigation' },
+  { value: 'complaint', label: 'Complaint' },
+  { value: 'change_control', label: 'Change Control' },
+  { value: 'batch', label: 'Batch' },
+  { value: 'product', label: 'Product' },
+]
+
+function CreateRiskAssessmentModal({
+  defaultSourceRecordType,
+  defaultSourceRecordId,
+  defaultTitle,
+  onClose,
+  onCreated,
+}: {
+  defaultSourceRecordType?: string
+  defaultSourceRecordId?: string
+  defaultTitle?: string
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [title, setTitle] = useState(defaultTitle ?? '')
+  const [sourceRecordType, setSourceRecordType] = useState(defaultSourceRecordType ?? '')
+  const [sourceRecordId, setSourceRecordId] = useState(defaultSourceRecordId ?? '')
   const [severity, setSeverity] = useState(3)
   const [probability, setProbability] = useState(3)
   const [useDetectability, setUseDetectability] = useState(false)
@@ -904,6 +993,8 @@ function CreateRiskAssessmentModal({ onClose, onCreated }: { onClose: () => void
     try {
       await createRiskAssessment({
         title: title.trim(),
+        sourceRecordType: sourceRecordType || undefined,
+        sourceRecordId: sourceRecordType ? sourceRecordId || undefined : undefined,
         severity,
         probability,
         detectability: useDetectability ? detectability : undefined,
@@ -924,6 +1015,27 @@ function CreateRiskAssessmentModal({ onClose, onCreated }: { onClose: () => void
         <div>
           <label className={labelClass}>Title *</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Temperature excursion during transport" className={inputClass} />
+        </div>
+
+        <div>
+          <label className={labelClass}>Link to a record</label>
+          <select
+            value={sourceRecordType}
+            onChange={(e) => {
+              setSourceRecordType(e.target.value)
+              setSourceRecordId('')
+            }}
+            className={inputClass}
+            disabled={Boolean(defaultSourceRecordType)}
+          >
+            {RISK_SOURCE_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+          {sourceRecordType && !defaultSourceRecordId && (
+            <SourceRecordPicker sourceRecordType={sourceRecordType} value={sourceRecordId} onChange={setSourceRecordId} />
+          )}
+          {defaultSourceRecordId && <p className="mt-1 text-xs text-muted-foreground">Linked automatically from where you opened this form.</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -969,6 +1081,86 @@ function CreateRiskAssessmentModal({ onClose, onCreated }: { onClose: () => void
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * A short search-and-pick list for one of `RISK_SOURCE_TYPES` — the user
+ * always picks a real record from a dropdown of up to 50, never types an id.
+ */
+function SourceRecordPicker({
+  sourceRecordType,
+  value,
+  onChange,
+}: {
+  sourceRecordType: string
+  value: string
+  onChange: (id: string) => void
+}) {
+  const [options, setOptions] = useState<{ id: string; label: string }[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setLoadError(null)
+    async function load() {
+      switch (sourceRecordType) {
+        case 'recall': {
+          const page = await listRecalls({ limit: 50 })
+          return page.rows.map((r) => ({ id: r.id, label: `${r.ref ?? r.id.slice(0, 8)} — ${r.product.brandName}` }))
+        }
+        case 'deviation': {
+          const page = await listDeviations({ limit: 50 })
+          return page.rows.map((d) => ({ id: d.id, label: `${d.deviationNumber} — ${d.title}` }))
+        }
+        case 'oos': {
+          const page = await listOos({ limit: 50 })
+          return page.rows.map((o) => ({ id: o.id, label: o.oosNumber }))
+        }
+        case 'complaint': {
+          const page = await listComplaints({ limit: 50 })
+          return page.rows.map((c) => ({ id: c.id, label: c.complaintNumber }))
+        }
+        case 'change_control': {
+          const page = await listChangeControls({ limit: 50 })
+          return page.rows.map((c) => ({ id: c.id, label: `${c.changeNumber} — ${c.title}` }))
+        }
+        case 'batch': {
+          const page = await listBatches({ limit: 50 })
+          return page.rows.map((b) => ({ id: b.id, label: b.batchNumber }))
+        }
+        case 'product': {
+          const page = await listProducts({ limit: 50 })
+          return page.rows.map((p) => ({ id: p.id, label: `${p.brandName} ${p.strength}` }))
+        }
+        default:
+          return []
+      }
+    }
+    load()
+      .then((opts) => {
+        if (!cancelled) setOptions(opts)
+      })
+      .catch((err) => !cancelled && setLoadError(getErrorMessage(err, 'Could not load records to link.')))
+      .finally(() => !cancelled && setLoading(false))
+    return () => {
+      cancelled = true
+    }
+  }, [sourceRecordType])
+
+  if (loading) return <p className="mt-1 text-xs text-muted-foreground">Loading records…</p>
+  if (loadError) return <p className="mt-1 text-xs text-status-error">{loadError}</p>
+  if (options.length === 0) return <p className="mt-1 text-xs text-muted-foreground">No records of this type found.</p>
+
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClass} mt-2`}>
+      <option value="">Choose a record…</option>
+      {options.map((o) => (
+        <option key={o.id} value={o.id}>{o.label}</option>
+      ))}
+    </select>
   )
 }
 

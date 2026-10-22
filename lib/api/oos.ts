@@ -81,14 +81,7 @@ export async function recordOosPhase2(id: string, input: { findings?: string; ba
   return data
 }
 
-export interface OpenCapaForOosInput {
-  title: string
-  correctiveAction: string
-  preventiveAction?: string
-  rootCauseCategory?: string
-  ownerUserId?: string
-  dueDate?: string
-}
+export type OpenCapaForOosInput = import('./capa-allocation').CapaAllocationInput
 
 export async function openCapaForOos(id: string, input: OpenCapaForOosInput): Promise<Capa> {
   const { data } = await post<Capa>(`/quality/oos/${id}/capa`, input)

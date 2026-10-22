@@ -7,6 +7,7 @@ import { getErrorMessage } from '@/lib/api/client'
 import {
   COMPLAINT_CHANNEL_LABELS,
   COMPLAINT_CHANNELS,
+  COMPLAINT_CLASSIFICATION_LABELS,
   Complaint,
   ResolutionTimeKpi,
   createComplaint,
@@ -95,7 +96,7 @@ export function QualityComplaintsScreen() {
         </div>
         {canLog && (
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors">
-            <Plus className="h-4 w-4" /> Log Complaint
+            <Plus className="h-4 w-4" /> Log a Product Quality Complaint
           </button>
         )}
       </div>
@@ -147,7 +148,7 @@ export function QualityComplaintsScreen() {
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <th className="p-3">Complaint #</th>
-                <th className="p-3">Channel</th>
+                <th className="p-3">Source</th>
                 <th className="p-3">Logged</th>
                 <th className="p-3">Classification</th>
                 <th className="p-3">Status</th>
@@ -162,7 +163,7 @@ export function QualityComplaintsScreen() {
                   <td className="p-3">
                     {c.classification ? (
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CLASSIFICATION_STYLES[c.classification] ?? 'bg-muted text-foreground'}`}>
-                        {c.classification === 'possible_ae' ? 'Possible AE' : 'Quality Complaint'}
+                        {c.classification ? COMPLAINT_CLASSIFICATION_LABELS[c.classification as keyof typeof COMPLAINT_CLASSIFICATION_LABELS] : '—'}
                       </span>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
@@ -233,7 +234,7 @@ function CreateComplaintModal({ onClose, onCreated }: { onClose: () => void; onC
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
       <div className="w-full max-w-lg rounded-lg border border-border bg-card p-6 space-y-4 my-8">
-        <h2 className="font-display font-bold text-lg text-foreground">Log a Complaint</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">Log a Product Quality Complaint</h2>
 
         <div>
           <label className={labelClass}>Product *</label>
@@ -246,7 +247,7 @@ function CreateComplaintModal({ onClose, onCreated }: { onClose: () => void; onC
         </div>
 
         <div>
-          <label className={labelClass}>Channel *</label>
+          <label className={labelClass}>Source *</label>
           <select value={channel} onChange={(e) => setChannel(e.target.value)} className={inputClass}>
             {COMPLAINT_CHANNELS.map((ch) => (
               <option key={ch} value={ch}>{COMPLAINT_CHANNEL_LABELS[ch]}</option>
@@ -282,7 +283,7 @@ function CreateComplaintModal({ onClose, onCreated }: { onClose: () => void; onC
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Log Complaint
+            Log a Product Quality Complaint
           </button>
         </div>
       </div>

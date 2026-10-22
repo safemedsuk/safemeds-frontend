@@ -1,5 +1,7 @@
 'use client'
 
+import { OpenCapaModal } from '@/components/internal-audits/open-capa-modal'
+import { RecordDocumentUpload } from '@/components/quality/record-document-upload'
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2, ShieldAlert } from 'lucide-react'
@@ -167,6 +169,30 @@ export function QualityOosDetail({ oosId }: { oosId: string }) {
         </div>
       )}
 
+      {canLog && (
+        <RecordDocumentUpload
+          title="Finding documents (required before recording findings)"
+          description="The test report or other evidence behind the finding. A written finding cannot be saved until at least one document is attached."
+          uploadPath={`/quality/oos/${oos.id}/finding-documents`}
+          listRecordType="oos_finding"
+          recordId={oos.id}
+          onUploaded={() => setNotice('Finding document attached.')}
+          canUpload={canLog}
+        />
+      )}
+
+      {canLog && inPhase2 && (
+        <RecordDocumentUpload
+          title="Manufacturing investigation report (required to complete Phase 2)"
+          description="The completed manufacturing investigation report. The investigation cannot be closed until this is attached."
+          uploadPath={`/quality/oos/${oos.id}/manufacturing-report`}
+          listRecordType="oos_manufacturing_report"
+          recordId={oos.id}
+          onUploaded={() => setNotice('Manufacturing report attached.')}
+          canUpload={canLog}
+        />
+      )}
+
       {showPhase1 && (
         <Phase1Modal
           initialFindings={oos.phase1Findings}
@@ -208,9 +234,10 @@ export function QualityOosDetail({ oosId }: { oosId: string }) {
 
       {showOpenCapa && (
         <OpenCapaModal
+          contextNote="This CAPA is opened against this OOS/OOT investigation. Owner, both due dates and the root cause are required, as for every CAPA."
+          submit={(input) => openCapaForOos(oos.id, input).then(() => undefined)}
           onClose={() => setShowOpenCapa(false)}
-          onSubmit={async (input) => {
-            await openCapaForOos(oos.id, input)
+          onOpened={() => {
             setShowOpenCapa(false)
             setNotice('CAPA opened.')
             refresh()
@@ -384,70 +411,3 @@ function Phase2Modal({
   )
 }
 
-function OpenCapaModal({
-  onClose,
-  onSubmit,
-}: {
-  onClose: () => void
-  onSubmit: (input: { title: string; correctiveAction: string; preventiveAction?: string; rootCauseCategory?: string }) => Promise<void>
-}) {
-  const [title, setTitle] = useState('')
-  const [correctiveAction, setCorrectiveAction] = useState('')
-  const [preventiveAction, setPreventiveAction] = useState('')
-  const [rootCauseCategory, setRootCauseCategory] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const isValid = title.trim().length > 0 && correctiveAction.trim().length > 0
-
-  const handleSubmit = async () => {
-    if (!isValid) return
-    setSubmitting(true)
-    setError(null)
-    try {
-      await onSubmit({
-        title: title.trim(),
-        correctiveAction: correctiveAction.trim(),
-        preventiveAction: preventiveAction.trim() || undefined,
-        rootCauseCategory: rootCauseCategory.trim() || undefined,
-      })
-    } catch (err) {
-      setError(getErrorMessage(err, 'Could not open this CAPA.'))
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
-      <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4 my-8">
-        <h3 className="font-display font-bold text-base text-foreground">Open CAPA</h3>
-        <div>
-          <label className={labelClass}>Title *</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>Corrective Action *</label>
-          <textarea value={correctiveAction} onChange={(e) => setCorrectiveAction(e.target.value)} rows={3} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>Preventive Action</label>
-          <textarea value={preventiveAction} onChange={(e) => setPreventiveAction(e.target.value)} rows={2} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>Root-Cause Category</label>
-          <input value={rootCauseCategory} onChange={(e) => setRootCauseCategory(e.target.value)} className={inputClass} />
-        </div>
-        {error && <p className="text-sm text-status-error">{error}</p>}
-        <div className="flex justify-end gap-3 pt-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
-          </button>
-          <button onClick={handleSubmit} disabled={!isValid || submitting} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50">
-            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Open CAPA
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}

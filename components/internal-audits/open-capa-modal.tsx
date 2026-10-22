@@ -2,50 +2,49 @@
 
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { CapaAllocationFields, CapaAllocationDraft, EMPTY_CAPA_DRAFT, draftToAllocationInput, isCapaDraftValid } from '@/components/capa/capa-allocation-fields'
+import { CapaAllocationInput } from '@/lib/api/capa-allocation'
 import { getErrorMessage } from '@/lib/api/client'
 import { createCapa } from '@/lib/api/internal-audits'
 
-const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
-const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
-
 interface Props {
   /**
-   * testing-todo Stage 16.3 — when set (opened from a specific finding's
-   * own "Open CAPA" action), the created CAPA is linked to it via the
-   * backend's already-existing `Capa.findingId` — `CapaService.create()`
-   * has accepted this since Stage 16 shipped; the gap was purely that no
-   * frontend entry point ever passed it. When omitted (opened from the
-   * generic CAPAs tab), the CAPA is created standalone, exactly as
-   * before.
+   * When set (opened from a specific finding's own "Open CAPA" action), the
+   * created CAPA is linked to that finding via `Capa.findingId`. When omitted
+   * (the generic CAPAs tab), it's created standalone.
    */
   findingId?: string
+  /**
+   * Where the allocated CAPA is sent. Defaults to the standalone/finding
+   * `POST /capas`; the Deviation, OOS/OOT and Complaint screens pass their own
+   * record-scoped opener, so every CAPA goes through the same form and rules.
+   */
+  submit?: (input: CapaAllocationInput) => Promise<unknown>
+  /** Optional line shown above the form, e.g. which deviation or OOS this CAPA is for. */
+  contextNote?: string
   onClose: () => void
   onOpened: () => void
 }
 
-/** Shared by the CAPAs tab's generic "Open CAPA" action and a specific finding's own "Open CAPA" action — see `findingId` above for the one behavioral difference between the two call sites. */
-export function OpenCapaModal({ findingId, onClose, onOpened }: Props) {
-  const [title, setTitle] = useState('')
-  const [correctiveAction, setCorrectiveAction] = useState('')
-  const [preventiveAction, setPreventiveAction] = useState('')
-  const [dueDate, setDueDate] = useState('')
+/** Pass A2 — the one CAPA opener modal. Replaces the old "Title" form everywhere. */
+export function OpenCapaModal({ findingId, submit, contextNote, onClose, onOpened }: Props) {
+  const [draft, setDraft] = useState<CapaAllocationDraft>(EMPTY_CAPA_DRAFT)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const isValid = title.trim().length > 0 && correctiveAction.trim().length > 0
+  const isValid = isCapaDraftValid(draft)
 
   const handleSubmit = async () => {
-    if (!isValid) return
+    if (!isValid || submitting) return
     setSubmitting(true)
     setError(null)
+    const input = draftToAllocationInput(draft)
     try {
-      await createCapa({
-        findingId,
-        title: title.trim(),
-        correctiveAction: correctiveAction.trim(),
-        preventiveAction: preventiveAction.trim() || undefined,
-        dueDate: dueDate || undefined,
-      })
+      if (submit) {
+        await submit(input)
+      } else {
+        await createCapa({ ...input, findingId })
+      }
       onOpened()
     } catch (err) {
       setError(getErrorMessage(err, 'Could not open this CAPA.'))
@@ -55,7 +54,7 @@ export function OpenCapaModal({ findingId, onClose, onOpened }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-card p-6 space-y-4">
         <h2 className="font-display font-bold text-lg text-foreground">Open CAPA</h2>
         {findingId && (
           <p className="text-xs text-muted-foreground rounded-lg bg-muted/50 px-3 py-2">
@@ -64,22 +63,7 @@ export function OpenCapaModal({ findingId, onClose, onOpened }: Props) {
           </p>
         )}
 
-        <div>
-          <label className={labelClass}>Title *</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>Corrective Action *</label>
-          <textarea value={correctiveAction} onChange={(e) => setCorrectiveAction(e.target.value)} rows={2} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>Preventive Action</label>
-          <textarea value={preventiveAction} onChange={(e) => setPreventiveAction(e.target.value)} rows={2} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>Due Date</label>
-          <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={inputClass} />
-        </div>
+        <CapaAllocationFields value={draft} onChange={setDraft} contextNote={contextNote} />
 
         {error && <p className="text-sm text-status-error">{error}</p>}
 

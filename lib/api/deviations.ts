@@ -77,6 +77,8 @@ export interface Investigation {
 export interface DeviationDetail extends Deviation {
   investigation: Investigation | null
   workflowInstanceId: string | null
+  /** Pass A2 — every CAPA opened against this deviation, visibility-filtered for the viewer. */
+  capas: import('./internal-audits').Capa[]
 }
 
 export interface CreateDeviationInput {
@@ -122,14 +124,7 @@ export async function recordInvestigation(deviationId: string, input: RecordInve
   return data
 }
 
-export interface OpenCapaForDeviationInput {
-  title: string
-  correctiveAction: string
-  preventiveAction?: string
-  rootCauseCategory?: string
-  ownerUserId?: string
-  dueDate?: string
-}
+export type OpenCapaForDeviationInput = import('./capa-allocation').CapaAllocationInput
 
 export async function openCapaForDeviation(deviationId: string, input: OpenCapaForDeviationInput): Promise<Capa> {
   const { data } = await post<Capa>(`/quality/deviations/${deviationId}/capa`, input)

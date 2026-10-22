@@ -72,12 +72,17 @@ export interface Capa {
   sourceRecordType: string | null
   sourceRecordId: string | null
   title: string
+  rootCause: string | null
   correction: string | null
   correctiveAction: string
   preventiveAction: string | null
   rootCauseCategory: string | null
   ownerUserId: string | null
+  owner?: { id: string; fullName: string } | null
+  correctiveActionDueDate: string | null
+  preventiveActionDueDate: string | null
   dueDate: string | null
+  regulatoryApproverUserId: string | null
   status: CapaStatus
   approvedBy: string | null
   approvedAt: string | null
@@ -152,16 +157,9 @@ export async function listAuditFindings(page = 1, limit = 10): Promise<ListAudit
   return { findings: data, meta: meta ?? { page: 1, limit, total: data.length, totalPages: 1 } }
 }
 
-export interface CreateCapaInput {
-  findingId?: string
+export type CreateCapaInput = import('./capa-allocation').CapaAllocationInput & {
   sourceRecordType?: string
   sourceRecordId?: string
-  title: string
-  correctiveAction: string
-  preventiveAction?: string
-  rootCauseCategory?: string
-  ownerUserId?: string
-  dueDate?: string
 }
 
 export async function createCapa(input: CreateCapaInput): Promise<Capa> {
@@ -185,10 +183,14 @@ export async function getCapa(id: string): Promise<Capa> {
 }
 
 export interface UpdateCapaInput {
+  rootCause?: string
+  rootCauseCategory?: string
+  rootCauseOther?: string
   correctiveAction?: string
   preventiveAction?: string
   ownerUserId?: string
-  dueDate?: string
+  correctiveActionDueDate?: string
+  preventiveActionDueDate?: string
   status?: Exclude<CapaStatus, 'closed'>
 }
 

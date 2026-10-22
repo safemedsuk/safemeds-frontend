@@ -25,6 +25,21 @@ export interface Supplier {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  /** Pass B (D1) — approval requires this to be set. */
+  gmpCertificateDocumentId?: string | null
+  lastQualifiedAt?: string | null
+  nextRequalificationDueAt?: string | null
+}
+
+/** Pass B (D2/D3) — one biennial performance review, with its checklist document. */
+export interface SupplierReview {
+  id: string
+  supplierId: string
+  performanceFlags: string[]
+  notes: string | null
+  reviewedAt: string
+  nextReviewDueAt: string
+  checklistDocument: { id: string; title: string } | null
 }
 
 export interface CreateSupplierInput {
@@ -88,6 +103,10 @@ export interface Equipment {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  /** Pass B (C1/C2) — derived live by the backend from the due dates. */
+  calibrationStatus?: 'not_scheduled' | 'current' | 'due_soon' | 'overdue'
+  maintenanceStatus?: 'not_scheduled' | 'current' | 'due_soon' | 'overdue'
+  latestMaintenance?: MaintenanceRecord | null
 }
 
 export interface CreateEquipmentInput {
@@ -181,8 +200,36 @@ export async function approveSupplier(
   return data
 }
 
-export async function monitorSupplier(supplierId: string, flag: string): Promise<Supplier> {
-  const { data } = await post<Supplier>(`/quality/supplier-qualification/${supplierId}/monitor`, { flag })
+/** Pass B (D2) — a biennial review needs its checklist uploaded first (`uploadSupplierReviewChecklist`). */
+export async function monitorSupplier(
+  supplierId: string,
+  input: { flag: string; checklistDocumentId: string; notes?: string },
+): Promise<Supplier> {
+  const { data } = await post<Supplier>(`/quality/supplier-qualification/${supplierId}/monitor`, input)
+  return data
+}
+
+/** Pass B (D1) — uploads the supplier's GMP certificate. Approval is refused until one is on file. */
+export async function uploadSupplierGmpCertificate(supplierId: string, file: File): Promise<Supplier> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await post<Supplier>(`/quality/supplier-qualification/${supplierId}/gmp-certificate`, formData)
+  return data
+}
+
+/** Pass B (D2) — uploads the review checklist; returns its id for `monitorSupplier`. */
+export async function uploadSupplierReviewChecklist(supplierId: string, file: File): Promise<{ documentId: string }> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await post<{ documentId: string }>(
+    `/quality/supplier-qualification/${supplierId}/review-checklist`,
+    formData,
+  )
+  return data
+}
+
+export async function listSupplierReviews(supplierId: string): Promise<SupplierReview[]> {
+  const { data } = await get<SupplierReview[]>(`/quality/supplier-qualification/${supplierId}/reviews`)
   return data
 }
 
@@ -247,9 +294,23 @@ export interface EquipmentQualificationEvent {
   performedAt: string
 }
 
+/** Pass B (C3) — uploads a validation report for this equipment; a passing step cites the returned id. */
+export async function uploadEquipmentValidationReport(
+  equipmentId: string,
+  file: File,
+): Promise<{ documentId: string; title: string }> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await post<{ documentId: string; title: string }>(
+    `/quality/equipment/${equipmentId}/validation-reports`,
+    formData,
+  )
+  return data
+}
+
 export async function recordEquipmentQualificationEvent(
   equipmentId: string,
-  input: { stage: 'dq' | 'iq' | 'oq' | 'pq'; result?: 'pass' | 'fail'; notes?: string },
+  input: { stage: 'dq' | 'iq' | 'oq' | 'pq'; result?: 'pass' | 'fail'; notes?: string; reportDocumentId?: string },
 ): Promise<EquipmentQualificationEvent> {
   const { data } = await post<EquipmentQualificationEvent>(
     `/quality/equipment/${equipmentId}/qualification-events`,
@@ -319,15 +380,16 @@ export interface SopDetail extends Sop {
 }
 
 export interface CreateSopInput {
-  documentNumber: string
   title: string
   documentType: string
+  /** Optional manual number. Omit to let SafeMeds generate one from the company scheme. */
+  documentNumber?: string
   productId?: string
   processArea?: string
   nextPeriodicReviewDueAt?: string
 }
 
-export type UpdateSopInput = Partial<Omit<CreateSopInput, 'documentNumber'>>
+export type UpdateSopInput = Partial<CreateSopInput>
 
 export async function listSops(
   params: { q?: string; productId?: string; documentType?: string; status?: string; page?: number; limit?: number } = {},
@@ -371,6 +433,17 @@ export interface DocumentAcknowledgment {
 
 export async function listAcknowledgmentsForDocument(sopId: string): Promise<DocumentAcknowledgment[]> {
   const { data } = await get<DocumentAcknowledgment[]>(`/quality/sops/${sopId}/acknowledgments`)
+  return data
+}
+
+/** Pass A: minimal active-user list for the reader picker (no users.view needed). */
+export interface AssignableReader {
+  id: string
+  fullName: string
+  email: string
+}
+export async function listAssignableReaders(): Promise<AssignableReader[]> {
+  const { data } = await get<AssignableReader[]>('/quality/sops/assignable-readers')
   return data
 }
 
@@ -655,6 +728,7 @@ export interface FalsifiedProductReport {
   batchId: string | null
   reportedBy: string | null
   source: string
+  scannedCode: string | null
   evidenceDescription: string
   evidenceDocumentIds: string[]
   authorityNotified: boolean
@@ -670,6 +744,7 @@ export interface CreateFalsifiedProductReportInput {
   productId?: string
   batchId?: string
   source: string
+  scannedCode?: string
   evidenceDescription: string
   evidenceDocumentIds?: string[]
 }
@@ -813,7 +888,6 @@ export interface CreateValidationProtocolInput {
   gampCategory?: string
   productId?: string
   equipmentId?: string
-  documentNumber: string
   nextRevalidationDueAt?: string
 }
 
@@ -858,4 +932,29 @@ export async function finalizeValidationReport(
 ): Promise<ValidationReport> {
   const { data } = await post<ValidationReport>(`/quality/validation-protocols/reports/${id}/finalize`, input)
   return data
+}
+
+/**
+ * Phase 2 Pass C — the full risk register as an Excel workbook or CSV, downloaded
+ * as a file. Audited on the server. Uses the session cookie like every other call.
+ */
+export async function downloadRiskRegister(format: 'xlsx' | 'csv'): Promise<void> {
+  const { API_BASE_URL } = await import('./client')
+  const response = await fetch(`${API_BASE_URL}/quality/risk-assessments/export?format=${format}`, {
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    const body = await response.json().catch(() => null)
+    throw new Error(body?.error?.message ?? 'The risk register could not be exported.')
+  }
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  const stamp = new Date().toISOString().slice(0, 10)
+  anchor.href = url
+  anchor.download = `risk-register-${stamp}.${format}`
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
 }

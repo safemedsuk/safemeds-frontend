@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Check, Info, Loader2, ShieldAlert, Wrench, X } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
+import { RecordDocumentUpload } from '@/components/quality/record-document-upload'
+import { listRegulatoryApprovers, reassignRegulatoryApprover, type AssignableUser } from '@/lib/api/capa-allocation'
 import {
   approveCapa,
   assignCapaAction,
@@ -133,9 +135,10 @@ export function QualityCapasScreen() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Title</th>
+                <th className="p-3">Root cause</th>
+                <th className="p-3">Owner</th>
                 <th className="p-3">Source</th>
-                <th className="p-3">Due</th>
+                <th className="p-3">Corrective due</th>
                 <th className="p-3">Status</th>
                 <th className="p-3">Recurring</th>
               </tr>
@@ -143,9 +146,10 @@ export function QualityCapasScreen() {
             <tbody>
               {filtered.map((c) => (
                 <tr key={c.id} onClick={() => setOpenCapaId(c.id)} className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/50">
-                  <td className="p-3 text-foreground font-medium">{c.title}</td>
+                  <td className="p-3 text-foreground font-medium">{c.rootCause ?? c.title}</td>
+                  <td className="p-3 text-muted-foreground text-xs">{(c as Capa & { owner?: { fullName: string } | null }).owner?.fullName ?? 'Unassigned'}</td>
                   <td className="p-3 text-muted-foreground text-xs">{sourceLabel(c)}</td>
-                  <td className="p-3 text-muted-foreground">{formatDate(c.dueDate)}</td>
+                  <td className="p-3 text-muted-foreground">{formatDate(c.correctiveActionDueDate ?? c.dueDate)}</td>
                   <td className="p-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CAPA_STATUS_STYLES[c.status]}`}>{CAPA_STATUS_LABELS[c.status]}</span>
                   </td>
@@ -242,7 +246,7 @@ function CapaDetailModal({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs text-muted-foreground">{sourceLabel(capa)}</p>
-                <h2 className="font-display font-bold text-lg text-foreground">{capa.title}</h2>
+                <h2 className="font-display font-bold text-lg text-foreground">{capa.rootCause ?? capa.title}</h2>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${CAPA_STATUS_STYLES[capa.status]}`}>{CAPA_STATUS_LABELS[capa.status]}</span>
@@ -267,7 +271,9 @@ function CapaDetailModal({
               <p><span className="text-muted-foreground">Corrective Action:</span> {capa.correctiveAction}</p>
               {capa.preventiveAction && <p><span className="text-muted-foreground">Preventive Action:</span> {capa.preventiveAction}</p>}
               {capa.rootCauseCategory && <p><span className="text-muted-foreground">Root-Cause Category:</span> {capa.rootCauseCategory}</p>}
-              <p><span className="text-muted-foreground">Due:</span> {formatDate(capa.dueDate)}</p>
+              <p><span className="text-muted-foreground">Owner:</span> {(capa as Capa & { owner?: { fullName: string } | null }).owner?.fullName ?? 'Unassigned'}</p>
+              <p><span className="text-muted-foreground">Corrective action due:</span> {formatDate(capa.correctiveActionDueDate ?? capa.dueDate)}</p>
+              {capa.preventiveAction && <p><span className="text-muted-foreground">Preventive action due:</span> {formatDate(capa.preventiveActionDueDate)}</p>}
               {capa.approvedAt && <p><span className="text-muted-foreground">Approved:</span> {formatDate(capa.approvedAt)}</p>}
               {capa.implementedAt && <p><span className="text-muted-foreground">Implemented:</span> {formatDate(capa.implementedAt)}</p>}
               {capa.requiresRegulatoryApproval && (
@@ -319,6 +325,32 @@ function CapaDetailModal({
               </div>
             )}
 
+            {capa.requiresRegulatoryApproval && !capa.regulatoryApprovedAt && (canManage || canRegulatoryApprove) && (
+              <RegulatoryApproverPanel
+                capa={capa}
+                disabled={busy}
+                onReassigned={() => {
+                  setNotice('Regulatory approver updated.')
+                  refresh()
+                }}
+              />
+            )}
+
+            {capa.status !== 'closed' && canManage && (
+              <RecordDocumentUpload
+                title="Closing evidence (required to close)"
+                description="Evidence that the corrective action was done: a photo, a signed form, a record. The CAPA cannot be closed until at least one document is attached."
+                uploadPath={`/capas/${capa.id}/evidence`}
+                listRecordType="capa"
+                recordId={capa.id}
+                onUploaded={() => {
+                  setNotice('Evidence attached.')
+                  refresh()
+                }}
+                canUpload={canManage}
+              />
+            )}
+
             {canRegulatoryApprove && capa.requiresRegulatoryApproval && !capa.regulatoryApprovedAt && (
               <button
                 onClick={() => runAction(() => regulatoryApproveCapa(capa.id), 'Regulatory approval recorded.')}
@@ -365,6 +397,71 @@ function CapaDetailModal({
           }}
         />
       )}
+    </div>
+  )
+}
+
+/** Pass A2 (item 3d) — the designated regulatory approver, and a reassignment control for the creator, current owner, or a manager. */
+function RegulatoryApproverPanel({
+  capa,
+  disabled,
+  onReassigned,
+}: {
+  capa: Capa
+  disabled: boolean
+  onReassigned: () => void
+}) {
+  const [approvers, setApprovers] = useState<AssignableUser[]>([])
+  const [selected, setSelected] = useState(capa.regulatoryApproverUserId ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    listRegulatoryApprovers().then(setApprovers).catch(() => setApprovers([]))
+  }, [])
+
+  const designated = approvers.find((u) => u.id === capa.regulatoryApproverUserId)
+
+  const save = async () => {
+    if (!selected || selected === capa.regulatoryApproverUserId) return
+    setSaving(true)
+    setError(null)
+    try {
+      await reassignRegulatoryApprover(capa.id, selected)
+      onReassigned()
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not change the regulatory approver.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border p-3 space-y-2">
+      <p className="text-xs text-muted-foreground">
+        Regulatory approver: <span className="text-foreground">{designated?.fullName ?? (capa.regulatoryApproverUserId ? 'Assigned' : 'Not assigned')}</span>
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={selected} onChange={(e) => setSelected(e.target.value)} className="rounded-lg border border-input bg-background px-2 py-1 text-xs text-foreground">
+          <option value="">Choose a regulatory approver…</option>
+          {approvers.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.fullName}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={save}
+          disabled={disabled || saving || !selected || selected === capa.regulatoryApproverUserId}
+          className="rounded-lg border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
+        >
+          {capa.regulatoryApproverUserId ? 'Reassign approver' : 'Assign approver'}
+        </button>
+      </div>
+      {approvers.length === 0 && (
+        <p className="text-xs text-status-error">No user holds the regulatory-approval permission yet.</p>
+      )}
+      {error && <p className="text-xs text-status-error">{error}</p>}
     </div>
   )
 }

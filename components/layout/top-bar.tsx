@@ -3,6 +3,7 @@
 import { Bell, Search, User, LogOut, Settings, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { LogoMark } from '@/components/ui/logo-mark'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { getUnreadCount, listNotifications, markNotificationRead, type Notification } from '@/lib/api/notifications'
@@ -134,6 +135,11 @@ export function TopBar({ companyName = 'PharmaTech Solutions', userName = 'John 
                       </button>
                     ))
                   )}
+                </div>
+                <div className="border-t border-border p-2 text-center">
+                  <Link href="/notifications" onClick={() => setShowNotifications(false)} className="text-xs font-medium text-safemeds-teal hover:underline">
+                    View all notifications
+                  </Link>
                 </div>
               </div>
             )}

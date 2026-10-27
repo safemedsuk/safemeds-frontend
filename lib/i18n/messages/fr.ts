@@ -164,6 +164,7 @@ export const fr: Record<MessageKey, string> = {
   'settings.language.description': 'Choisissez la langue d’affichage de SafeMeds.',
   'settings.language.english': 'English',
   'settings.language.french': 'Français',
+  'settings.language.portuguese': 'Português',
   'settings.language.savedToast': 'Langue mise à jour.',
   'settings.language.saveFailed': 'Impossible d’enregistrer votre préférence de langue. L’affichage reste en {locale}, mais ce choix pourrait ne pas être conservé à la prochaine connexion.',
   'settings.language.note': 'Ceci modifie uniquement l’affichage des écrans de SafeMeds. Cela ne traduit ni ce que vous avez saisi, ni aucun document généré par le système.',

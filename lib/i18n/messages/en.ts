@@ -164,6 +164,7 @@ export const en = {
   'settings.language.description': 'Choose the language SafeMeds displays its screens in.',
   'settings.language.english': 'English',
   'settings.language.french': 'Français',
+  'settings.language.portuguese': 'Português',
   'settings.language.savedToast': 'Language updated.',
   'settings.language.saveFailed': 'Could not save your language preference. Your screen is still showing {locale}, but the change may not be remembered next time you sign in.',
   'settings.language.note': 'This changes how SafeMeds displays its own screens. It does not translate anything you’ve typed in, or any document the system generates for you.',

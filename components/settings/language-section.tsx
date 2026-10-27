@@ -8,10 +8,17 @@ import { useLocaleStore, type Locale } from '@/lib/i18n/locale-store'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 
-const LOCALE_OPTIONS: { value: Locale; labelKey: 'settings.language.english' | 'settings.language.french' }[] = [
+const LOCALE_OPTIONS: {
+  value: Locale
+  labelKey: 'settings.language.english' | 'settings.language.french' | 'settings.language.portuguese'
+}[] = [
   { value: 'en', labelKey: 'settings.language.english' },
   { value: 'fr', labelKey: 'settings.language.french' },
+  { value: 'pt', labelKey: 'settings.language.portuguese' },
 ]
+
+/** Native-language names, used only for the save-failed toast's own `{locale}` interpolation — never translated, matching how each option's own label above is always shown in its own language regardless of the active UI locale. */
+const NATIVE_LOCALE_NAMES: Record<Locale, string> = { en: 'English', fr: 'Français', pt: 'Português' }
 
 export function LanguageSection() {
   const { t } = useTranslation()
@@ -39,7 +46,7 @@ export function LanguageSection() {
       // persistence failed, so a future login elsewhere may not carry
       // the new choice. Tell the user plainly rather than silently
       // rolling back a change they can clearly see took effect.
-      setToast(t('settings.language.saveFailed', { locale: previous === 'en' ? 'English' : 'Français' }))
+      setToast(t('settings.language.saveFailed', { locale: NATIVE_LOCALE_NAMES[previous] }))
     } finally {
       setSaving(null)
     }

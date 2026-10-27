@@ -13,6 +13,7 @@ import {
   type PlatformDistributorSummary,
   type TenantMatchSuggestion,
 } from '@/lib/api/distributor-linking'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 
@@ -25,6 +26,7 @@ const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-
  * fast when it applies.
  */
 export function DistributorLinkingAdmin() {
+  const { t } = useTranslation()
   const [distributors, setDistributors] = useState<PlatformDistributorSummary[]>([])
   const [showLinkedToo, setShowLinkedToo] = useState(false)
   const [q, setQ] = useState('')
@@ -45,9 +47,9 @@ export function DistributorLinkingAdmin() {
         setTotalPages(r.totalPages)
         setTotal(r.total)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load distributors.')))
+      .catch((err) => setError(getErrorMessage(err, t('distributorLinkingAdmin.errorLoad'))))
       .finally(() => setLoading(false))
-  }, [q, showLinkedToo, page])
+  }, [q, showLinkedToo, page, t])
 
   useEffect(() => {
     load()
@@ -59,21 +61,21 @@ export function DistributorLinkingAdmin() {
       await linkDistributorTenant(distributor.id, null)
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not unlink this distributor.'))
+      setError(getErrorMessage(err, t('distributorLinkingAdmin.errorUnlink')))
     }
   }
 
   const columns: DataTableColumn<PlatformDistributorSummary>[] = [
-    { key: 'name', label: 'Distributor' },
-    { key: 'ownerCompanyName', label: 'Belongs to (manufacturer tenant)' },
+    { key: 'name', label: t('distributorLinkingAdmin.columnDistributor') },
+    { key: 'ownerCompanyName', label: t('distributorLinkingAdmin.columnBelongsTo') },
     {
       key: 'distributorCompanyId',
-      label: 'Linked tenant',
+      label: t('distributorLinkingAdmin.columnLinkedTenant'),
       render: (_v, row) =>
         row.distributorCompanyId ? (
           <span className="text-status-success">{row.distributorCompanyName}</span>
         ) : (
-          <span className="text-muted-foreground">Not linked</span>
+          <span className="text-muted-foreground">{t('distributorLinkingAdmin.notLinked')}</span>
         ),
     },
     {
@@ -82,11 +84,11 @@ export function DistributorLinkingAdmin() {
       render: (_v, row) =>
         row.distributorCompanyId ? (
           <button onClick={() => handleUnlink(row)} className="flex items-center gap-1.5 text-xs font-medium text-status-error hover:underline">
-            <Unlink className="h-3.5 w-3.5" /> Unlink
+            <Unlink className="h-3.5 w-3.5" /> {t('distributorLinkingAdmin.unlink')}
           </button>
         ) : (
           <button onClick={() => setLinking(row)} className="flex items-center gap-1.5 text-xs font-medium text-safemeds-teal hover:underline">
-            <Link2 className="h-3.5 w-3.5" /> Link to tenant…
+            <Link2 className="h-3.5 w-3.5" /> {t('distributorLinkingAdmin.linkToTenant')}
           </button>
         ),
     },
@@ -96,9 +98,9 @@ export function DistributorLinkingAdmin() {
     <div className="min-h-screen bg-[var(--bg)] p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         <PageHeader
-          title="Distributor Linking"
-          description="Confirm a distributor is itself a real SafeMeds tenant, enabling the cross-tenant reconciliation summary. A distributor with no matching tenant stays unlinked — that's the normal, expected state."
-          breadcrumb={[{ label: 'Admin', href: '/admin' }, { label: 'Distributor Linking' }]}
+          title={t('distributorLinkingAdmin.title')}
+          description={t('distributorLinkingAdmin.description')}
+          breadcrumb={[{ label: t('distributorLinkingAdmin.breadcrumbAdmin'), href: '/admin' }, { label: t('distributorLinkingAdmin.title') }]}
         />
 
         <div className="flex flex-wrap items-center gap-3">
@@ -110,7 +112,7 @@ export function DistributorLinkingAdmin() {
                 setPage(1)
                 setQ(e.target.value)
               }}
-              placeholder="Search distributor name…"
+              placeholder={t('distributorLinkingAdmin.searchPlaceholder')}
               className={`${inputClass} pl-8`}
             />
           </div>
@@ -123,7 +125,7 @@ export function DistributorLinkingAdmin() {
                 setShowLinkedToo(e.target.checked)
               }}
             />
-            Show already-linked too
+            {t('distributorLinkingAdmin.showLinkedToo')}
           </label>
         </div>
 
@@ -131,11 +133,11 @@ export function DistributorLinkingAdmin() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('common.loading')}
           </div>
         ) : distributors.length === 0 ? (
           <div className="rounded-lg border border-border bg-card p-12 text-center text-sm text-muted-foreground">
-            {showLinkedToo ? 'No distributors found.' : 'No unlinked distributors — everything real-tenant-linkable is already linked.'}
+            {showLinkedToo ? t('distributorLinkingAdmin.noDistributorsFound') : t('distributorLinkingAdmin.noUnlinkedDistributors')}
           </div>
         ) : (
           <DataTableV2<PlatformDistributorSummary>
@@ -175,6 +177,7 @@ function LinkDistributorModal({
   onClose: () => void
   onLinked: () => void
 }) {
+  const { t } = useTranslation()
   const [suggestions, setSuggestions] = useState<TenantMatchSuggestion[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(true)
   const [manualQuery, setManualQuery] = useState('')
@@ -186,9 +189,9 @@ function LinkDistributorModal({
   useEffect(() => {
     suggestTenantMatches(distributor.id)
       .then(setSuggestions)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load match suggestions.')))
+      .catch((err) => setError(getErrorMessage(err, t('distributorLinkingAdmin.errorLoadSuggestions'))))
       .finally(() => setLoadingSuggestions(false))
-  }, [distributor.id])
+  }, [distributor.id, t])
 
   useEffect(() => {
     if (!manualQuery.trim()) {
@@ -199,11 +202,11 @@ function LinkDistributorModal({
     const handle = setTimeout(() => {
       listCompanies(manualQuery.trim(), 1)
         .then((r) => setManualResults(r.companies.filter((c) => c.id !== distributor.ownerCompanyId)))
-        .catch((err) => setError(getErrorMessage(err, 'Could not search companies.')))
+        .catch((err) => setError(getErrorMessage(err, t('distributorLinkingAdmin.errorSearchCompanies'))))
         .finally(() => setSearching(false))
     }, 300)
     return () => clearTimeout(handle)
-  }, [manualQuery, distributor.ownerCompanyId])
+  }, [manualQuery, distributor.ownerCompanyId, t])
 
   const handleLink = async (companyId: string) => {
     setLinkingId(companyId)
@@ -212,7 +215,7 @@ function LinkDistributorModal({
       await linkDistributorTenant(distributor.id, companyId)
       onLinked()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not link this distributor.'))
+      setError(getErrorMessage(err, t('distributorLinkingAdmin.errorLink')))
       setLinkingId(null)
     }
   }
@@ -221,22 +224,20 @@ function LinkDistributorModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4 max-h-[85vh] overflow-y-auto">
         <div>
-          <h2 className="font-display font-bold text-lg text-foreground">Link &quot;{distributor.name}&quot;</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Owned by {distributor.ownerCompanyName}. Confirm the real SafeMeds tenant this distributor is, if one exists.
-          </p>
+          <h2 className="font-display font-bold text-lg text-foreground">{t('distributorLinkingAdmin.linkModalTitle', { name: distributor.name })}</h2>
+          <p className="mt-1 text-xs text-muted-foreground">{t('distributorLinkingAdmin.ownedByNote', { owner: distributor.ownerCompanyName })}</p>
         </div>
 
         {error && <p className="text-sm text-status-error">{error}</p>}
 
         {loadingSuggestions ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Checking for a matching tenant…
+            <Loader2 className="h-4 w-4 animate-spin" /> {t('distributorLinkingAdmin.checkingMatch')}
           </div>
         ) : suggestions.length > 0 ? (
           <div>
             <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5" /> Suggested match
+              <Sparkles className="h-3.5 w-3.5" /> {t('distributorLinkingAdmin.suggestedMatch')}
             </p>
             <div className="space-y-2">
               {suggestions.map((s) => (
@@ -253,18 +254,23 @@ function LinkDistributorModal({
             </div>
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">No same-named tenant found automatically — search below if you know it&apos;s a real tenant under a different name.</p>
+          <p className="text-xs text-muted-foreground">{t('distributorLinkingAdmin.noAutoMatch')}</p>
         )}
 
         <div className="pt-2 border-t border-border">
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Or search for a company</label>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('distributorLinkingAdmin.orSearchCompany')}</label>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input value={manualQuery} onChange={(e) => setManualQuery(e.target.value)} placeholder="Company name…" className={`${inputClass} pl-8`} />
+            <input
+              value={manualQuery}
+              onChange={(e) => setManualQuery(e.target.value)}
+              placeholder={t('distributorLinkingAdmin.companyNamePlaceholder')}
+              className={`${inputClass} pl-8`}
+            />
           </div>
           {searching && (
             <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('distributorLinkingAdmin.searching')}
             </div>
           )}
           {manualResults.length > 0 && (
@@ -287,7 +293,7 @@ function LinkDistributorModal({
         </div>
 
         <button onClick={onClose} className="w-full rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-          Cancel
+          {t('common.cancel')}
         </button>
       </div>
     </div>

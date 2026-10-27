@@ -15,15 +15,17 @@ import {
 } from '@/lib/api/quality'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
 
-const VALIDATION_TYPE_LABELS: Record<ValidationType, string> = {
-  process: 'Process Validation',
-  cleaning: 'Cleaning Validation',
-  analytical_method: 'Analytical Method Validation',
-  computer_system: 'Computer System Validation (CSV)',
+const VALIDATION_TYPE_LABEL_KEYS: Record<ValidationType, MessageKey> = {
+  process: 'qualityValidation.typeProcess',
+  cleaning: 'qualityValidation.typeCleaning',
+  analytical_method: 'qualityValidation.typeAnalyticalMethod',
+  computer_system: 'qualityValidation.typeComputerSystem',
 }
 
 const DOCUMENT_STATUS_STYLES: Record<string, string> = {
@@ -47,6 +49,7 @@ const DOCUMENT_STATUS_STYLES: Record<string, string> = {
  * effective.
  */
 export function QualityValidationScreen() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canView = has('quality.view_all')
   const canDraft = has('quality.manage_documents')
@@ -64,19 +67,19 @@ export function QualityValidationScreen() {
     setError(null)
     listValidationProtocols({ page: 1, limit: 50 })
       .then((res) => setProtocols(res.rows))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load validation protocols.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityValidation.errorLoad'))))
       .finally(() => setLoading(false))
-  }, [])
+  }, [t])
 
   useEffect(load, [load])
 
   if (!canView) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Validation &amp; Qualification</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityValidation.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view validation records.</p>
+          <p className="text-sm text-muted-foreground">{t('qualityValidation.noPermission')}</p>
         </div>
       </div>
     )
@@ -86,12 +89,12 @@ export function QualityValidationScreen() {
     <div className="space-y-6 p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Validation &amp; Qualification</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Process, cleaning, analytical-method, and computer-system validation — a protocol is a real controlled document.</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityValidation.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('qualityValidation.subtitle')}</p>
         </div>
         {canDraft && (
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors">
-            <Plus className="h-4 w-4" /> Draft Protocol
+            <Plus className="h-4 w-4" /> {t('qualityValidation.draftProtocol')}
           </button>
         )}
       </div>
@@ -107,16 +110,16 @@ export function QualityValidationScreen() {
         ) : protocols.length === 0 ? (
           <div className="p-12 text-center">
             <ClipboardCheck className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No validation protocols yet.</p>
+            <p className="text-sm text-muted-foreground">{t('qualityValidation.noProtocolsYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Title</th>
-                <th className="p-3">Type</th>
-                <th className="p-3">Document #</th>
-                <th className="p-3">Document Status</th>
+                <th className="p-3">{t('qualityValidation.columnTitle')}</th>
+                <th className="p-3">{t('qualityValidation.columnType')}</th>
+                <th className="p-3">{t('qualityValidation.columnDocumentNumber')}</th>
+                <th className="p-3">{t('qualityValidation.columnDocumentStatus')}</th>
                 <th className="p-3" />
               </tr>
             </thead>
@@ -125,7 +128,7 @@ export function QualityValidationScreen() {
                 <Fragment key={p.id}>
                   <tr className="border-b border-border last:border-0">
                     <td className="p-3 text-foreground font-medium">{p.title}</td>
-                    <td className="p-3 text-muted-foreground text-xs">{VALIDATION_TYPE_LABELS[p.validationType]}</td>
+                    <td className="p-3 text-muted-foreground text-xs">{t(VALIDATION_TYPE_LABEL_KEYS[p.validationType])}</td>
                     <td className="p-3 text-muted-foreground font-mono text-xs">{p.protocolDocument.documentNumber}</td>
                     <td className="p-3">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${DOCUMENT_STATUS_STYLES[p.protocolDocument.status] ?? 'bg-muted text-foreground'}`}>
@@ -134,14 +137,14 @@ export function QualityValidationScreen() {
                     </td>
                     <td className="p-3">
                       <button onClick={() => setExpanded(expanded === p.id ? null : p.id)} className="text-xs font-medium text-safemeds-teal hover:underline">
-                        {expanded === p.id ? 'Hide reports' : 'Execution & reports'}
+                        {expanded === p.id ? t('qualityValidation.hideReports') : t('qualityValidation.executionAndReports')}
                       </button>
                     </td>
                   </tr>
                   {expanded === p.id && (
                     <tr>
                       <td colSpan={5} className="bg-muted/30 p-4">
-                        <ProtocolReports protocol={p} canManage={canManage} onChanged={() => setNotice('Updated.')} />
+                        <ProtocolReports protocol={p} canManage={canManage} onChanged={() => setNotice(t('qualityValidation.updatedNotice'))} />
                       </td>
                     </tr>
                   )}
@@ -157,7 +160,7 @@ export function QualityValidationScreen() {
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false)
-            setNotice('Protocol drafted as a new controlled document.')
+            setNotice(t('qualityValidation.draftedNotice'))
             load()
           }}
         />
@@ -175,6 +178,7 @@ function ProtocolReports({
   canManage: boolean
   onChanged: () => void
 }) {
+  const { t } = useTranslation()
   const [reports, setReports] = useState<ValidationReport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -184,9 +188,9 @@ function ProtocolReports({
     setLoading(true)
     listValidationReports(protocol.id)
       .then(setReports)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load reports.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityValidation.errorLoadReports'))))
       .finally(() => setLoading(false))
-  }, [protocol.id])
+  }, [protocol.id, t])
 
   useEffect(load, [load])
 
@@ -199,28 +203,36 @@ function ProtocolReports({
       onChanged()
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not record execution — the protocol document must be effective first.'))
+      setError(getErrorMessage(err, t('qualityValidation.errorRecordExecution')))
     }
+  }
+
+  const conclusionLabel = (value: string | null): string => {
+    if (!value) return t('qualityValidation.noConclusionYet')
+    if (value === 'validated') return t('qualityValidation.validated')
+    if (value === 'not_validated') return t('qualityValidation.notValidated')
+    if (value === 'conditionally_validated') return t('qualityValidation.conditionallyValidated')
+    return value.replace(/_/g, ' ')
   }
 
   return (
     <div className="space-y-3">
       {!isEffective && (
         <p className="text-xs text-muted-foreground">
-          Execution can only be recorded once this protocol&apos;s own controlled document is <strong>Effective</strong>
-          — drive it through Draft → In Review → Approved → Effective via the Controlled Documents screen.
+          {t('qualityValidation.effectiveRequiredPrefix')} <strong>{t('qualityValidation.effectiveBold')}</strong>{' '}
+          {t('qualityValidation.effectiveRequiredSuffix')}
         </p>
       )}
       {error && <p className="text-xs text-status-error">{error}</p>}
       {loading ? (
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
       ) : reports.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No execution recorded yet.</p>
+        <p className="text-xs text-muted-foreground">{t('qualityValidation.noExecutionYet')}</p>
       ) : (
         <ul className="space-y-1.5 text-xs">
           {reports.map((r) => (
             <li key={r.id} className="flex items-center justify-between">
-              <span className="text-foreground capitalize">{r.conclusion?.replace(/_/g, ' ') ?? 'No conclusion yet'}</span>
+              <span className="text-foreground capitalize">{conclusionLabel(r.conclusion)}</span>
               {canManage && (
                 <select
                   defaultValue={r.conclusion ?? ''}
@@ -231,9 +243,9 @@ function ProtocolReports({
                   }}
                   className="rounded border border-input bg-background px-2 py-1 text-xs"
                 >
-                  <option value="validated">Validated</option>
-                  <option value="not_validated">Not Validated</option>
-                  <option value="conditionally_validated">Conditionally Validated</option>
+                  <option value="validated">{t('qualityValidation.validated')}</option>
+                  <option value="not_validated">{t('qualityValidation.notValidated')}</option>
+                  <option value="conditionally_validated">{t('qualityValidation.conditionallyValidated')}</option>
                 </select>
               )}
             </li>
@@ -243,12 +255,12 @@ function ProtocolReports({
       {canManage && isEffective && (
         <div className="flex items-center gap-2">
           <select value={conclusion} onChange={(e) => setConclusion(e.target.value)} className="rounded border border-input bg-background px-2 py-1 text-xs">
-            <option value="validated">Validated</option>
-            <option value="not_validated">Not Validated</option>
-            <option value="conditionally_validated">Conditionally Validated</option>
+            <option value="validated">{t('qualityValidation.validated')}</option>
+            <option value="not_validated">{t('qualityValidation.notValidated')}</option>
+            <option value="conditionally_validated">{t('qualityValidation.conditionallyValidated')}</option>
           </select>
           <button onClick={handleRecord} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-            Record Execution
+            {t('qualityValidation.recordExecution')}
           </button>
         </div>
       )}
@@ -257,6 +269,7 @@ function ProtocolReports({
 }
 
 function CreateProtocolModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { t } = useTranslation()
   const [title, setTitle] = useState('')
   const [validationType, setValidationType] = useState<ValidationType>('process')
   const [approach, setApproach] = useState('traditional_three_batch')
@@ -279,7 +292,7 @@ function CreateProtocolModal({ onClose, onCreated }: { onClose: () => void; onCr
       })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not draft this protocol.'))
+      setError(getErrorMessage(err, t('qualityValidation.errorDraft')))
       setSubmitting(false)
     }
   }
@@ -287,45 +300,45 @@ function CreateProtocolModal({ onClose, onCreated }: { onClose: () => void; onCr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
       <div className="w-full max-w-lg rounded-lg border border-border bg-card p-6 space-y-4 my-8">
-        <h2 className="font-display font-bold text-lg text-foreground">Draft a Validation Protocol</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('qualityValidation.draftModalTitle')}</h2>
 
         <div>
-          <label className={labelClass}>Title *</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} placeholder="e.g. Cleaning Validation — Granulation Line 1" />
+          <label className={labelClass}>{t('qualityValidation.titleField')}</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} placeholder={t('qualityValidation.titlePlaceholder')} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Validation Type *</label>
+            <label className={labelClass}>{t('qualityValidation.validationTypeField')}</label>
             <select value={validationType} onChange={(e) => setValidationType(e.target.value as ValidationType)} className={inputClass}>
-              {Object.entries(VALIDATION_TYPE_LABELS).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
+              {Object.entries(VALIDATION_TYPE_LABEL_KEYS).map(([key, labelKey]) => (
+                <option key={key} value={key}>{t(labelKey)}</option>
               ))}
             </select>
           </div>
           <p className="text-xs text-muted-foreground md:col-span-2">
-            The protocol&apos;s controlled document number is assigned automatically on creation.
+            {t('qualityValidation.docNumberAutoNote')}
           </p>
         </div>
 
         {validationType === 'process' && (
           <div>
-            <label className={labelClass}>Approach</label>
+            <label className={labelClass}>{t('qualityValidation.approach')}</label>
             <select value={approach} onChange={(e) => setApproach(e.target.value)} className={inputClass}>
-              <option value="traditional_three_batch">Traditional Three-Batch</option>
-              <option value="continued_process_verification">Continued Process Verification</option>
+              <option value="traditional_three_batch">{t('qualityValidation.approachTraditional')}</option>
+              <option value="continued_process_verification">{t('qualityValidation.approachContinued')}</option>
             </select>
           </div>
         )}
 
         {validationType === 'computer_system' && (
           <div>
-            <label className={labelClass}>GAMP 5 Category</label>
+            <label className={labelClass}>{t('qualityValidation.gampCategory')}</label>
             <select value={gampCategory} onChange={(e) => setGampCategory(e.target.value)} className={inputClass}>
-              <option value="1_infrastructure">Category 1 — Infrastructure</option>
-              <option value="3_non_configured">Category 3 — Non-Configured</option>
-              <option value="4_configured">Category 4 — Configured</option>
-              <option value="5_custom">Category 5 — Custom</option>
+              <option value="1_infrastructure">{t('qualityValidation.gampCategory1')}</option>
+              <option value="3_non_configured">{t('qualityValidation.gampCategory3')}</option>
+              <option value="4_configured">{t('qualityValidation.gampCategory4')}</option>
+              <option value="5_custom">{t('qualityValidation.gampCategory5')}</option>
             </select>
           </div>
         )}
@@ -334,7 +347,7 @@ function CreateProtocolModal({ onClose, onCreated }: { onClose: () => void; onCr
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -342,7 +355,7 @@ function CreateProtocolModal({ onClose, onCreated }: { onClose: () => void; onCr
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Draft
+            {t('qualityValidation.draft')}
           </button>
         </div>
       </div>

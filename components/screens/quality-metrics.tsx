@@ -23,6 +23,7 @@ import {
 } from '@/lib/api/management-reviews'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -48,6 +49,7 @@ type Tab = 'metrics' | 'trends' | 'reviews'
  * "dense feature → tabs, not stacked sections" preference.
  */
 export function QualityMetricsScreen() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canView = has('quality.view_metrics')
   const canManageReview = has('quality.manage_management_review')
@@ -57,19 +59,19 @@ export function QualityMetricsScreen() {
   if (!canView) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Quality Metrics &amp; Trends</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityMetrics.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view quality metrics. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('qualityMetrics.noPermission')}</p>
         </div>
       </div>
     )
   }
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: 'metrics', label: 'Metrics', icon: <BarChart3 className="h-4 w-4" /> },
-    { key: 'trends', label: 'Trend Flags', icon: <AlertTriangle className="h-4 w-4" /> },
-    { key: 'reviews', label: 'Management Reviews', icon: <ClipboardList className="h-4 w-4" /> },
+    { key: 'metrics', label: t('qualityMetrics.tabMetrics'), icon: <BarChart3 className="h-4 w-4" /> },
+    { key: 'trends', label: t('qualityMetrics.tabTrendFlags'), icon: <AlertTriangle className="h-4 w-4" /> },
+    { key: 'reviews', label: t('qualityMetrics.tabManagementReviews'), icon: <ClipboardList className="h-4 w-4" /> },
   ]
 
   return (
@@ -77,22 +79,22 @@ export function QualityMetricsScreen() {
       <div>
         <div className="flex items-center gap-3">
           <BarChart3 className="h-6 w-6 text-safemeds-teal" />
-          <h1 className="text-3xl font-display font-bold text-foreground">Quality Metrics &amp; Trends</h1>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityMetrics.title')}</h1>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">ICH Q10 — live process performance, recurring-issue detection, and the management-review record.</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('qualityMetrics.subtitle')}</p>
       </div>
 
       <div className="flex gap-1 border-b border-border">
-        {tabs.map((t) => (
+        {tabs.map((tb) => (
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
+            key={tb.key}
+            onClick={() => setTab(tb.key)}
             className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === t.key ? 'border-safemeds-teal text-safemeds-teal' : 'border-transparent text-muted-foreground hover:text-foreground'
+              tab === tb.key ? 'border-safemeds-teal text-safemeds-teal' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {t.icon}
-            {t.label}
+            {tb.icon}
+            {tb.label}
           </button>
         ))}
       </div>
@@ -115,6 +117,7 @@ function StatCard({ label, value, tone = 'default' }: { label: string; value: st
 }
 
 function MetricsTab() {
+  const { t } = useTranslation()
   const [period, setPeriod] = useState(defaultPeriod())
   const [metrics, setMetrics] = useState<QualityMetricsSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
@@ -124,9 +127,9 @@ function MetricsTab() {
     setLoading(true)
     getQualityMetrics(period.from, period.to)
       .then(setMetrics)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load metrics.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityMetrics.errorLoadMetrics'))))
       .finally(() => setLoading(false))
-  }, [period])
+  }, [period, t])
 
   useEffect(load, [load])
 
@@ -134,11 +137,11 @@ function MetricsTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
         <div>
-          <label className={labelClass}>From</label>
+          <label className={labelClass}>{t('qualityMetrics.from')}</label>
           <input type="date" value={period.from} onChange={(e) => setPeriod({ ...period, from: e.target.value })} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>To</label>
+          <label className={labelClass}>{t('qualityMetrics.to')}</label>
           <input type="date" value={period.to} onChange={(e) => setPeriod({ ...period, to: e.target.value })} className={inputClass} />
         </div>
       </div>
@@ -150,34 +153,34 @@ function MetricsTab() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Deviations Opened / Closed" value={`${metrics.deviationsOpened} / ${metrics.deviationsClosed}`} />
-            <StatCard label="Complaints Opened / Closed" value={`${metrics.complaintsOpened} / ${metrics.complaintsClosed}`} />
-            <StatCard label="CAPAs Opened / Closed" value={`${metrics.capasOpened} / ${metrics.capasClosed}`} />
+            <StatCard label={t('qualityMetrics.deviationsOpenedClosed')} value={`${metrics.deviationsOpened} / ${metrics.deviationsClosed}`} />
+            <StatCard label={t('qualityMetrics.complaintsOpenedClosed')} value={`${metrics.complaintsOpened} / ${metrics.complaintsClosed}`} />
+            <StatCard label={t('qualityMetrics.capasOpenedClosed')} value={`${metrics.capasOpened} / ${metrics.capasClosed}`} />
             <StatCard
-              label="Right-First-Time Rate"
+              label={t('qualityMetrics.rightFirstTimeRate')}
               value={metrics.rightFirstTimeRate === null ? '—' : `${metrics.rightFirstTimeRate}%`}
               tone={metrics.rightFirstTimeRate !== null && metrics.rightFirstTimeRate < 80 ? 'warning' : 'success'}
             />
-            <StatCard label="Overdue CAPAs" value={String(metrics.overdueCapaCount)} tone={metrics.overdueCapaCount > 0 ? 'warning' : 'success'} />
-            <StatCard label="Recurring Issues (period)" value={String(metrics.recurringIssueCount)} tone={metrics.recurringIssueCount > 0 ? 'warning' : 'success'} />
+            <StatCard label={t('qualityMetrics.overdueCapas')} value={String(metrics.overdueCapaCount)} tone={metrics.overdueCapaCount > 0 ? 'warning' : 'success'} />
+            <StatCard label={t('qualityMetrics.recurringIssues')} value={String(metrics.recurringIssueCount)} tone={metrics.recurringIssueCount > 0 ? 'warning' : 'success'} />
             <StatCard
-              label="Training Compliance"
+              label={t('qualityMetrics.trainingCompliance')}
               value={metrics.trainingComplianceRate === null ? '—' : `${metrics.trainingComplianceRate}%`}
               tone={metrics.trainingComplianceRate !== null && metrics.trainingComplianceRate < 90 ? 'warning' : 'success'}
             />
           </div>
 
           <div className="rounded-lg border border-border bg-card p-4">
-            <h3 className="mb-3 text-sm font-semibold text-foreground">OOS Rate by Product (batches manufactured this period)</h3>
+            <h3 className="mb-3 text-sm font-semibold text-foreground">{t('qualityMetrics.oosRateTitle')}</h3>
             {metrics.oosRatePerProduct.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No OOS results or batches in this period.</p>
+              <p className="text-sm text-muted-foreground">{t('qualityMetrics.noOosOrBatches')}</p>
             ) : (
               <div className="space-y-2">
                 {metrics.oosRatePerProduct.map((row) => (
                   <div key={row.productId} className="flex items-center justify-between text-sm">
                     <span className="text-foreground">{row.brandName}</span>
                     <span className="text-muted-foreground">
-                      {row.oosCount} OOS / {row.batchCount} batch(es){row.ratePercent !== null ? ` — ${row.ratePercent}%` : ''}
+                      {t('qualityMetrics.oosBatchCount', { oosCount: String(row.oosCount), batchCount: String(row.batchCount), rate: row.ratePercent !== null ? ` — ${row.ratePercent}%` : '' })}
                     </span>
                   </div>
                 ))}
@@ -191,6 +194,7 @@ function MetricsTab() {
 }
 
 function TrendFlagsTab({ canAcknowledge }: { canAcknowledge: boolean }) {
+  const { t } = useTranslation()
   const [flags, setFlags] = useState<QualityTrendFlag[]>([])
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
@@ -201,9 +205,9 @@ function TrendFlagsTab({ canAcknowledge }: { canAcknowledge: boolean }) {
     setLoading(true)
     listQualityTrendFlags()
       .then(setFlags)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load trend flags.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityMetrics.errorLoadFlags'))))
       .finally(() => setLoading(false))
-  }, [])
+  }, [t])
 
   useEffect(load, [load])
 
@@ -212,10 +216,10 @@ function TrendFlagsTab({ canAcknowledge }: { canAcknowledge: boolean }) {
     setError(null)
     try {
       const result = await runTrendDetectionNow()
-      setNotice(`Scan complete — ${result.flagsOpened} new flag(s), ${result.flagsResolved} resolved.`)
+      setNotice(t('qualityMetrics.scanComplete', { opened: String(result.flagsOpened), resolved: String(result.flagsResolved) }))
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not run trend detection.'))
+      setError(getErrorMessage(err, t('qualityMetrics.errorRunDetection')))
     } finally {
       setRunning(false)
     }
@@ -226,7 +230,7 @@ function TrendFlagsTab({ canAcknowledge }: { canAcknowledge: boolean }) {
       await acknowledgeTrendFlag(id)
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not acknowledge this flag.'))
+      setError(getErrorMessage(err, t('qualityMetrics.errorAcknowledge')))
     }
   }
 
@@ -235,7 +239,7 @@ function TrendFlagsTab({ canAcknowledge }: { canAcknowledge: boolean }) {
       <div className="flex justify-end">
         <button onClick={handleRunNow} disabled={running} className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50">
           {running && <Loader2 className="h-4 w-4 animate-spin" />}
-          Run Detection Now
+          {t('qualityMetrics.runDetectionNow')}
         </button>
       </div>
 
@@ -247,7 +251,7 @@ function TrendFlagsTab({ canAcknowledge }: { canAcknowledge: boolean }) {
       ) : flags.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <CheckCircle2 className="mx-auto h-10 w-10 text-status-success/60 mb-3" />
-          <p className="text-sm text-muted-foreground">No recurring-issue trends flagged.</p>
+          <p className="text-sm text-muted-foreground">{t('qualityMetrics.noTrendsFlagged')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -259,18 +263,18 @@ function TrendFlagsTab({ canAcknowledge }: { canAcknowledge: boolean }) {
                   <p className="text-sm font-medium text-foreground capitalize">{flag.rootCauseCategory.replace(/_/g, ' ')}</p>
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${flag.status === 'open' ? 'bg-status-warning/10 text-status-warning' : 'bg-status-success/10 text-status-success'}`}>
-                  {flag.status === 'open' ? 'Open' : 'Resolved'}
+                  {flag.status === 'open' ? t('qualityMetrics.open') : t('qualityMetrics.resolved')}
                 </span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                {flag.occurrenceCount} CAPAs sharing this root cause, {formatDate(flag.windowStart)} – {formatDate(flag.windowEnd)}
+                {t('qualityMetrics.capasSharing', { count: String(flag.occurrenceCount), start: formatDate(flag.windowStart), end: formatDate(flag.windowEnd) })}
               </p>
               {flag.acknowledgedAt ? (
-                <p className="mt-2 text-xs text-status-success">Acknowledged {formatDate(flag.acknowledgedAt)}</p>
+                <p className="mt-2 text-xs text-status-success">{t('qualityMetrics.acknowledgedOn', { date: formatDate(flag.acknowledgedAt) })}</p>
               ) : (
                 canAcknowledge && flag.status === 'open' && (
                   <button onClick={() => handleAcknowledge(flag.id)} className="mt-2 flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline">
-                    <Bell className="h-3.5 w-3.5" /> Acknowledge
+                    <Bell className="h-3.5 w-3.5" /> {t('qualityMetrics.acknowledge')}
                   </button>
                 )
               )}
@@ -283,6 +287,7 @@ function TrendFlagsTab({ canAcknowledge }: { canAcknowledge: boolean }) {
 }
 
 function ManagementReviewsTab({ canManage }: { canManage: boolean }) {
+  const { t } = useTranslation()
   const [reviews, setReviews] = useState<ManagementReview[]>([])
   const [loading, setLoading] = useState(true)
   const [showSchedule, setShowSchedule] = useState(false)
@@ -293,9 +298,9 @@ function ManagementReviewsTab({ canManage }: { canManage: boolean }) {
     setLoading(true)
     listManagementReviews()
       .then(setReviews)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load management reviews.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityMetrics.errorLoadReviews'))))
       .finally(() => setLoading(false))
-  }, [])
+  }, [t])
 
   useEffect(load, [load])
 
@@ -304,7 +309,7 @@ function ManagementReviewsTab({ canManage }: { canManage: boolean }) {
       <div className="flex justify-end">
         {canManage && (
           <button onClick={() => setShowSchedule(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce">
-            <Plus className="h-4 w-4" /> Schedule Review
+            <Plus className="h-4 w-4" /> {t('qualityMetrics.scheduleReview')}
           </button>
         )}
       </div>
@@ -316,7 +321,7 @@ function ManagementReviewsTab({ canManage }: { canManage: boolean }) {
       ) : reviews.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">No management review scheduled yet.</p>
+          <p className="text-sm text-muted-foreground">{t('qualityMetrics.noReviewScheduled')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -326,7 +331,7 @@ function ManagementReviewsTab({ canManage }: { canManage: boolean }) {
                 <p className="text-sm font-medium text-foreground">{r.period}</p>
                 <p className="text-xs text-muted-foreground">{formatDate(r.reviewDate)}</p>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">{r.actionsAgreed?.length ?? 0} action(s) agreed</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('qualityMetrics.actionsAgreedCount', { count: String(r.actionsAgreed?.length ?? 0) })}</p>
             </button>
           ))}
         </div>
@@ -358,6 +363,7 @@ function ManagementReviewsTab({ canManage }: { canManage: boolean }) {
 }
 
 function ScheduleReviewModal({ onClose, onScheduled }: { onClose: () => void; onScheduled: () => void }) {
+  const { t } = useTranslation()
   const [period, setPeriod] = useState('')
   const [reviewDate, setReviewDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [attendees, setAttendees] = useState<{ name: string; roleOrOrganisation: string }[]>([])
@@ -385,7 +391,7 @@ function ScheduleReviewModal({ onClose, onScheduled }: { onClose: () => void; on
       })
       onScheduled()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not schedule this review.'))
+      setError(getErrorMessage(err, t('qualityMetrics.errorSchedule')))
       setSubmitting(false)
     }
   }
@@ -393,19 +399,19 @@ function ScheduleReviewModal({ onClose, onScheduled }: { onClose: () => void; on
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Schedule Management Review</h2>
-        <p className="text-xs text-muted-foreground">A live metrics snapshot (trailing 12 months) and every currently-open trend flag will be frozen onto this record the moment it&apos;s saved.</p>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('qualityMetrics.scheduleModalTitle')}</h2>
+        <p className="text-xs text-muted-foreground">{t('qualityMetrics.scheduleModalNote')}</p>
         <div>
-          <label className={labelClass}>Period *</label>
-          <input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="e.g. Q1 2026" className={inputClass} />
+          <label className={labelClass}>{t('qualityMetrics.periodField')}</label>
+          <input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder={t('qualityMetrics.periodPlaceholder')} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Review Date *</label>
+          <label className={labelClass}>{t('qualityMetrics.reviewDateField')}</label>
           <input type="date" value={reviewDate} onChange={(e) => setReviewDate(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Attendees</label>
-          <p className="mb-2 text-[11px] text-muted-foreground">Add each person by name. You can add or remove people later too.</p>
+          <label className={labelClass}>{t('qualityMetrics.attendees')}</label>
+          <p className="mb-2 text-[11px] text-muted-foreground">{t('qualityMetrics.attendeesHelp')}</p>
           {attendees.length > 0 && (
             <ul className="mb-2 space-y-1 text-sm">
               {attendees.map((a, index) => (
@@ -419,15 +425,15 @@ function ScheduleReviewModal({ onClose, onScheduled }: { onClose: () => void; on
                     className="text-xs text-status-error hover:underline"
                     onClick={() => setAttendees((prev) => prev.filter((_, i) => i !== index))}
                   >
-                    Remove
+                    {t('qualityMetrics.remove')}
                   </button>
                 </li>
               ))}
             </ul>
           )}
           <div className="grid grid-cols-2 gap-2">
-            <input value={attendeeName} onChange={(e) => setAttendeeName(e.target.value)} placeholder="Full name" className={inputClass} />
-            <input value={attendeeRole} onChange={(e) => setAttendeeRole(e.target.value)} placeholder="Role or organisation" className={inputClass} />
+            <input value={attendeeName} onChange={(e) => setAttendeeName(e.target.value)} placeholder={t('qualityMetrics.fullName')} className={inputClass} />
+            <input value={attendeeRole} onChange={(e) => setAttendeeRole(e.target.value)} placeholder={t('qualityMetrics.roleOrOrganisation')} className={inputClass} />
           </div>
           <button
             type="button"
@@ -439,19 +445,19 @@ function ScheduleReviewModal({ onClose, onScheduled }: { onClose: () => void; on
             }}
             className="mt-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
           >
-            Add attendee
+            {t('qualityMetrics.addAttendee')}
           </button>
         </div>
         <div>
-          <label className={labelClass}>Next Review Due</label>
+          <label className={labelClass}>{t('qualityMetrics.nextReviewDue')}</label>
           <input type="date" value={nextReviewDueAt} onChange={(e) => setNextReviewDueAt(e.target.value)} className={inputClass} />
         </div>
         {error && <p className="text-sm text-status-error">{error}</p>}
         <div className="flex justify-end gap-3 pt-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">Cancel</button>
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">{t('common.cancel')}</button>
           <button onClick={handleSubmit} disabled={!isValid || submitting} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Schedule
+            {t('qualityMetrics.schedule')}
           </button>
         </div>
       </div>
@@ -470,6 +476,7 @@ function ReviewDetailModal({
   onClose: () => void
   onChanged: () => void
 }) {
+  const { t } = useTranslation()
   const [review, setReview] = useState<ManagementReview | null>(null)
   const [loading, setLoading] = useState(true)
   const [attendeeName, setAttendeeName] = useState('')
@@ -497,7 +504,7 @@ function ReviewDetailModal({
       ])
       onChanged()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not record this action.'))
+      setError(getErrorMessage(err, t('qualityMetrics.errorRecordAction')))
       setSubmitting(false)
     }
   }
@@ -511,12 +518,12 @@ function ReviewDetailModal({
           <>
             <h2 className="font-display font-bold text-lg text-foreground">{review.period} — {formatDate(review.reviewDate)}</h2>
             <div className="rounded-lg border border-border p-3 text-sm">
-              <p className="mb-2 font-medium text-foreground">Attendees</p>
+              <p className="mb-2 font-medium text-foreground">{t('qualityMetrics.attendeesHeading')}</p>
               {(review.attendeeRows ?? []).length === 0 && !review.attendees && (
-                <p className="text-xs text-muted-foreground">No attendees recorded.</p>
+                <p className="text-xs text-muted-foreground">{t('qualityMetrics.noAttendeesRecorded')}</p>
               )}
               {review.attendees && (review.attendeeRows ?? []).length === 0 && (
-                <p className="text-xs text-muted-foreground">Recorded before attendee lists: {review.attendees}</p>
+                <p className="text-xs text-muted-foreground">{t('qualityMetrics.recordedBeforeLists', { attendees: review.attendees })}</p>
               )}
               <ul className="space-y-1">
                 {(review.attendeeRows ?? []).map((a: ManagementReviewAttendee) => (
@@ -535,11 +542,11 @@ function ReviewDetailModal({
                             await withdrawManagementReviewAttendee(reviewId, a.id)
                             setReview(await getManagementReview(reviewId))
                           } catch (err) {
-                            setAttendeeError(getErrorMessage(err, 'Could not remove this attendee.'))
+                            setAttendeeError(getErrorMessage(err, t('qualityMetrics.errorRemoveAttendee')))
                           }
                         }}
                       >
-                        Remove
+                        {t('qualityMetrics.remove')}
                       </button>
                     )}
                   </li>
@@ -547,8 +554,8 @@ function ReviewDetailModal({
               </ul>
               {canManage && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <input value={attendeeName} onChange={(e) => setAttendeeName(e.target.value)} placeholder="Full name" className={inputClass} />
-                  <input value={attendeeRole} onChange={(e) => setAttendeeRole(e.target.value)} placeholder="Role or organisation" className={inputClass} />
+                  <input value={attendeeName} onChange={(e) => setAttendeeName(e.target.value)} placeholder={t('qualityMetrics.fullName')} className={inputClass} />
+                  <input value={attendeeRole} onChange={(e) => setAttendeeRole(e.target.value)} placeholder={t('qualityMetrics.roleOrOrganisation')} className={inputClass} />
                   <button
                     type="button"
                     disabled={attendeeName.trim().length < 2}
@@ -563,12 +570,12 @@ function ReviewDetailModal({
                         setAttendeeRole('')
                         setReview(await getManagementReview(reviewId))
                       } catch (err) {
-                        setAttendeeError(getErrorMessage(err, 'Could not add this attendee.'))
+                        setAttendeeError(getErrorMessage(err, t('qualityMetrics.errorAddAttendee')))
                       }
                     }}
                     className="col-span-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
                   >
-                    Add attendee
+                    {t('qualityMetrics.addAttendee')}
                   </button>
                 </div>
               )}
@@ -576,22 +583,22 @@ function ReviewDetailModal({
             </div>
 
             <div className="rounded-lg border border-border p-3 text-sm">
-              <p className="text-foreground">Deviations: {review.metricsSnapshot.deviationsOpened} opened / {review.metricsSnapshot.deviationsClosed} closed</p>
-              <p className="text-foreground">CAPAs: {review.metricsSnapshot.capasOpened} opened / {review.metricsSnapshot.capasClosed} closed</p>
-              <p className="text-foreground">Overdue CAPAs at the time: {review.metricsSnapshot.overdueCapaCount}</p>
+              <p className="text-foreground">{t('qualityMetrics.deviationsSummary', { opened: String(review.metricsSnapshot.deviationsOpened), closed: String(review.metricsSnapshot.deviationsClosed) })}</p>
+              <p className="text-foreground">{t('qualityMetrics.capasSummary', { opened: String(review.metricsSnapshot.capasOpened), closed: String(review.metricsSnapshot.capasClosed) })}</p>
+              <p className="text-foreground">{t('qualityMetrics.overdueCapasAtTime', { count: String(review.metricsSnapshot.overdueCapaCount) })}</p>
             </div>
 
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-foreground">Agreed Actions</h3>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">{t('qualityMetrics.agreedActions')}</h3>
               {(review.actionsAgreed ?? []).length === 0 ? (
-                <p className="text-sm text-muted-foreground">None recorded yet.</p>
+                <p className="text-sm text-muted-foreground">{t('qualityMetrics.noneRecordedYet')}</p>
               ) : (
                 <ul className="space-y-1">
                   {(review.actionsAgreed ?? []).map((a, idx) => (
                     <li key={idx} className="flex items-center gap-2 text-sm text-foreground">
                       <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-status-success" />
                       {a.description}
-                      {a.capaId && <span className="text-xs text-muted-foreground">(CAPA opened)</span>}
+                      {a.capaId && <span className="text-xs text-muted-foreground">{t('qualityMetrics.capaOpenedTag')}</span>}
                     </li>
                   ))}
                 </ul>
@@ -600,16 +607,16 @@ function ReviewDetailModal({
 
             {canManage && (
               <div className="rounded-lg border border-dashed border-border p-3 space-y-2">
-                <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe a new agreed action" className={inputClass} />
+                <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('qualityMetrics.describeNewAction')} className={inputClass} />
                 <label className="flex items-center gap-2 text-xs text-foreground">
-                  <input type="checkbox" checked={openCapa} onChange={(e) => setOpenCapa(e.target.checked)} /> Open a CAPA for this action
+                  <input type="checkbox" checked={openCapa} onChange={(e) => setOpenCapa(e.target.checked)} /> {t('qualityMetrics.openCapaForAction')}
                 </label>
                 {openCapa && (
-                  <input value={rootCauseCategory} onChange={(e) => setRootCauseCategory(e.target.value)} placeholder="Root cause category" className={inputClass} />
+                  <input value={rootCauseCategory} onChange={(e) => setRootCauseCategory(e.target.value)} placeholder={t('qualityMetrics.rootCauseCategoryPlaceholder')} className={inputClass} />
                 )}
                 <button onClick={handleAddAction} disabled={submitting || !description.trim()} className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">
                   {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Add Action
+                  {t('qualityMetrics.addAction')}
                 </button>
               </div>
             )}
@@ -618,7 +625,7 @@ function ReviewDetailModal({
           </>
         )}
         <div className="flex justify-end pt-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">Close</button>
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">{t('qualityMetrics.close')}</button>
         </div>
       </div>
     </div>

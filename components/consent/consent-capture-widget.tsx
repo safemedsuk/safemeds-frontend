@@ -13,6 +13,8 @@ import {
 } from '@/lib/api/consent'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 interface Props {
   recordType: string
@@ -22,10 +24,10 @@ interface Props {
   label?: string
 }
 
-const CONSENT_TYPE_LABEL: Record<ConsentType, string> = {
-  report: 'Report consent',
-  contact: 'Contact consent',
-  data_privacy: 'Data-privacy consent',
+const CONSENT_TYPE_LABEL_KEYS: Record<ConsentType, MessageKey> = {
+  report: 'pvCaseDetail.reportConsentLabel',
+  contact: 'consentWidget.contactConsent',
+  data_privacy: 'consentWidget.dataPrivacyConsent',
 }
 
 /**
@@ -36,6 +38,7 @@ const CONSENT_TYPE_LABEL: Record<ConsentType, string> = {
  * backend primitive itself is already real, not a mock.
  */
 export function ConsentCaptureWidget({ recordType, recordId, consentType, label }: Props) {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('consent.manage')
 
@@ -53,11 +56,11 @@ export function ConsentCaptureWidget({ recordType, recordId, consentType, label 
       const result = await checkConsent(recordType, recordId, consentType)
       setStatus(result)
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not load consent status.')
+      setError(err instanceof ApiRequestError ? err.message : t('consentWidget.errorLoadStatus'))
     } finally {
       setLoading(false)
     }
-  }, [recordType, recordId, consentType])
+  }, [recordType, recordId, consentType, t])
 
   useEffect(() => {
     load()
@@ -68,10 +71,10 @@ export function ConsentCaptureWidget({ recordType, recordId, consentType, label 
     setError(null)
     try {
       await captureConsent(recordType, recordId, consentType, granted, method)
-      setSuccess(granted ? 'Consent captured.' : 'Decline recorded.')
+      setSuccess(granted ? t('consentWidget.consentCaptured') : t('consentWidget.declineRecorded'))
       await load()
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not capture consent.')
+      setError(err instanceof ApiRequestError ? err.message : t('consentWidget.errorCapture'))
     } finally {
       setBusy(false)
     }
@@ -83,21 +86,21 @@ export function ConsentCaptureWidget({ recordType, recordId, consentType, label 
     setError(null)
     try {
       await withdrawConsent(status.record.id)
-      setSuccess('Consent withdrawn.')
+      setSuccess(t('consentWidget.consentWithdrawn'))
       await load()
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not withdraw consent.')
+      setError(err instanceof ApiRequestError ? err.message : t('consentWidget.errorWithdraw'))
     } finally {
       setBusy(false)
     }
   }
 
-  const title = label ?? CONSENT_TYPE_LABEL[consentType]
+  const title = label ?? t(CONSENT_TYPE_LABEL_KEYS[consentType])
 
   if (loading) {
     return (
       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 flex items-center justify-center text-[var(--text-muted)] text-sm">
-        <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading consent status…
+        <Loader2 className="h-4 w-4 animate-spin mr-2" /> {t('consentWidget.loadingStatus')}
       </div>
     )
   }
@@ -134,7 +137,7 @@ export function ConsentCaptureWidget({ recordType, recordId, consentType, label 
 
       <div className="space-y-3">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-[var(--text-muted)]">Current status</span>
+          <span className="text-[var(--text-muted)]">{t('consentWidget.currentStatus')}</span>
           <span
             className={
               status?.granted
@@ -144,27 +147,31 @@ export function ConsentCaptureWidget({ recordType, recordId, consentType, label 
                   : 'font-medium text-[var(--text-muted)]'
             }
           >
-            {status?.granted ? 'Granted' : status?.hasRecord ? (status.record?.withdrawnAt ? 'Withdrawn' : 'Declined') : 'Not yet captured'}
+            {status?.granted
+              ? t('pvCaseWizard.granted')
+              : status?.hasRecord
+                ? status.record?.withdrawnAt
+                  ? t('consentWidget.withdrawnStatus')
+                  : t('pvCaseWizard.declined')
+                : t('consentWidget.notYetCaptured')}
           </span>
         </div>
 
-        {!canManage && (
-          <p className="text-[10px] text-[var(--text-muted)] italic">You don&apos;t have permission to capture or withdraw consent.</p>
-        )}
+        {!canManage && <p className="text-[10px] text-[var(--text-muted)] italic">{t('consentWidget.noPermission')}</p>}
 
         {canManage && !status?.granted && (
           <>
             <div>
-              <label className="block text-xs font-medium text-[var(--text)] mb-1.5">How was consent obtained?</label>
+              <label className="block text-xs font-medium text-[var(--text)] mb-1.5">{t('consentWidget.howObtained')}</label>
               <select
                 value={method}
                 onChange={(e) => setMethod(e.target.value as ConsentMethod)}
                 disabled={busy}
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
               >
-                <option value="written">Written</option>
-                <option value="verbal">Verbal</option>
-                <option value="implied">Implied</option>
+                <option value="written">{t('pvCaseWizard.written')}</option>
+                <option value="verbal">{t('pvCaseWizard.verbal')}</option>
+                <option value="implied">{t('pvCaseWizard.implied')}</option>
               </select>
             </div>
             <div className="flex gap-2">
@@ -174,14 +181,14 @@ export function ConsentCaptureWidget({ recordType, recordId, consentType, label 
                 className="flex-1 h-8 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-40 text-white text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
               >
                 {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Record consent given
+                {t('consentWidget.recordConsentGiven')}
               </button>
               <button
                 onClick={() => handleCapture(false)}
                 disabled={busy}
                 className="flex-1 h-8 rounded-lg border border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface-raised)] disabled:opacity-40 text-xs font-medium transition-colors"
               >
-                Record decline
+                {t('consentWidget.recordDecline')}
               </button>
             </div>
           </>
@@ -194,7 +201,7 @@ export function ConsentCaptureWidget({ recordType, recordId, consentType, label 
             className="w-full h-8 rounded-lg border border-status-error text-status-error hover:bg-status-error/10 disabled:opacity-40 text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
           >
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Withdraw consent
+            {t('consentWidget.withdrawConsent')}
           </button>
         )}
       </div>

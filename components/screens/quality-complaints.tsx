@@ -17,15 +17,17 @@ import {
 import { listProducts } from '@/lib/api/master-data'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
 
-const STATUS_LABELS: Record<string, string> = {
-  intake: 'Intake',
-  classifying: 'Classifying',
-  investigating: 'Investigating',
-  resolved: 'Resolved',
+const STATUS_LABEL_KEYS: Record<string, MessageKey> = {
+  intake: 'qualityComplaints.statusIntake',
+  classifying: 'qualityComplaints.statusClassifying',
+  investigating: 'qualityComplaints.statusInvestigating',
+  resolved: 'qualityComplaints.statusResolved',
 }
 
 const CLASSIFICATION_STYLES: Record<string, string> = {
@@ -46,6 +48,7 @@ function formatDate(value: string | null): string {
  */
 export function QualityComplaintsScreen() {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canViewAll = has('quality.view_all')
   const canLog = has('quality.log_deviation')
@@ -69,19 +72,19 @@ export function QualityComplaintsScreen() {
         setComplaints(complaintsRes.rows)
         setKpi(kpiRes)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load complaints.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityComplaints.errorLoad'))))
       .finally(() => setLoading(false))
-  }, [statusFilter])
+  }, [statusFilter, t])
 
   useEffect(load, [load])
 
   if (!canViewAll) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Complaints</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityComplaints.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view complaints. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('qualityComplaints.noPermission')}</p>
         </div>
       </div>
     )
@@ -91,42 +94,42 @@ export function QualityComplaintsScreen() {
     <div className="space-y-6 p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Complaints</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Intake → Classify → Investigate → Resolve.</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityComplaints.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('qualityComplaints.subtitle')}</p>
         </div>
         {canLog && (
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors">
-            <Plus className="h-4 w-4" /> Log a Product Quality Complaint
+            <Plus className="h-4 w-4" /> {t('qualityComplaints.logComplaint')}
           </button>
         )}
       </div>
 
       <div className="flex items-start gap-2 rounded-lg border border-status-info/30 bg-status-info/5 p-3 text-xs leading-relaxed text-muted-foreground">
         <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-info" />
-        <p>A complaint describing possible patient harm gets classified &quot;Possible AE&quot; and routed to Pharmacovigilance as a real case — never captured twice.</p>
+        <p>{t('qualityComplaints.infoRouting')}</p>
       </div>
 
       {kpi && (
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-border bg-card p-4">
-            <p className="text-xs text-muted-foreground">Avg. Resolution Time</p>
-            <p className="mt-1 text-2xl font-display font-bold text-foreground">{kpi.averageDays ?? '—'}{kpi.averageDays != null && <span className="text-sm font-normal text-muted-foreground"> days</span>}</p>
+            <p className="text-xs text-muted-foreground">{t('qualityComplaints.avgResolutionTime')}</p>
+            <p className="mt-1 text-2xl font-display font-bold text-foreground">{kpi.averageDays ?? '—'}{kpi.averageDays != null && <span className="text-sm font-normal text-muted-foreground"> {t('qualityComplaints.days')}</span>}</p>
           </div>
           <div className="rounded-lg border border-border bg-card p-4">
-            <p className="text-xs text-muted-foreground">Within {kpi.targetDays}-Day Target</p>
+            <p className="text-xs text-muted-foreground">{t('qualityComplaints.withinTargetDay', { days: String(kpi.targetDays) })}</p>
             <p className="mt-1 text-2xl font-display font-bold text-foreground">{kpi.withinTargetPercent ?? '—'}{kpi.withinTargetPercent != null && '%'}</p>
           </div>
           <div className="rounded-lg border border-border bg-card p-4">
-            <p className="text-xs text-muted-foreground">Resolved Complaints</p>
+            <p className="text-xs text-muted-foreground">{t('qualityComplaints.resolvedComplaints')}</p>
             <p className="mt-1 text-2xl font-display font-bold text-foreground">{kpi.resolvedCount}</p>
           </div>
         </div>
       )}
 
       <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${inputClass} w-auto`}>
-        <option value="">All statuses</option>
-        {Object.entries(STATUS_LABELS).map(([key, label]) => (
-          <option key={key} value={key}>{label}</option>
+        <option value="">{t('qualityComplaints.allStatuses')}</option>
+        {Object.entries(STATUS_LABEL_KEYS).map(([key, labelKey]) => (
+          <option key={key} value={key}>{t(labelKey)}</option>
         ))}
       </select>
 
@@ -141,17 +144,17 @@ export function QualityComplaintsScreen() {
         ) : complaints.length === 0 ? (
           <div className="p-12 text-center">
             <MessageSquareWarning className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No complaints logged yet.</p>
+            <p className="text-sm text-muted-foreground">{t('qualityComplaints.noComplaintsYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Complaint #</th>
-                <th className="p-3">Source</th>
-                <th className="p-3">Logged</th>
-                <th className="p-3">Classification</th>
-                <th className="p-3">Status</th>
+                <th className="p-3">{t('qualityComplaints.columnComplaintNumber')}</th>
+                <th className="p-3">{t('qualityComplaints.columnSource')}</th>
+                <th className="p-3">{t('qualityComplaints.columnLogged')}</th>
+                <th className="p-3">{t('qualityComplaints.columnClassification')}</th>
+                <th className="p-3">{t('qualityComplaints.columnStatus')}</th>
               </tr>
             </thead>
             <tbody>
@@ -170,7 +173,7 @@ export function QualityComplaintsScreen() {
                     )}
                   </td>
                   <td className="p-3">
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground">{STATUS_LABELS[c.status] ?? c.status}</span>
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground">{STATUS_LABEL_KEYS[c.status] ? t(STATUS_LABEL_KEYS[c.status]) : c.status}</span>
                   </td>
                 </tr>
               ))}
@@ -184,7 +187,7 @@ export function QualityComplaintsScreen() {
           onClose={() => setShowCreate(false)}
           onCreated={(id) => {
             setShowCreate(false)
-            setNotice('Complaint logged.')
+            setNotice(t('qualityComplaints.loggedNotice'))
             load()
             router.push(`/quality-complaints/${id}`)
           }}
@@ -195,6 +198,7 @@ export function QualityComplaintsScreen() {
 }
 
 function CreateComplaintModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+  const { t } = useTranslation()
   const [productId, setProductId] = useState('')
   const [channel, setChannel] = useState<string>('phone')
   const [description, setDescription] = useState('')
@@ -226,7 +230,7 @@ function CreateComplaintModal({ onClose, onCreated }: { onClose: () => void; onC
       })
       onCreated(created.id)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not log this complaint.'))
+      setError(getErrorMessage(err, t('qualityComplaints.errorCreate')))
       setSubmitting(false)
     }
   }
@@ -234,12 +238,12 @@ function CreateComplaintModal({ onClose, onCreated }: { onClose: () => void; onC
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
       <div className="w-full max-w-lg rounded-lg border border-border bg-card p-6 space-y-4 my-8">
-        <h2 className="font-display font-bold text-lg text-foreground">Log a Product Quality Complaint</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('qualityComplaints.logModalTitle')}</h2>
 
         <div>
-          <label className={labelClass}>Product *</label>
+          <label className={labelClass}>{t('qualityComplaints.product')}</label>
           <select value={productId} onChange={(e) => setProductId(e.target.value)} className={inputClass}>
-            <option value="">Select a product</option>
+            <option value="">{t('qualityComplaints.selectProduct')}</option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>{p.brandName}</option>
             ))}
@@ -247,7 +251,7 @@ function CreateComplaintModal({ onClose, onCreated }: { onClose: () => void; onC
         </div>
 
         <div>
-          <label className={labelClass}>Source *</label>
+          <label className={labelClass}>{t('qualityComplaints.source')}</label>
           <select value={channel} onChange={(e) => setChannel(e.target.value)} className={inputClass}>
             {COMPLAINT_CHANNELS.map((ch) => (
               <option key={ch} value={ch}>{COMPLAINT_CHANNEL_LABELS[ch]}</option>
@@ -257,25 +261,25 @@ function CreateComplaintModal({ onClose, onCreated }: { onClose: () => void; onC
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Reporter Name</label>
+            <label className={labelClass}>{t('qualityComplaints.reporterName')}</label>
             <input value={reporterName} onChange={(e) => setReporterName(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Reporter Contact</label>
+            <label className={labelClass}>{t('qualityComplaints.reporterContact')}</label>
             <input value={reporterContact} onChange={(e) => setReporterContact(e.target.value)} className={inputClass} />
           </div>
         </div>
 
         <div>
-          <label className={labelClass}>Description *</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className={inputClass} placeholder="Encrypted at rest — describe what happened" />
+          <label className={labelClass}>{t('qualityComplaints.description')}</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className={inputClass} placeholder={t('qualityComplaints.descriptionPlaceholder')} />
         </div>
 
         {error && <p className="text-sm text-status-error">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -283,7 +287,7 @@ function CreateComplaintModal({ onClose, onCreated }: { onClose: () => void; onC
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Log a Product Quality Complaint
+            {t('qualityComplaints.logComplaint')}
           </button>
         </div>
       </div>

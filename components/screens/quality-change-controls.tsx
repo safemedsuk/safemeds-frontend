@@ -14,17 +14,19 @@ import {
 } from '@/lib/api/change-controls'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
 
-const STATUS_LABELS: Record<string, string> = {
-  proposed: 'Proposed',
-  impact_assessment: 'Impact Assessment',
-  approved: 'Approved',
-  implementing: 'Implementing',
-  verifying: 'Verifying',
-  closed: 'Closed',
+const STATUS_LABEL_KEYS: Record<string, MessageKey> = {
+  proposed: 'qualityChangeControls.statusProposed',
+  impact_assessment: 'qualityChangeControls.statusImpactAssessment',
+  approved: 'qualityChangeControls.statusApproved',
+  implementing: 'qualityChangeControls.statusImplementing',
+  verifying: 'qualityChangeControls.statusVerifying',
+  closed: 'qualityChangeControls.statusClosed',
 }
 
 function formatDate(value: string | null): string {
@@ -39,6 +41,7 @@ function formatDate(value: string | null): string {
  */
 export function QualityChangeControlsScreen() {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canViewAll = has('quality.view_all')
   const canLog = has('quality.log_deviation')
@@ -55,19 +58,19 @@ export function QualityChangeControlsScreen() {
     setError(null)
     listChangeControls({ page: 1, limit: 50, status: statusFilter || undefined })
       .then((res) => setChangeControls(res.rows))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load change controls.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityChangeControls.errorLoad'))))
       .finally(() => setLoading(false))
-  }, [statusFilter])
+  }, [statusFilter, t])
 
   useEffect(load, [load])
 
   if (!canViewAll) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Change Control</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityChangeControls.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view change controls. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('qualityChangeControls.noPermission')}</p>
         </div>
       </div>
     )
@@ -77,28 +80,25 @@ export function QualityChangeControlsScreen() {
     <div className="space-y-6 p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Change Control</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Proposed → Impact Assessment → Approved → Implementing → Verifying → Closed.</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityChangeControls.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('qualityChangeControls.subtitle')}</p>
         </div>
         {canLog && (
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors">
-            <Plus className="h-4 w-4" /> Propose Change
+            <Plus className="h-4 w-4" /> {t('qualityChangeControls.proposeChange')}
           </button>
         )}
       </div>
 
       <div className="flex items-start gap-2 rounded-lg border border-status-info/30 bg-status-info/5 p-3 text-xs leading-relaxed text-muted-foreground">
         <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-info" />
-        <p>
-          A change type describes how much a change ripples (Like-for-Like/Minor/Major/Critical) — distinct from a
-          deviation&apos;s severity, which describes how bad an event already was.
-        </p>
+        <p>{t('qualityChangeControls.infoChangeType')}</p>
       </div>
 
       <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${inputClass} w-auto`}>
-        <option value="">All statuses</option>
-        {Object.entries(STATUS_LABELS).map(([key, label]) => (
-          <option key={key} value={key}>{label}</option>
+        <option value="">{t('qualityChangeControls.allStatuses')}</option>
+        {Object.entries(STATUS_LABEL_KEYS).map(([key, labelKey]) => (
+          <option key={key} value={key}>{t(labelKey)}</option>
         ))}
       </select>
 
@@ -113,18 +113,18 @@ export function QualityChangeControlsScreen() {
         ) : changeControls.length === 0 ? (
           <div className="p-12 text-center">
             <GitCommit className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No change controls yet.</p>
+            <p className="text-sm text-muted-foreground">{t('qualityChangeControls.noChangeControlsYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Change #</th>
-                <th className="p-3">Title</th>
-                <th className="p-3">Type</th>
-                <th className="p-3">Scope</th>
-                <th className="p-3">Created</th>
-                <th className="p-3">Status</th>
+                <th className="p-3">{t('qualityChangeControls.columnChangeNumber')}</th>
+                <th className="p-3">{t('qualityChangeControls.columnTitle')}</th>
+                <th className="p-3">{t('qualityChangeControls.columnType')}</th>
+                <th className="p-3">{t('qualityChangeControls.columnScope')}</th>
+                <th className="p-3">{t('qualityChangeControls.columnCreated')}</th>
+                <th className="p-3">{t('qualityChangeControls.columnStatus')}</th>
               </tr>
             </thead>
             <tbody>
@@ -136,7 +136,7 @@ export function QualityChangeControlsScreen() {
                   <td className="p-3 text-muted-foreground text-xs capitalize">{c.scope}</td>
                   <td className="p-3 text-muted-foreground">{formatDate(c.createdAt)}</td>
                   <td className="p-3">
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground">{STATUS_LABELS[c.status] ?? c.status}</span>
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground">{STATUS_LABEL_KEYS[c.status] ? t(STATUS_LABEL_KEYS[c.status]) : c.status}</span>
                   </td>
                 </tr>
               ))}
@@ -150,7 +150,7 @@ export function QualityChangeControlsScreen() {
           onClose={() => setShowCreate(false)}
           onCreated={(id) => {
             setShowCreate(false)
-            setNotice('Change control proposed.')
+            setNotice(t('qualityChangeControls.proposedNotice'))
             load()
             router.push(`/quality-change-controls/${id}`)
           }}
@@ -161,6 +161,7 @@ export function QualityChangeControlsScreen() {
 }
 
 function CreateChangeControlModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+  const { t } = useTranslation()
   const [title, setTitle] = useState('')
   const [changeType, setChangeType] = useState<string>('minor')
   const [scope, setScope] = useState<string>('process')
@@ -183,7 +184,7 @@ function CreateChangeControlModal({ onClose, onCreated }: { onClose: () => void;
       })
       onCreated(created.id)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not propose this change.'))
+      setError(getErrorMessage(err, t('qualityChangeControls.errorCreate')))
       setSubmitting(false)
     }
   }
@@ -191,24 +192,24 @@ function CreateChangeControlModal({ onClose, onCreated }: { onClose: () => void;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
       <div className="w-full max-w-lg rounded-lg border border-border bg-card p-6 space-y-4 my-8">
-        <h2 className="font-display font-bold text-lg text-foreground">Propose a Change</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('qualityChangeControls.proposeAChangeTitle')}</h2>
 
         <div>
-          <label className={labelClass}>Title *</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Switch excipient supplier" className={inputClass} />
+          <label className={labelClass}>{t('qualityChangeControls.titleField')}</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('qualityChangeControls.titlePlaceholder')} className={inputClass} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Change Type *</label>
+            <label className={labelClass}>{t('qualityChangeControls.changeType')}</label>
             <select value={changeType} onChange={(e) => setChangeType(e.target.value)} className={inputClass}>
-              {CHANGE_CONTROL_TYPES.map((t) => (
-                <option key={t} value={t}>{CHANGE_CONTROL_TYPE_LABELS[t]}</option>
+              {CHANGE_CONTROL_TYPES.map((ty) => (
+                <option key={ty} value={ty}>{CHANGE_CONTROL_TYPE_LABELS[ty]}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className={labelClass}>Scope *</label>
+            <label className={labelClass}>{t('qualityChangeControls.scope')}</label>
             <select value={scope} onChange={(e) => setScope(e.target.value)} className={inputClass}>
               {CHANGE_CONTROL_SCOPES.map((s) => (
                 <option key={s} value={s} className="capitalize">{s.replace(/_/g, ' ')}</option>
@@ -218,15 +219,15 @@ function CreateChangeControlModal({ onClose, onCreated }: { onClose: () => void;
         </div>
 
         <div>
-          <label className={labelClass}>Change Description</label>
-          <textarea value={changeDescription} onChange={(e) => setChangeDescription(e.target.value)} rows={3} className={inputClass} placeholder="Encrypted at rest — describe the change" />
+          <label className={labelClass}>{t('qualityChangeControls.changeDescription')}</label>
+          <textarea value={changeDescription} onChange={(e) => setChangeDescription(e.target.value)} rows={3} className={inputClass} placeholder={t('qualityChangeControls.changeDescriptionPlaceholder')} />
         </div>
 
         {error && <p className="text-sm text-status-error">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -234,7 +235,7 @@ function CreateChangeControlModal({ onClose, onCreated }: { onClose: () => void;
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Propose
+            {t('qualityChangeControls.propose')}
           </button>
         </div>
       </div>

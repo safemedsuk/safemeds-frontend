@@ -35,6 +35,8 @@ import {
 } from '@/lib/api/quality'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -46,15 +48,15 @@ const SUPPLIER_STATUS_STYLES: Record<SupplierApprovalStatus, string> = {
   disqualified: 'bg-status-error/10 text-status-error',
 }
 
-const QUALIFICATION_STATUS_LABELS: Record<EquipmentQualificationStatus, string> = {
-  not_qualified: 'Not Qualified',
-  dq_complete: 'DQ Complete',
-  iq_complete: 'IQ Complete',
-  oq_complete: 'OQ Complete',
-  pq_complete: 'PQ Complete',
-  qualified: 'Qualified',
-  requalification_due: 'Requalification Due',
-  disqualified: 'Disqualified',
+const QUALIFICATION_STATUS_LABEL_KEYS: Record<EquipmentQualificationStatus, MessageKey> = {
+  not_qualified: 'qualityEntities.qualNotQualified',
+  dq_complete: 'qualityEntities.qualDqComplete',
+  iq_complete: 'qualityEntities.qualIqComplete',
+  oq_complete: 'qualityEntities.qualOqComplete',
+  pq_complete: 'qualityEntities.qualPqComplete',
+  qualified: 'qualityEntities.qualQualified',
+  requalification_due: 'qualityEntities.qualRequalificationDue',
+  disqualified: 'qualityEntities.qualDisqualified',
 }
 
 /**
@@ -67,6 +69,7 @@ const QUALIFICATION_STATUS_LABELS: Record<EquipmentQualificationStatus, string> 
  * screen only lets status be set directly.
  */
 export function QualityEntitiesScreen() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canViewAll = has('quality.view_all')
   const canManageSuppliers = has('quality.manage_suppliers')
@@ -77,10 +80,10 @@ export function QualityEntitiesScreen() {
   if (!canViewAll) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Quality Entities</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityEntities.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view quality entities. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('qualityEntities.noPermission')}</p>
         </div>
       </div>
     )
@@ -89,8 +92,8 @@ export function QualityEntitiesScreen() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Quality Entities</h1>
-        <p className="mt-1 text-sm text-muted-foreground">The approved-supplier register and the equipment/instrument register.</p>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityEntities.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('qualityEntities.subtitle')}</p>
       </div>
 
       <div className="flex gap-1 border-b border-border">
@@ -98,13 +101,13 @@ export function QualityEntitiesScreen() {
           onClick={() => setTab('suppliers')}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'suppliers' ? 'border-safemeds-teal text-safemeds-teal' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
-          <Package className="h-4 w-4" /> Suppliers
+          <Package className="h-4 w-4" /> {t('qualityEntities.tabSuppliers')}
         </button>
         <button
           onClick={() => setTab('equipment')}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'equipment' ? 'border-safemeds-teal text-safemeds-teal' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
-          <Wrench className="h-4 w-4" /> Equipment
+          <Wrench className="h-4 w-4" /> {t('qualityEntities.tabEquipment')}
         </button>
       </div>
 
@@ -114,6 +117,7 @@ export function QualityEntitiesScreen() {
 }
 
 function SuppliersTab({ canManage }: { canManage: boolean }) {
+  const { t } = useTranslation()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -126,9 +130,9 @@ function SuppliersTab({ canManage }: { canManage: boolean }) {
     setError(null)
     listSuppliers({ page: 1, limit: 50 })
       .then((res) => setSuppliers(res.rows))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load suppliers.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityEntities.errorLoadSuppliers'))))
       .finally(() => setLoading(false))
-  }, [])
+  }, [t])
 
   useEffect(load, [load])
 
@@ -141,19 +145,19 @@ function SuppliersTab({ canManage }: { canManage: boolean }) {
     if (approvalStatus === 'pending') return
     approveSupplier(supplier.id, { approvalStatus: approvalStatus as 'approved' | 'suspended' | 'disqualified' })
       .then(() => {
-        setNotice(`${supplier.name} marked ${approvalStatus}.`)
+        setNotice(t('qualityEntities.markedStatusNotice', { name: supplier.name, status: approvalStatus }))
         load()
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not update supplier status.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityEntities.errorUpdateSupplierStatus'))))
   }
 
   const handleDeactivate = (supplier: Supplier) => {
     deactivateSupplier(supplier.id)
       .then(() => {
-        setNotice(`${supplier.name} deactivated.`)
+        setNotice(t('qualityEntities.deactivatedNotice', { name: supplier.name }))
         load()
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not deactivate supplier.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityEntities.errorDeactivateSupplier'))))
   }
 
   return (
@@ -164,7 +168,7 @@ function SuppliersTab({ canManage }: { canManage: boolean }) {
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
           >
-            <Plus className="h-4 w-4" /> Add Supplier
+            <Plus className="h-4 w-4" /> {t('qualityEntities.addSupplier')}
           </button>
         )}
       </div>
@@ -180,18 +184,18 @@ function SuppliersTab({ canManage }: { canManage: boolean }) {
         ) : suppliers.length === 0 ? (
           <div className="p-12 text-center">
             <Package className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No suppliers recorded yet.</p>
+            <p className="text-sm text-muted-foreground">{t('qualityEntities.noSuppliersYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Name</th>
-                <th className="p-3">Type</th>
-                <th className="p-3">Criticality</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Active</th>
-                {canManage && <th className="p-3">Actions</th>}
+                <th className="p-3">{t('qualityEntities.columnName')}</th>
+                <th className="p-3">{t('qualityEntities.columnType')}</th>
+                <th className="p-3">{t('qualityEntities.columnCriticality')}</th>
+                <th className="p-3">{t('qualityEntities.columnStatus')}</th>
+                <th className="p-3">{t('qualityEntities.columnActive')}</th>
+                {canManage && <th className="p-3">{t('qualityEntities.columnActions')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -201,7 +205,7 @@ function SuppliersTab({ canManage }: { canManage: boolean }) {
                   <td className="p-3 text-muted-foreground">{s.supplierType.replace(/_/g, ' ')}</td>
                   <td className="p-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.criticality === 'critical' ? 'bg-status-error/10 text-status-error' : 'bg-muted text-muted-foreground'}`}>
-                      {s.criticality === 'critical' ? 'Critical' : 'Non-critical'}
+                      {s.criticality === 'critical' ? t('qualityEntities.critical') : t('qualityEntities.nonCritical')}
                     </span>
                   </td>
                   <td className="p-3">
@@ -211,24 +215,24 @@ function SuppliersTab({ canManage }: { canManage: boolean }) {
                         onChange={(e) => handleStatusChange(s, e.target.value as SupplierApprovalStatus)}
                         className={`rounded-full px-2 py-0.5 text-xs font-medium border-0 ${SUPPLIER_STATUS_STYLES[s.approvalStatus]}`}
                       >
-                        <option value="pending">Pending</option>
-                        <option value="approved">Approved</option>
-                        <option value="suspended">Suspended</option>
-                        <option value="disqualified">Disqualified</option>
+                        <option value="pending">{t('qualityEntities.statusPending')}</option>
+                        <option value="approved">{t('qualityEntities.statusApproved')}</option>
+                        <option value="suspended">{t('qualityEntities.statusSuspended')}</option>
+                        <option value="disqualified">{t('qualityEntities.statusDisqualified')}</option>
                       </select>
                     ) : (
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${SUPPLIER_STATUS_STYLES[s.approvalStatus]}`}>{s.approvalStatus}</span>
                     )}
                   </td>
-                  <td className="p-3 text-muted-foreground">{s.isActive ? 'Yes' : 'No'}</td>
+                  <td className="p-3 text-muted-foreground">{s.isActive ? t('qualityEntities.yes') : t('qualityEntities.no')}</td>
                   {canManage && (
                     <td className="p-3 space-x-3">
                       <button onClick={() => setQualifying(s)} className="text-xs text-safemeds-teal hover:underline">
-                        Qualify
+                        {t('qualityEntities.qualify')}
                       </button>
                       {s.isActive && (
                         <button onClick={() => handleDeactivate(s)} className="text-xs text-status-error hover:underline">
-                          Deactivate
+                          {t('qualityEntities.deactivate')}
                         </button>
                       )}
                     </td>
@@ -245,7 +249,7 @@ function SuppliersTab({ canManage }: { canManage: boolean }) {
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false)
-            setNotice('Supplier added.')
+            setNotice(t('qualityEntities.supplierAddedNotice'))
             load()
           }}
         />
@@ -285,6 +289,7 @@ function SupplierQualifyModal({
   onClose: () => void
   onChanged: (message: string) => void
 }) {
+  const { t } = useTranslation()
   const [tab, setTab] = useState<'assess' | 'approve' | 'audit' | 'monitor' | 'coa'>('assess')
   const [criteria, setCriteria] = useState('Quality system maturity')
   const [score, setScore] = useState(8)
@@ -333,7 +338,7 @@ function SupplierQualifyModal({
       await fn()
       onChanged(message)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not complete this action.'))
+      setError(getErrorMessage(err, t('qualityEntities.errorAction')))
       setSubmitting(false)
     }
   }
@@ -342,20 +347,20 @@ function SupplierQualifyModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-lg rounded-lg border border-border bg-card p-6 space-y-4">
         <div>
-          <h2 className="font-display font-bold text-lg text-foreground">Qualify — {supplier.name}</h2>
+          <h2 className="font-display font-bold text-lg text-foreground">{t('qualityEntities.qualifyTitle', { name: supplier.name })}</h2>
           <p className="text-xs text-muted-foreground mt-1">
-            {supplier.criticality === 'critical' ? 'Critical' : 'Non-critical'} · Currently {supplier.approvalStatus}
+            {t('qualityEntities.currentlyStatus', { criticality: supplier.criticality === 'critical' ? t('qualityEntities.critical') : t('qualityEntities.nonCritical'), status: supplier.approvalStatus })}
           </p>
         </div>
 
         <div className="flex gap-1 border-b border-border text-sm flex-wrap">
-          {(['assess', 'audit', 'approve', 'monitor', 'coa'] as const).map((t) => (
+          {(['assess', 'audit', 'approve', 'monitor', 'coa'] as const).map((tb) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-3 py-1.5 border-b-2 -mb-px capitalize ${tab === t ? 'border-safemeds-teal text-safemeds-teal font-medium' : 'border-transparent text-muted-foreground'}`}
+              key={tb}
+              onClick={() => setTab(tb)}
+              className={`px-3 py-1.5 border-b-2 -mb-px capitalize ${tab === tb ? 'border-safemeds-teal text-safemeds-teal font-medium' : 'border-transparent text-muted-foreground'}`}
             >
-              {t === 'audit' ? 'Schedule Audit' : t === 'coa' ? 'Incoming CoA' : t}
+              {tb === 'audit' ? t('qualityEntities.tabScheduleAudit') : tb === 'coa' ? t('qualityEntities.tabIncomingCoa') : t(`qualityEntities.tab${tb.charAt(0).toUpperCase()}${tb.slice(1)}` as MessageKey)}
             </button>
           ))}
         </div>
@@ -363,11 +368,11 @@ function SupplierQualifyModal({
         {tab === 'assess' && (
           <div className="space-y-3">
             <div>
-              <label className={labelClass}>Criterion</label>
+              <label className={labelClass}>{t('qualityEntities.criterion')}</label>
               <input value={criteria} onChange={(e) => setCriteria(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Score (0–10)</label>
+              <label className={labelClass}>{t('qualityEntities.scoreField')}</label>
               <input type="number" min={0} max={10} value={score} onChange={(e) => setScore(Number(e.target.value))} className={inputClass} />
             </div>
             <button
@@ -379,12 +384,12 @@ function SupplierQualifyModal({
                       title: 'Supplier Qualification Assessment',
                       criteria: [{ question: criteria, weight: 1, score }],
                     }),
-                  'Assessment recorded.',
+                  t('qualityEntities.assessmentRecordedNotice'),
                 )
               }
               className="w-full rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
             >
-              Record Assessment
+              {t('qualityEntities.recordAssessment')}
             </button>
           </div>
         )}
@@ -392,15 +397,15 @@ function SupplierQualifyModal({
         {tab === 'audit' && (
           <div className="space-y-3">
             <div>
-              <label className={labelClass}>Scheduled Date</label>
+              <label className={labelClass}>{t('qualityEntities.scheduledDate')}</label>
               <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} className={inputClass} />
             </div>
             <button
               disabled={submitting || !scheduledDate}
-              onClick={() => run(() => scheduleSupplierAudit(supplier.id, { scheduledDate }), 'Qualification audit scheduled.')}
+              onClick={() => run(() => scheduleSupplierAudit(supplier.id, { scheduledDate }), t('qualityEntities.auditScheduledNotice'))}
               className="w-full rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
             >
-              Schedule Audit
+              {t('qualityEntities.scheduleAudit')}
             </button>
           </div>
         )}
@@ -408,54 +413,53 @@ function SupplierQualifyModal({
         {tab === 'approve' && (
           <div className="space-y-3">
             <div className="rounded-lg border border-[var(--border)] p-3">
-              <p className="text-xs font-medium text-[var(--text)]">GMP certificate</p>
+              <p className="text-xs font-medium text-[var(--text)]">{t('qualityEntities.gmpCertificate')}</p>
               <p className="mb-2 text-[11px] text-[var(--text-muted)]">
-                The supplier&apos;s GMP certificate must be on file before the supplier can be approved. Suspending or
-                disqualifying does not need one.
+                {t('qualityEntities.gmpCertificateNote')}
               </p>
               {gmpAttached ? (
-                <p className="text-xs text-emerald-700">Certificate on file.</p>
+                <p className="text-xs text-emerald-700">{t('qualityEntities.certificateOnFile')}</p>
               ) : (
-                <p className="text-xs text-amber-700">No certificate on file yet. Approval is blocked until one is uploaded.</p>
+                <p className="text-xs text-amber-700">{t('qualityEntities.noCertificateOnFile')}</p>
               )}
               <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs">
-                Upload GMP certificate
+                {t('qualityEntities.uploadGmpCertificate')}
                 <input
                   type="file"
                   className="hidden"
                   disabled={submitting}
                   onChange={(e) => {
                     const file = e.target.files?.[0]
-                    if (file) run(async () => { await uploadSupplierGmpCertificate(supplier.id, file); setGmpAttached(true) }, 'GMP certificate uploaded.')
+                    if (file) run(async () => { await uploadSupplierGmpCertificate(supplier.id, file); setGmpAttached(true) }, t('qualityEntities.gmpCertificateUploadedNotice'))
                   }}
                 />
               </label>
             </div>
             <div>
-              <label className={labelClass}>Note (optional)</label>
+              <label className={labelClass}>{t('qualityEntities.noteOptional')}</label>
               <input value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} />
             </div>
             <div className="flex gap-2">
               <button
                 disabled={submitting || !gmpAttached}
-                onClick={() => run(() => approveSupplier(supplier.id, { approvalStatus: 'approved', note }), 'Supplier approved.')}
+                onClick={() => run(() => approveSupplier(supplier.id, { approvalStatus: 'approved', note }), t('qualityEntities.supplierApprovedNotice'))}
                 className="flex-1 rounded-lg bg-status-success px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
-                Approve
+                {t('qualityEntities.approve')}
               </button>
               <button
                 disabled={submitting}
-                onClick={() => run(() => approveSupplier(supplier.id, { approvalStatus: 'suspended', note }), 'Supplier suspended.')}
+                onClick={() => run(() => approveSupplier(supplier.id, { approvalStatus: 'suspended', note }), t('qualityEntities.supplierSuspendedNotice'))}
                 className="flex-1 rounded-lg bg-status-warning px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
-                Suspend
+                {t('qualityEntities.suspend')}
               </button>
               <button
                 disabled={submitting}
-                onClick={() => run(() => approveSupplier(supplier.id, { approvalStatus: 'disqualified', note }), 'Supplier disqualified.')}
+                onClick={() => run(() => approveSupplier(supplier.id, { approvalStatus: 'disqualified', note }), t('qualityEntities.supplierDisqualifiedNotice'))}
                 className="flex-1 rounded-lg bg-status-error px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
-                Disqualify
+                {t('qualityEntities.disqualify')}
               </button>
             </div>
           </div>
@@ -464,16 +468,15 @@ function SupplierQualifyModal({
         {tab === 'monitor' && (
           <div className="space-y-3">
             <p className="text-xs text-[var(--text-muted)]">
-              A performance review is due every two years. Upload the review checklist, add the performance flag, then
-              record the review. The next review is due two years after this one.
+              {t('qualityEntities.monitorIntro')}
             </p>
             <div className="rounded-lg border border-[var(--border)] p-3">
-              <p className="text-xs font-medium text-[var(--text)]">Review checklist</p>
+              <p className="text-xs font-medium text-[var(--text)]">{t('qualityEntities.reviewChecklist')}</p>
               <p className="mb-2 text-[11px] text-[var(--text-muted)]">
-                {checklistName ? `Attached: ${checklistName}` : 'No checklist attached to this review yet.'}
+                {checklistName ? t('qualityEntities.attachedFile', { name: checklistName }) : t('qualityEntities.noChecklistAttached')}
               </p>
               <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs">
-                {checklistName ? 'Replace checklist' : 'Upload checklist'}
+                {checklistName ? t('qualityEntities.replaceChecklist') : t('qualityEntities.uploadChecklist')}
                 <input
                   type="file"
                   className="hidden"
@@ -485,17 +488,17 @@ function SupplierQualifyModal({
                       const uploaded = await uploadSupplierReviewChecklist(supplier.id, file)
                       setChecklistDocumentId(uploaded.documentId)
                       setChecklistName(file.name)
-                    }, 'Review checklist uploaded.')
+                    }, t('qualityEntities.checklistUploadedNotice'))
                   }}
                 />
               </label>
             </div>
             <div>
-              <label className={labelClass}>Performance Flag</label>
-              <input value={flag} onChange={(e) => setFlag(e.target.value)} placeholder="e.g. Late delivery on PO-1042" className={inputClass} />
+              <label className={labelClass}>{t('qualityEntities.performanceFlag')}</label>
+              <input value={flag} onChange={(e) => setFlag(e.target.value)} placeholder={t('qualityEntities.performanceFlagPlaceholder')} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Review notes (optional)</label>
+              <label className={labelClass}>{t('qualityEntities.reviewNotesOptional')}</label>
               <textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} rows={2} className={inputClass} />
             </div>
             <button
@@ -512,22 +515,21 @@ function SupplierQualifyModal({
                   setChecklistDocumentId(null)
                   setChecklistName(null)
                   setReviews(await listSupplierReviews(supplier.id))
-                }, 'Performance review recorded.')
+                }, t('qualityEntities.reviewRecordedNotice'))
               }
               className="w-full rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
             >
-              Record review
+              {t('qualityEntities.recordReview')}
             </button>
             {reviews.length > 0 && (
               <div className="rounded-lg border border-[var(--border)] p-3">
-                <p className="mb-2 text-xs font-medium text-[var(--text)]">Review history</p>
+                <p className="mb-2 text-xs font-medium text-[var(--text)]">{t('qualityEntities.reviewHistory')}</p>
                 <ul className="space-y-2 text-xs">
                   {reviews.map((r) => (
                     <li key={r.id}>
                       <span className="font-medium">{new Date(r.reviewedAt).toLocaleDateString()}</span> ·{' '}
-                      {r.performanceFlags.join('; ') || 'No flags'} · next review{' '}
-                      {new Date(r.nextReviewDueAt).toLocaleDateString()}
-                      {r.checklistDocument && <span className="text-[var(--text-muted)]"> · checklist: {r.checklistDocument.title}</span>}
+                      {r.performanceFlags.join('; ') || t('qualityEntities.noFlags')} · {t('qualityEntities.nextReview', { date: new Date(r.nextReviewDueAt).toLocaleDateString() })}
+                      {r.checklistDocument && <span className="text-[var(--text-muted)]"> · {t('qualityEntities.checklistColon', { title: r.checklistDocument.title })}</span>}
                     </li>
                   ))}
                 </ul>
@@ -540,13 +542,12 @@ function SupplierQualifyModal({
           <div className="space-y-3">
             {materialSpecs.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No raw-material/API specifications are linked to this supplier yet — add one on the
-                Controlled Documents / Specifications screen first.
+                {t('qualityEntities.noMaterialSpecsNote')}
               </p>
             ) : (
               <>
                 <div>
-                  <label className={labelClass}>Material Specification</label>
+                  <label className={labelClass}>{t('qualityEntities.materialSpecification')}</label>
                   <select
                     value={materialSpecId}
                     onChange={(e) => {
@@ -563,7 +564,7 @@ function SupplierQualifyModal({
                   </select>
                 </div>
                 <div>
-                  <label className={labelClass}>Batch / Lot Number</label>
+                  <label className={labelClass}>{t('qualityEntities.batchOrLotNumber')}</label>
                   <input value={batchOrLotNumber} onChange={(e) => setBatchOrLotNumber(e.target.value)} className={inputClass} />
                 </div>
                 {selectedSpec?.parameters.map((p) => (
@@ -599,12 +600,12 @@ function SupplierQualifyModal({
                             resultValue: resultValues[p.id],
                           })),
                         }),
-                      'Certificate of Analysis recorded.',
+                      t('qualityEntities.coaRecordedNotice'),
                     )
                   }
                   className="w-full rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
                 >
-                  Record CoA
+                  {t('qualityEntities.recordCoa')}
                 </button>
               </>
             )}
@@ -615,7 +616,7 @@ function SupplierQualifyModal({
 
         <div className="flex justify-end pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Close
+            {t('qualityEntities.close')}
           </button>
         </div>
       </div>
@@ -624,6 +625,7 @@ function SupplierQualifyModal({
 }
 
 function CreateSupplierModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { t } = useTranslation()
   const [name, setName] = useState('')
   const [supplierType, setSupplierType] = useState('api_supplier')
   const [criticality, setCriticality] = useState<SupplierCriticality>('non_critical')
@@ -640,7 +642,7 @@ function CreateSupplierModal({ onClose, onCreated }: { onClose: () => void; onCr
       await createSupplier({ name: name.trim(), supplierType, criticality })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not add this supplier.'))
+      setError(getErrorMessage(err, t('qualityEntities.errorAddSupplier')))
       setSubmitting(false)
     }
   }
@@ -648,31 +650,31 @@ function CreateSupplierModal({ onClose, onCreated }: { onClose: () => void; onCr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Add Supplier</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('qualityEntities.addSupplierModalTitle')}</h2>
 
         <div>
-          <label className={labelClass}>Name *</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Acme API Supplies Ltd" className={inputClass} />
+          <label className={labelClass}>{t('qualityEntities.nameField')}</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('qualityEntities.supplierNamePlaceholder')} className={inputClass} />
         </div>
 
         <div>
-          <label className={labelClass}>Supplier Type *</label>
+          <label className={labelClass}>{t('qualityEntities.supplierTypeField')}</label>
           <select value={supplierType} onChange={(e) => setSupplierType(e.target.value)} className={inputClass}>
-            <option value="api_supplier">API Supplier</option>
-            <option value="excipient_supplier">Excipient Supplier</option>
-            <option value="packaging_supplier">Packaging Supplier</option>
-            <option value="contract_manufacturer">Contract Manufacturer</option>
-            <option value="contract_lab">Contract Lab</option>
-            <option value="contract_service">Contract Service</option>
-            <option value="other">Other</option>
+            <option value="api_supplier">{t('qualityEntities.typeApiSupplier')}</option>
+            <option value="excipient_supplier">{t('qualityEntities.typeExcipientSupplier')}</option>
+            <option value="packaging_supplier">{t('qualityEntities.typePackagingSupplier')}</option>
+            <option value="contract_manufacturer">{t('qualityEntities.typeContractManufacturer')}</option>
+            <option value="contract_lab">{t('qualityEntities.typeContractLab')}</option>
+            <option value="contract_service">{t('qualityEntities.typeContractService')}</option>
+            <option value="other">{t('qualityEntities.typeOther')}</option>
           </select>
         </div>
 
         <div>
-          <label className={labelClass}>Criticality</label>
+          <label className={labelClass}>{t('qualityEntities.criticalityField')}</label>
           <select value={criticality} onChange={(e) => setCriticality(e.target.value as SupplierCriticality)} className={inputClass}>
-            <option value="non_critical">Non-critical</option>
-            <option value="critical">Critical (e.g. API or primary packaging)</option>
+            <option value="non_critical">{t('qualityEntities.criticalityNonCritical')}</option>
+            <option value="critical">{t('qualityEntities.criticalityCritical')}</option>
           </select>
         </div>
 
@@ -680,7 +682,7 @@ function CreateSupplierModal({ onClose, onCreated }: { onClose: () => void; onCr
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('qualityEntities.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -688,7 +690,7 @@ function CreateSupplierModal({ onClose, onCreated }: { onClose: () => void; onCr
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Add Supplier
+            {t('qualityEntities.addSupplier')}
           </button>
         </div>
       </div>
@@ -696,16 +698,17 @@ function CreateSupplierModal({ onClose, onCreated }: { onClose: () => void; onCr
   )
 }
 
-const DUE_BADGE: Record<string, { label: string; className: string }> = {
-  overdue: { label: 'Overdue', className: 'bg-status-error/15 text-status-error' },
-  due_soon: { label: 'Due soon', className: 'bg-status-warning/15 text-status-warning' },
-  current: { label: 'Current', className: 'bg-status-success/15 text-status-success' },
-  not_scheduled: { label: 'Not scheduled', className: 'bg-muted text-muted-foreground' },
+const DUE_BADGE_KEYS: Record<string, { labelKey: MessageKey; className: string }> = {
+  overdue: { labelKey: 'qualityEntities.dueOverdue', className: 'bg-status-error/15 text-status-error' },
+  due_soon: { labelKey: 'qualityEntities.dueDueSoon', className: 'bg-status-warning/15 text-status-warning' },
+  current: { labelKey: 'qualityEntities.dueCurrent', className: 'bg-status-success/15 text-status-success' },
+  not_scheduled: { labelKey: 'qualityEntities.dueNotScheduled', className: 'bg-muted text-muted-foreground' },
 }
 
 function DueBadge({ status }: { status?: string }) {
-  const meta = DUE_BADGE[status ?? 'not_scheduled'] ?? DUE_BADGE.not_scheduled
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}>{meta.label}</span>
+  const { t } = useTranslation()
+  const meta = DUE_BADGE_KEYS[status ?? 'not_scheduled'] ?? DUE_BADGE_KEYS.not_scheduled
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}>{t(meta.labelKey)}</span>
 }
 
 function fmtDate(value: string | null | undefined): string {
@@ -713,15 +716,16 @@ function fmtDate(value: string | null | undefined): string {
 }
 
 function MaintenanceLog({ logs }: { logs: MaintenanceRecord[] | undefined }) {
-  if (!logs) return <p className="text-xs text-muted-foreground">Loading…</p>
-  if (logs.length === 0) return <p className="text-xs text-muted-foreground">No maintenance entries yet.</p>
+  const { t } = useTranslation()
+  if (!logs) return <p className="text-xs text-muted-foreground">{t('qualityEntities.loading')}</p>
+  if (logs.length === 0) return <p className="text-xs text-muted-foreground">{t('qualityEntities.noMaintenanceYet')}</p>
   return (
     <table className="w-full text-xs">
       <thead>
         <tr className="text-left text-muted-foreground">
-          <th className="pb-2 font-medium">Date</th>
-          <th className="pb-2 font-medium">Description</th>
-          <th className="pb-2 font-medium">Next due</th>
+          <th className="pb-2 font-medium">{t('qualityEntities.columnDate')}</th>
+          <th className="pb-2 font-medium">{t('qualityEntities.columnDescription')}</th>
+          <th className="pb-2 font-medium">{t('qualityEntities.columnNextDue')}</th>
         </tr>
       </thead>
       <tbody>
@@ -738,6 +742,7 @@ function MaintenanceLog({ logs }: { logs: MaintenanceRecord[] | undefined }) {
 }
 
 function EquipmentTab({ canManage }: { canManage: boolean }) {
+  const { t } = useTranslation()
   const [equipment, setEquipment] = useState<Equipment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -754,7 +759,7 @@ function EquipmentTab({ canManage }: { canManage: boolean }) {
     setExpandedId(equipmentId)
     listMaintenanceRecords(equipmentId)
       .then((rows) => setLogs((prev) => ({ ...prev, [equipmentId]: rows })))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load the maintenance log.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityEntities.errorLoadMaintenanceLog'))))
   }
 
   const load = useCallback(() => {
@@ -762,28 +767,28 @@ function EquipmentTab({ canManage }: { canManage: boolean }) {
     setError(null)
     listEquipment({ page: 1, limit: 50 })
       .then((res) => setEquipment(res.rows))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load equipment.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityEntities.errorLoadEquipment'))))
       .finally(() => setLoading(false))
-  }, [])
+  }, [t])
 
   useEffect(load, [load])
 
   const handleStatusChange = (item: Equipment, qualificationStatus: EquipmentQualificationStatus) => {
     updateEquipment(item.id, { qualificationStatus })
       .then(() => {
-        setNotice(`${item.name} marked ${QUALIFICATION_STATUS_LABELS[qualificationStatus]}.`)
+        setNotice(t('qualityEntities.equipmentMarkedNotice', { name: item.name, status: t(QUALIFICATION_STATUS_LABEL_KEYS[qualificationStatus]) }))
         load()
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not update equipment status.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityEntities.errorUpdateEquipmentStatus'))))
   }
 
   const handleDeactivate = (item: Equipment) => {
     deactivateEquipment(item.id)
       .then(() => {
-        setNotice(`${item.name} deactivated.`)
+        setNotice(t('qualityEntities.equipmentDeactivatedNotice', { name: item.name }))
         load()
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not deactivate equipment.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityEntities.errorDeactivateEquipment'))))
   }
 
   return (
@@ -794,7 +799,7 @@ function EquipmentTab({ canManage }: { canManage: boolean }) {
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
           >
-            <Plus className="h-4 w-4" /> Add Equipment
+            <Plus className="h-4 w-4" /> {t('qualityEntities.addEquipment')}
           </button>
         )}
       </div>
@@ -810,20 +815,20 @@ function EquipmentTab({ canManage }: { canManage: boolean }) {
         ) : equipment.length === 0 ? (
           <div className="p-12 text-center">
             <Wrench className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No equipment recorded yet.</p>
+            <p className="text-sm text-muted-foreground">{t('qualityEntities.noEquipmentYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Name</th>
-                <th className="p-3">Type</th>
-                <th className="p-3">Asset Tag</th>
-                <th className="p-3">Qualification Status</th>
-                <th className="p-3">Calibration</th>
-                <th className="p-3">Maintenance</th>
-                <th className="p-3">Active</th>
-                {canManage && <th className="p-3">Actions</th>}
+                <th className="p-3">{t('qualityEntities.columnName')}</th>
+                <th className="p-3">{t('qualityEntities.columnType')}</th>
+                <th className="p-3">{t('qualityEntities.columnAssetTag')}</th>
+                <th className="p-3">{t('qualityEntities.columnQualificationStatus')}</th>
+                <th className="p-3">{t('qualityEntities.columnCalibration')}</th>
+                <th className="p-3">{t('qualityEntities.columnMaintenance')}</th>
+                <th className="p-3">{t('qualityEntities.columnActive')}</th>
+                {canManage && <th className="p-3">{t('qualityEntities.columnActions')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -840,48 +845,48 @@ function EquipmentTab({ canManage }: { canManage: boolean }) {
                         onChange={(ev) => handleStatusChange(e, ev.target.value as EquipmentQualificationStatus)}
                         className="rounded-full px-2 py-0.5 text-xs font-medium border-0 bg-muted text-foreground"
                       >
-                        {Object.entries(QUALIFICATION_STATUS_LABELS).map(([value, label]) => (
+                        {(Object.keys(QUALIFICATION_STATUS_LABEL_KEYS) as EquipmentQualificationStatus[]).map((value) => (
                           <option key={value} value={value}>
-                            {label}
+                            {t(QUALIFICATION_STATUS_LABEL_KEYS[value])}
                           </option>
                         ))}
                       </select>
                     ) : (
-                      <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-muted text-foreground">{QUALIFICATION_STATUS_LABELS[e.qualificationStatus]}</span>
+                      <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-muted text-foreground">{t(QUALIFICATION_STATUS_LABEL_KEYS[e.qualificationStatus])}</span>
                     )}
                   </td>
                   <td className="p-3">
                     <DueBadge status={e.calibrationStatus} />
                     <div className="mt-1 text-xs text-muted-foreground">
-                      Last {fmtDate(e.lastCalibratedAt)} · next {fmtDate(e.calibrationDueAt)}
+                      {t('qualityEntities.lastNextCalibration', { last: fmtDate(e.lastCalibratedAt), next: fmtDate(e.calibrationDueAt) })}
                     </div>
                   </td>
                   <td className="p-3">
                     <DueBadge status={e.maintenanceStatus} />
                     <div className="mt-1 text-xs text-muted-foreground">
                       {e.latestMaintenance
-                        ? `${fmtDate(e.latestMaintenance.maintenanceDate)}: ${e.latestMaintenance.description}`
-                        : 'No maintenance logged'}
+                        ? t('qualityEntities.maintenanceLine', { date: fmtDate(e.latestMaintenance.maintenanceDate), description: e.latestMaintenance.description })
+                        : t('qualityEntities.noMaintenanceLogged')}
                     </div>
                   </td>
-                  <td className="p-3 text-muted-foreground">{e.isActive ? 'Yes' : 'No'}</td>
+                  <td className="p-3 text-muted-foreground">{e.isActive ? t('qualityEntities.yes') : t('qualityEntities.no')}</td>
                   {canManage && (
                     <td className="p-3 space-x-3">
                       <button onClick={() => setQualifying(e)} className="text-xs text-safemeds-teal hover:underline inline-flex items-center gap-1">
-                        <ClipboardCheck className="h-3.5 w-3.5" /> Qualify
+                        <ClipboardCheck className="h-3.5 w-3.5" /> {t('qualityEntities.qualify')}
                       </button>
                       <button
                         onClick={() => setMaintenanceFor(e)}
                         className="text-xs text-safemeds-teal hover:underline"
                       >
-                        Log maintenance
+                        {t('qualityEntities.logMaintenance')}
                       </button>
                       <button onClick={() => toggleLog(e.id)} className="text-xs text-muted-foreground hover:underline">
-                        {expandedId === e.id ? 'Hide log' : 'Maintenance log'}
+                        {expandedId === e.id ? t('qualityEntities.hideLog') : t('qualityEntities.maintenanceLog')}
                       </button>
                       {e.isActive && (
                         <button onClick={() => handleDeactivate(e)} className="text-xs text-status-error hover:underline">
-                          Deactivate
+                          {t('qualityEntities.deactivate')}
                         </button>
                       )}
                     </td>
@@ -906,7 +911,7 @@ function EquipmentTab({ canManage }: { canManage: boolean }) {
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false)
-            setNotice('Equipment added.')
+            setNotice(t('qualityEntities.equipmentAddedNotice'))
             load()
           }}
         />
@@ -963,6 +968,7 @@ function EquipmentQualifyModal({
   onClose: () => void
   onChanged: (message: string) => void
 }) {
+  const { t } = useTranslation()
   const [tab, setTab] = useState<'qualification' | 'maintenance'>(initialTab)
   // Pass B (C3): a passing step cites a validation report uploaded against this equipment first.
   const [reportDocumentId, setReportDocumentId] = useState<string | null>(null)
@@ -983,7 +989,7 @@ function EquipmentQualifyModal({
       await fn()
       onChanged(message)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not complete this action.'))
+      setError(getErrorMessage(err, t('qualityEntities.errorAction')))
       setSubmitting(false)
     }
   }
@@ -992,20 +998,20 @@ function EquipmentQualifyModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-lg rounded-lg border border-border bg-card p-6 space-y-4">
         <div>
-          <h2 className="font-display font-bold text-lg text-foreground">Qualify — {equipment.name}</h2>
+          <h2 className="font-display font-bold text-lg text-foreground">{t('qualityEntities.qualifyEquipmentTitle', { name: equipment.name })}</h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Current status: {QUALIFICATION_STATUS_LABELS[equipment.qualificationStatus]}
+            {t('qualityEntities.currentStatus', { status: t(QUALIFICATION_STATUS_LABEL_KEYS[equipment.qualificationStatus]) })}
           </p>
         </div>
 
         <div className="flex gap-1 border-b border-border text-sm">
-          {(['qualification', 'maintenance'] as const).map((t) => (
+          {(['qualification', 'maintenance'] as const).map((tb) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-3 py-1.5 border-b-2 -mb-px capitalize ${tab === t ? 'border-safemeds-teal text-safemeds-teal font-medium' : 'border-transparent text-muted-foreground'}`}
+              key={tb}
+              onClick={() => setTab(tb)}
+              className={`px-3 py-1.5 border-b-2 -mb-px capitalize ${tab === tb ? 'border-safemeds-teal text-safemeds-teal font-medium' : 'border-transparent text-muted-foreground'}`}
             >
-              {t === 'qualification' ? 'DQ / IQ / OQ / PQ Event' : 'Log Maintenance'}
+              {tb === 'qualification' ? t('qualityEntities.tabQualificationEvent') : t('qualityEntities.tabLogMaintenance')}
             </button>
           ))}
         </div>
@@ -1013,30 +1019,30 @@ function EquipmentQualifyModal({
         {tab === 'qualification' && (
           <div className="space-y-3">
             <div>
-              <label className={labelClass}>Stage</label>
+              <label className={labelClass}>{t('qualityEntities.stage')}</label>
               <select value={stage} onChange={(e) => setStage(e.target.value as typeof stage)} className={inputClass}>
-                <option value="dq">DQ — Design Qualification</option>
-                <option value="iq">IQ — Installation Qualification</option>
-                <option value="oq">OQ — Operational Qualification</option>
-                <option value="pq">PQ — Performance Qualification</option>
+                <option value="dq">{t('qualityEntities.stageDq')}</option>
+                <option value="iq">{t('qualityEntities.stageIq')}</option>
+                <option value="oq">{t('qualityEntities.stageOq')}</option>
+                <option value="pq">{t('qualityEntities.stagePq')}</option>
               </select>
             </div>
             <div>
-              <label className={labelClass}>Result</label>
+              <label className={labelClass}>{t('qualityEntities.resultField')}</label>
               <select value={result} onChange={(e) => setResult(e.target.value as typeof result)} className={inputClass}>
-                <option value="pass">Pass</option>
-                <option value="fail">Fail</option>
+                <option value="pass">{t('qualityEntities.resultPass')}</option>
+                <option value="fail">{t('qualityEntities.resultFail')}</option>
               </select>
             </div>
             {result === 'pass' && (
               <div className="rounded-lg border border-border p-3">
-                <p className="text-xs font-medium text-foreground">Validation report</p>
+                <p className="text-xs font-medium text-foreground">{t('qualityEntities.validationReport')}</p>
                 <p className="mb-2 text-[11px] text-muted-foreground">
-                  A passed {stage.toUpperCase()} needs its validation report. Upload it first, then record the event.
+                  {t('qualityEntities.validationReportNote', { stage: stage.toUpperCase() })}
                 </p>
-                <p className="text-xs text-muted-foreground">{reportName ? `Attached: ${reportName}` : 'No report attached yet.'}</p>
+                <p className="text-xs text-muted-foreground">{reportName ? t('qualityEntities.attachedFile', { name: reportName }) : t('qualityEntities.noReportAttached')}</p>
                 <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs">
-                  {reportName ? 'Replace report' : 'Upload validation report'}
+                  {reportName ? t('qualityEntities.replaceReport') : t('qualityEntities.uploadValidationReport')}
                   <input
                     type="file"
                     className="hidden"
@@ -1048,14 +1054,14 @@ function EquipmentQualifyModal({
                         const uploaded = await uploadEquipmentValidationReport(equipment.id, file)
                         setReportDocumentId(uploaded.documentId)
                         setReportName(file.name)
-                      }, 'Validation report uploaded.')
+                      }, t('qualityEntities.validationReportUploadedNotice'))
                     }}
                   />
                 </label>
               </div>
             )}
             <div>
-              <label className={labelClass}>Notes</label>
+              <label className={labelClass}>{t('qualityEntities.notesField')}</label>
               <input value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} />
             </div>
             <button
@@ -1069,12 +1075,12 @@ function EquipmentQualifyModal({
                       notes: notes.trim() || undefined,
                       ...(result === 'pass' && reportDocumentId ? { reportDocumentId } : {}),
                     }),
-                  `${stage.toUpperCase()} event recorded.`,
+                  t('qualityEntities.eventRecordedNotice', { stage: stage.toUpperCase() }),
                 )
               }
               className="w-full rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
             >
-              Record Event
+              {t('qualityEntities.recordEvent')}
             </button>
           </div>
         )}
@@ -1082,15 +1088,15 @@ function EquipmentQualifyModal({
         {tab === 'maintenance' && (
           <div className="space-y-3">
             <div>
-              <label className={labelClass}>Maintenance Date</label>
+              <label className={labelClass}>{t('qualityEntities.maintenanceDate')}</label>
               <input type="date" value={maintenanceDate} onChange={(e) => setMaintenanceDate(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Description</label>
-              <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Routine preventive maintenance" className={inputClass} />
+              <label className={labelClass}>{t('qualityEntities.descriptionField')}</label>
+              <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('qualityEntities.descriptionPlaceholder')} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Next Due Date</label>
+              <label className={labelClass}>{t('qualityEntities.nextDueDate')}</label>
               <input type="date" value={nextDueAt} onChange={(e) => setNextDueAt(e.target.value)} className={inputClass} />
             </div>
             <button
@@ -1103,12 +1109,12 @@ function EquipmentQualifyModal({
                       description: description.trim(),
                       nextDueAt: nextDueAt || undefined,
                     }),
-                  'Maintenance logged.',
+                  t('qualityEntities.maintenanceLoggedNotice'),
                 )
               }
               className="w-full rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
             >
-              Log Maintenance
+              {t('qualityEntities.logMaintenance')}
             </button>
           </div>
         )}
@@ -1117,7 +1123,7 @@ function EquipmentQualifyModal({
 
         <div className="flex justify-end pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Close
+            {t('qualityEntities.close')}
           </button>
         </div>
       </div>
@@ -1126,6 +1132,7 @@ function EquipmentQualifyModal({
 }
 
 function CreateEquipmentModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { t } = useTranslation()
   const [name, setName] = useState('')
   const [equipmentType, setEquipmentType] = useState('')
   const [assetTag, setAssetTag] = useState('')
@@ -1142,7 +1149,7 @@ function CreateEquipmentModal({ onClose, onCreated }: { onClose: () => void; onC
       await createEquipment({ name: name.trim(), equipmentType: equipmentType.trim(), assetTag: assetTag.trim() || undefined })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not add this equipment.'))
+      setError(getErrorMessage(err, t('qualityEntities.errorAddEquipment')))
       setSubmitting(false)
     }
   }
@@ -1150,28 +1157,28 @@ function CreateEquipmentModal({ onClose, onCreated }: { onClose: () => void; onC
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Add Equipment</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('qualityEntities.addEquipmentModalTitle')}</h2>
 
         <div>
-          <label className={labelClass}>Name *</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. HPLC-1" className={inputClass} />
+          <label className={labelClass}>{t('qualityEntities.nameField')}</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('qualityEntities.equipmentNamePlaceholder')} className={inputClass} />
         </div>
 
         <div>
-          <label className={labelClass}>Equipment Type *</label>
-          <input value={equipmentType} onChange={(e) => setEquipmentType(e.target.value)} placeholder="e.g. analytical_instrument" className={inputClass} />
+          <label className={labelClass}>{t('qualityEntities.equipmentTypeField')}</label>
+          <input value={equipmentType} onChange={(e) => setEquipmentType(e.target.value)} placeholder={t('qualityEntities.equipmentTypePlaceholder')} className={inputClass} />
         </div>
 
         <div>
-          <label className={labelClass}>Asset Tag</label>
-          <input value={assetTag} onChange={(e) => setAssetTag(e.target.value)} placeholder="e.g. EQ-0042" className={inputClass} />
+          <label className={labelClass}>{t('qualityEntities.assetTagField')}</label>
+          <input value={assetTag} onChange={(e) => setAssetTag(e.target.value)} placeholder={t('qualityEntities.assetTagPlaceholder')} className={inputClass} />
         </div>
 
         {error && <p className="text-sm text-status-error">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('qualityEntities.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -1179,7 +1186,7 @@ function CreateEquipmentModal({ onClose, onCreated }: { onClose: () => void; onC
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Add Equipment
+            {t('qualityEntities.addEquipment')}
           </button>
         </div>
       </div>

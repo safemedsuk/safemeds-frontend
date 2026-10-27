@@ -29,6 +29,7 @@ import {
 import { OpenCapaModal } from '@/components/internal-audits/open-capa-modal'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -50,6 +51,7 @@ interface Props {
 
 export function InternalAuditDetail({ auditId }: Props) {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('quality.manage_capa')
 
@@ -69,12 +71,12 @@ export function InternalAuditDetail({ auditId }: Props) {
       try {
         setAudit(await getInternalAudit(auditId))
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not load this audit.'))
+        setError(getErrorMessage(err, t('internalAuditDetail.errorLoadAudit')))
       } finally {
         if (!silent) setLoading(false)
       }
     },
-    [auditId],
+    [auditId, t],
   )
 
   const refresh = useCallback(() => load(true), [load])
@@ -88,9 +90,9 @@ export function InternalAuditDetail({ auditId }: Props) {
     try {
       const updated = await updateInternalAudit(audit.id, { status })
       setAudit({ ...audit, ...updated })
-      setNotice(`Status updated to ${INTERNAL_AUDIT_STATUS_LABELS[status]}.`)
+      setNotice(t('internalAuditDetail.statusUpdated', { status: INTERNAL_AUDIT_STATUS_LABELS[status] }))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not update status.'))
+      setError(getErrorMessage(err, t('internalAuditDetail.errorUpdateStatus')))
     }
   }
 
@@ -105,7 +107,7 @@ export function InternalAuditDetail({ auditId }: Props) {
   if (error || !audit) {
     return (
       <div className="space-y-6 p-6">
-        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error ?? 'Audit not found.'}</div>
+        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error ?? t('internalAuditDetail.auditNotFound')}</div>
       </div>
     )
   }
@@ -113,7 +115,7 @@ export function InternalAuditDetail({ auditId }: Props) {
   return (
     <div className="space-y-6 p-6">
       <button onClick={() => router.push('/internal-audits')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to Internal Audits
+        <ArrowLeft className="h-4 w-4" /> {t('internalAuditDetail.backToAudits')}
       </button>
 
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -123,7 +125,7 @@ export function InternalAuditDetail({ auditId }: Props) {
             <h1 className="text-2xl font-display font-bold text-foreground">{audit.title}</h1>
           </div>
           <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Scheduled {formatDate(audit.scheduledDate)}</span>
+            <span>{t('internalAuditDetail.scheduled', { date: formatDate(audit.scheduledDate) })}</span>
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground">{AUDIT_SCOPE_LABELS[audit.auditScope]}</span>
           </div>
           {audit.scope && <p className="mt-2 text-sm text-foreground">{audit.scope}</p>}
@@ -151,19 +153,19 @@ export function InternalAuditDetail({ auditId }: Props) {
 
       <div className="rounded-lg border border-border bg-card p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-foreground">Findings</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('internalAuditDetail.findings')}</h2>
           {canManage && (
             <button
               onClick={() => setShowFinding(true)}
               className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce"
             >
-              <Plus className="h-3.5 w-3.5" /> Log Finding
+              <Plus className="h-3.5 w-3.5" /> {t('internalAuditDetail.logFinding')}
             </button>
           )}
         </div>
 
         {audit.findings.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">No findings logged for this audit.</p>
+          <p className="text-sm text-muted-foreground text-center py-6">{t('internalAuditDetail.noFindingsForAudit')}</p>
         ) : (
           <div className="space-y-2">
             {audit.findings.map((f) => (
@@ -178,13 +180,13 @@ export function InternalAuditDetail({ auditId }: Props) {
                     onClick={() => setOpeningCapaFor(f)}
                     className="mt-2 flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
                   >
-                    <ClipboardCheck className="h-3.5 w-3.5" /> Open CAPA
+                    <ClipboardCheck className="h-3.5 w-3.5" /> {t('internalAudits.openCapa')}
                   </button>
                 )}
                 {f.status === 'capa_assigned' && (
-                  <p className="mt-2 text-xs text-muted-foreground">A CAPA has been opened for this finding — see the CAPAs tab. It will close automatically once that CAPA is closed.</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{t('internalAuditDetail.capaAssignedNote')}</p>
                 )}
-                {f.status === 'closed' && <p className="mt-2 text-xs text-status-success">Closed — its CAPA was completed with a confirmed effectiveness check.</p>}
+                {f.status === 'closed' && <p className="mt-2 text-xs text-status-success">{t('internalAuditDetail.closedNote')}</p>}
               </div>
             ))}
           </div>
@@ -197,7 +199,7 @@ export function InternalAuditDetail({ auditId }: Props) {
           onClose={() => setShowFinding(false)}
           onLogged={() => {
             setShowFinding(false)
-            setNotice('Finding logged.')
+            setNotice(t('internalAuditDetail.findingLogged'))
             refresh()
           }}
         />
@@ -209,7 +211,7 @@ export function InternalAuditDetail({ auditId }: Props) {
           onClose={() => setOpeningCapaFor(null)}
           onOpened={() => {
             setOpeningCapaFor(null)
-            setNotice('CAPA opened and linked to this finding.')
+            setNotice(t('internalAuditDetail.capaOpenedLinked'))
             refresh()
           }}
         />
@@ -219,6 +221,7 @@ export function InternalAuditDetail({ auditId }: Props) {
 }
 
 function LogFindingModal({ auditId, onClose, onLogged }: { auditId: string; onClose: () => void; onLogged: () => void }) {
+  const { t } = useTranslation()
   const [description, setDescription] = useState('')
   const [severity, setSeverity] = useState<AuditFindingSeverity>('minor')
   const [submitting, setSubmitting] = useState(false)
@@ -234,7 +237,7 @@ function LogFindingModal({ auditId, onClose, onLogged }: { auditId: string; onCl
       await addAuditFinding(auditId, { description: description.trim(), severity })
       onLogged()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not log this finding.'))
+      setError(getErrorMessage(err, t('internalAuditDetail.errorLogFinding')))
       setSubmitting(false)
     }
   }
@@ -242,14 +245,14 @@ function LogFindingModal({ auditId, onClose, onLogged }: { auditId: string; onCl
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Log Finding</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('internalAuditDetail.logFinding')}</h2>
 
         <div>
-          <label className={labelClass}>Description *</label>
+          <label className={labelClass}>{t('internalAuditDetail.descriptionRequired')}</label>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Severity</label>
+          <label className={labelClass}>{t('internalAudits.columnSeverity')}</label>
           <select value={severity} onChange={(e) => setSeverity(e.target.value as AuditFindingSeverity)} className={inputClass}>
             {Object.entries(AUDIT_FINDING_SEVERITY_LABELS).map(([key, label]) => (
               <option key={key} value={key}>
@@ -263,7 +266,7 @@ function LogFindingModal({ auditId, onClose, onLogged }: { auditId: string; onCl
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -271,7 +274,7 @@ function LogFindingModal({ auditId, onClose, onLogged }: { auditId: string; onCl
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Log Finding
+            {t('internalAuditDetail.logFinding')}
           </button>
         </div>
       </div>
@@ -286,6 +289,7 @@ function LogFindingModal({ auditId, onClose, onLogged }: { auditId: string; onCl
  * audit may never actually run.
  */
 function ChecklistConductPanel({ auditId, canManage }: { auditId: string; canManage: boolean }) {
+  const { t } = useTranslation()
   const [items, setItems] = useState<InternalAuditChecklistResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState(false)
@@ -295,9 +299,9 @@ function ChecklistConductPanel({ auditId, canManage }: { auditId: string; canMan
     setLoading(true)
     listAuditChecklist(auditId)
       .then(setItems)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load the checklist.')))
+      .catch((err) => setError(getErrorMessage(err, t('internalAuditDetail.errorLoadChecklist'))))
       .finally(() => setLoading(false))
-  }, [auditId])
+  }, [auditId, t])
 
   useEffect(load, [load])
 
@@ -308,7 +312,7 @@ function ChecklistConductPanel({ auditId, canManage }: { auditId: string; canMan
       await startAuditConduct(auditId)
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not start conduct-mode.'))
+      setError(getErrorMessage(err, t('internalAuditDetail.errorStartConduct')))
     } finally {
       setStarting(false)
     }
@@ -319,7 +323,7 @@ function ChecklistConductPanel({ auditId, canManage }: { auditId: string; canMan
       await respondToChecklistItem(auditId, responseId, { status, observations: observations.trim() || undefined })
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save this checklist item.'))
+      setError(getErrorMessage(err, t('internalAuditDetail.errorSaveChecklistItem')))
     }
   }
 
@@ -328,12 +332,12 @@ function ChecklistConductPanel({ auditId, canManage }: { auditId: string; canMan
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <ClipboardCheck className="h-4 w-4 text-safemeds-teal" />
-          <h2 className="text-sm font-semibold text-foreground">Inspection Checklist</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('internalAuditDetail.inspectionChecklist')}</h2>
         </div>
         {canManage && items.length === 0 && !loading && (
           <button onClick={handleStart} disabled={starting} className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">
             {starting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Start Conduct
+            {t('internalAuditDetail.startConduct')}
           </button>
         )}
       </div>
@@ -343,7 +347,7 @@ function ChecklistConductPanel({ auditId, canManage }: { auditId: string; canMan
       {loading ? (
         <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-6">Not started yet — click "Start Conduct" to check off each real inspection item against this market's checklist.</p>
+        <p className="text-sm text-muted-foreground text-center py-6">{t('internalAuditDetail.notStartedYet')}</p>
       ) : (
         <div className="space-y-2">
           {items.map((item) => (
@@ -364,6 +368,7 @@ function ChecklistItemRow({
   canManage: boolean
   onRespond: (responseId: string, status: ChecklistResponseStatus, observations: string) => void
 }) {
+  const { t } = useTranslation()
   const [status, setStatus] = useState<ChecklistResponseStatus>(item.status)
   const [observations, setObservations] = useState(item.observations ?? '')
 
@@ -388,9 +393,14 @@ function ChecklistItemRow({
               <option key={key} value={key}>{label}</option>
             ))}
           </select>
-          <input value={observations} onChange={(e) => setObservations(e.target.value)} placeholder="Observations (optional)" className="flex-1 rounded-lg border border-input bg-background px-2 py-1.5 text-xs text-foreground" />
+          <input
+            value={observations}
+            onChange={(e) => setObservations(e.target.value)}
+            placeholder={t('internalAuditDetail.observationsPlaceholder')}
+            className="flex-1 rounded-lg border border-input bg-background px-2 py-1.5 text-xs text-foreground"
+          />
           <button onClick={() => onRespond(item.id, status, observations)} className="rounded-lg border border-safemeds-teal px-3 py-1.5 text-xs font-medium text-safemeds-teal hover:bg-safemeds-teal/10">
-            Save
+            {t('common.save')}
           </button>
         </div>
       )}
@@ -404,6 +414,7 @@ function ChecklistItemRow({
  * the tracked response, with its own deadline and evidence pack.
  */
 function RegulatoryResponsePanel({ auditId, canManage }: { auditId: string; canManage: boolean }) {
+  const { t } = useTranslation()
   const [responses, setResponses] = useState<RegulatoryInspectionResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [showOpen, setShowOpen] = useState(false)
@@ -414,9 +425,9 @@ function RegulatoryResponsePanel({ auditId, canManage }: { auditId: string; canM
     setLoading(true)
     listRegulatoryInspectionResponses(auditId)
       .then(setResponses)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load regulatory responses.')))
+      .catch((err) => setError(getErrorMessage(err, t('internalAuditDetail.errorLoadRegResponses'))))
       .finally(() => setLoading(false))
-  }, [auditId])
+  }, [auditId, t])
 
   useEffect(load, [load])
 
@@ -425,11 +436,11 @@ function RegulatoryResponsePanel({ auditId, canManage }: { auditId: string; canM
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-safemeds-teal" />
-          <h2 className="text-sm font-semibold text-foreground">Regulatory Inspection Responses</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('internalAuditDetail.regulatoryInspectionResponses')}</h2>
         </div>
         {canManage && (
           <button onClick={() => setShowOpen(true)} className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white">
-            <Plus className="h-3.5 w-3.5" /> Open Response
+            <Plus className="h-3.5 w-3.5" /> {t('internalAuditDetail.openResponse')}
           </button>
         )}
       </div>
@@ -439,19 +450,21 @@ function RegulatoryResponsePanel({ auditId, canManage }: { auditId: string; canM
       {loading ? (
         <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : responses.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-6">No regulatory response opened yet.</p>
+        <p className="text-sm text-muted-foreground text-center py-6">{t('internalAuditDetail.noRegResponseYet')}</p>
       ) : (
         <div className="space-y-2">
           {responses.map((r) => (
             <div key={r.id} className="rounded-lg border border-border p-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-foreground">Due {formatDate(r.responseDueDate)}</p>
+                <p className="text-sm text-foreground">{t('internalAuditDetail.due', { date: formatDate(r.responseDueDate) })}</p>
                 {r.submittedAt ? (
-                  <span className="flex items-center gap-1 text-xs text-status-success"><CheckCircle2 className="h-3.5 w-3.5" /> Submitted {formatDate(r.submittedAt)}</span>
+                  <span className="flex items-center gap-1 text-xs text-status-success">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> {t('internalAuditDetail.submitted', { date: formatDate(r.submittedAt) })}
+                  </span>
                 ) : (
                   canManage && (
                     <button onClick={() => setSubmittingId(r.id)} className="flex items-center gap-1 text-xs font-medium text-status-warning hover:underline">
-                      <Upload className="h-3.5 w-3.5" /> Submit Response
+                      <Upload className="h-3.5 w-3.5" /> {t('internalAuditDetail.submitResponse')}
                     </button>
                   )
                 )}
@@ -489,6 +502,7 @@ function RegulatoryResponsePanel({ auditId, canManage }: { auditId: string; canM
 }
 
 function OpenRegulatoryResponseModal({ auditId, onClose, onOpened }: { auditId: string; onClose: () => void; onOpened: () => void }) {
+  const { t } = useTranslation()
   const [responseDueDate, setResponseDueDate] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -500,7 +514,7 @@ function OpenRegulatoryResponseModal({ auditId, onClose, onOpened }: { auditId: 
       await createRegulatoryInspectionResponse(auditId, { responseDueDate: responseDueDate || undefined })
       onOpened()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not open this response.'))
+      setError(getErrorMessage(err, t('internalAuditDetail.errorOpenResponse')))
       setSubmitting(false)
     }
   }
@@ -508,17 +522,17 @@ function OpenRegulatoryResponseModal({ auditId, onClose, onOpened }: { auditId: 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Open Regulatory Response</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('internalAuditDetail.openRegulatoryResponseTitle')}</h2>
         <div>
-          <label className={labelClass}>Response due date</label>
+          <label className={labelClass}>{t('internalAuditDetail.responseDueDateLabel')}</label>
           <input type="date" value={responseDueDate} onChange={(e) => setResponseDueDate(e.target.value)} className={inputClass} />
         </div>
         {error && <p className="text-sm text-status-error">{error}</p>}
         <div className="flex justify-end gap-3 pt-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">Cancel</button>
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">{t('common.cancel')}</button>
           <button onClick={handleSubmit} disabled={submitting} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Open
+            {t('internalAuditDetail.open')}
           </button>
         </div>
       </div>
@@ -537,6 +551,7 @@ function SubmitRegulatoryResponseModal({
   onClose: () => void
   onSubmitted: () => void
 }) {
+  const { t } = useTranslation()
   const [responseText, setResponseText] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -552,7 +567,7 @@ function SubmitRegulatoryResponseModal({
       await submitRegulatoryInspectionResponse(auditId, responseId, responseText.trim(), file ?? undefined)
       onSubmitted()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not submit this response.'))
+      setError(getErrorMessage(err, t('internalAuditDetail.errorSubmitResponse')))
       setSubmitting(false)
     }
   }
@@ -560,24 +575,24 @@ function SubmitRegulatoryResponseModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="font-display font-bold text-lg text-foreground">Submit Regulatory Response</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('internalAuditDetail.submitRegulatoryResponseTitle')}</h2>
         <div>
-          <label className={labelClass}>Response *</label>
+          <label className={labelClass}>{t('internalAuditDetail.responseRequired')}</label>
           <textarea value={responseText} onChange={(e) => setResponseText(e.target.value)} rows={4} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Evidence (optional)</label>
+          <label className={labelClass}>{t('internalAuditDetail.evidenceOptional')}</label>
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-input px-3 py-2 text-xs text-muted-foreground">
-            <Upload className="h-3.5 w-3.5" /> {file ? file.name : 'Attach evidence'}
+            <Upload className="h-3.5 w-3.5" /> {file ? file.name : t('internalAuditDetail.attachEvidence')}
             <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
         </div>
         {error && <p className="text-sm text-status-error">{error}</p>}
         <div className="flex justify-end gap-3 pt-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">Cancel</button>
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">{t('common.cancel')}</button>
           <button onClick={handleSubmit} disabled={!isValid || submitting} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Submit
+            {t('common.submit')}
           </button>
         </div>
       </div>

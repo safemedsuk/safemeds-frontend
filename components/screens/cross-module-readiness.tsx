@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api/client'
 import { CrossModuleReadiness, getCrossModuleReadiness } from '@/lib/api/environmental-monitoring-stability'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 function Pill({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -21,6 +22,7 @@ function Pill({ ok, label }: { ok: boolean; label: string }) {
  * read live, in one place.
  */
 export function CrossModuleReadinessScreen() {
+  const { t } = useTranslation()
   const [data, setData] = useState<CrossModuleReadiness | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -28,17 +30,15 @@ export function CrossModuleReadinessScreen() {
   useEffect(() => {
     getCrossModuleReadiness()
       .then(setData)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load the readiness overview.')))
+      .catch((err) => setError(getErrorMessage(err, t('crossModuleReadiness.errorLoad'))))
       .finally(() => setLoading(false))
-  }, [])
+  }, [t])
 
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Inspection Readiness — All Modules</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          VigiCloud, QualCloud, and RegCloud&apos;s own readiness signals, composed into one view.
-        </p>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('crossModuleReadiness.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('crossModuleReadiness.subtitle')}</p>
       </div>
 
       {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-sm text-status-error">{error}</div>}
@@ -48,31 +48,29 @@ export function CrossModuleReadinessScreen() {
       ) : data ? (
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-lg border border-border bg-card p-5">
-            <h2 className="font-semibold text-foreground">VigiCloud — PV Inspection Checklist</h2>
+            <h2 className="font-semibold text-foreground">{t('crossModuleReadiness.vigicloudTitle')}</h2>
             <div className="mt-3">
               <Pill ok={data.vigicloud.overall === 'green'} label={data.vigicloud.overall.toUpperCase()} />
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              {data.vigicloud.readyCount} / {data.vigicloud.totalMandatory} mandatory items ready
+              {t('crossModuleReadiness.mandatoryItemsReady', { ready: String(data.vigicloud.readyCount), total: String(data.vigicloud.totalMandatory) })}
             </p>
           </div>
           <div className="rounded-lg border border-border bg-card p-5">
-            <h2 className="font-semibold text-foreground">QualCloud — GMP Inspection Checklist</h2>
+            <h2 className="font-semibold text-foreground">{t('crossModuleReadiness.qualcloudTitle')}</h2>
             <div className="mt-3">
-              <Pill ok={data.qualcloud.overall === 'ready'} label={data.qualcloud.overall === 'ready' ? 'READY' : 'NEEDS ATTENTION'} />
+              <Pill ok={data.qualcloud.overall === 'ready'} label={data.qualcloud.overall === 'ready' ? t('crossModuleReadiness.ready') : t('crossModuleReadiness.needsAttention')} />
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              {data.qualcloud.authorityConfigured ? 'Home-country authority configured' : 'No regulatory authority configured for this home country yet'}
+              {data.qualcloud.authorityConfigured ? t('crossModuleReadiness.authorityConfigured') : t('crossModuleReadiness.noAuthorityConfigured')}
             </p>
           </div>
           <div className="rounded-lg border border-border bg-card p-5">
-            <h2 className="font-semibold text-foreground">RegCloud — Open Items (proxy)</h2>
+            <h2 className="font-semibold text-foreground">{t('crossModuleReadiness.regcloudTitle')}</h2>
             <div className="mt-3">
-              <Pill ok={data.regulatory.overall === 'ready'} label={data.regulatory.overall === 'ready' ? 'READY' : 'NEEDS ATTENTION'} />
+              <Pill ok={data.regulatory.overall === 'ready'} label={data.regulatory.overall === 'ready' ? t('crossModuleReadiness.ready') : t('crossModuleReadiness.needsAttention')} />
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {data.regulatory.openItemCount} open item(s) — RegCloud has no dedicated inspection checklist of its own, this is the closest real concept.
-            </p>
+            <p className="mt-2 text-sm text-muted-foreground">{t('crossModuleReadiness.openItemsProxy', { count: String(data.regulatory.openItemCount) })}</p>
           </div>
         </div>
       ) : null}

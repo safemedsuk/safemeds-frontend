@@ -8,17 +8,18 @@ import { listLocalRepresentatives, listManufacturingSites, type LocalRepresentat
 import { postTransition } from '@/lib/api/workflow'
 import { Modal } from '@/components/ui/modal'
 import { SignatureModal } from '@/components/ui/signature-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 
-function FileField({ label, file, onChange }: { label: string; file: File | null; onChange: (f: File | null) => void }) {
+function FileField({ label, file, onChange, uploadPrefix }: { label: string; file: File | null; onChange: (f: File | null) => void; uploadPrefix: string }) {
   return (
     <div>
       <label className="mb-1.5 block text-xs font-medium text-foreground">
         {label} <span className="text-status-error">*</span>
       </label>
       <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-input px-3 py-2 text-xs text-muted-foreground">
-        <Upload className="h-3.5 w-3.5" /> {file ? file.name : `Upload ${label.toLowerCase()}`}
+        <Upload className="h-3.5 w-3.5" /> {file ? file.name : `${uploadPrefix} ${label.toLowerCase()}`}
         <input type="file" className="hidden" onChange={(e) => onChange(e.target.files?.[0] ?? null)} />
       </label>
     </div>
@@ -62,6 +63,7 @@ export function ApproveRegistrationModal({
   onClose: () => void
   onApproved: () => void
 }) {
+  const { t } = useTranslation()
   const [registrationNumber, setRegistrationNumber] = useState('')
   const [issuedOn, setIssuedOn] = useState(() => new Date().toISOString().slice(0, 10))
   const [expiresOn, setExpiresOn] = useState('')
@@ -107,32 +109,32 @@ export function ApproveRegistrationModal({
   return (
     <>
       {!showSignature && (
-        <Modal title={`Approve — ${toStateName}`} onClose={onClose}>
+        <Modal title={t('approveRegistration.title', { stateName: toStateName })} onClose={onClose}>
           <div className="space-y-4">
             {!isVariation && (
               <>
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-foreground">
-                    Registration number <span className="text-status-error">*</span>
+                    {t('approveRegistration.registrationNumberLabel')} <span className="text-status-error">*</span>
                   </label>
-                  <input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} placeholder="e.g. PPB-2026-0001" className={inputClass} />
+                  <input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} placeholder={t('approveRegistration.registrationNumberPlaceholder')} className={inputClass} />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-foreground">Issued on</label>
+                  <label className="mb-1.5 block text-xs font-medium text-foreground">{t('approveRegistration.issuedOnLabel')}</label>
                   <input type="date" value={issuedOn} onChange={(e) => setIssuedOn(e.target.value)} className={inputClass} />
                 </div>
               </>
             )}
             <div>
               <label className="mb-1.5 block text-xs font-medium text-foreground">
-                Expiry date {isVariation ? '(override — leave blank to extend using the configured renewal cadence)' : '(leave blank to compute from the configured renewal cadence)'}
+                {isVariation ? t('approveRegistration.expiryLabelVariation') : t('approveRegistration.expiryLabelDefault')}
               </label>
               <input type="date" value={expiresOn} onChange={(e) => setExpiresOn(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-foreground">Manufacturing site (optional)</label>
+              <label className="mb-1.5 block text-xs font-medium text-foreground">{t('approveRegistration.manufacturingSiteLabel')}</label>
               <select value={manufacturingSiteId} onChange={(e) => setManufacturingSiteId(e.target.value)} className={inputClass}>
-                <option value="">None</option>
+                <option value="">{t('approveRegistration.none')}</option>
                 {sites.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.siteName}
@@ -141,9 +143,9 @@ export function ApproveRegistrationModal({
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-foreground">Local representative (optional)</label>
+              <label className="mb-1.5 block text-xs font-medium text-foreground">{t('approveRegistration.localRepresentativeLabel')}</label>
               <select value={localRepresentativeId} onChange={(e) => setLocalRepresentativeId(e.target.value)} className={inputClass}>
-                <option value="">None</option>
+                <option value="">{t('approveRegistration.none')}</option>
                 {reps.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name}
@@ -151,24 +153,24 @@ export function ApproveRegistrationModal({
                 ))}
               </select>
             </div>
-            <FileField label="Approval / success document" file={evidenceFile} onChange={setEvidenceFile} />
+            <FileField label={t('approveRegistration.evidenceFieldLabel')} file={evidenceFile} onChange={setEvidenceFile} uploadPrefix={t('approveRegistration.uploadPrefix')} />
             {!isVariation && (
               <>
-                <FileField label="Proof of payment" file={paymentProofFile} onChange={setPaymentProofFile} />
-                <FileField label="Invoice" file={invoiceFile} onChange={setInvoiceFile} />
+                <FileField label={t('approveRegistration.paymentProofFieldLabel')} file={paymentProofFile} onChange={setPaymentProofFile} uploadPrefix={t('approveRegistration.uploadPrefix')} />
+                <FileField label={t('approveRegistration.invoiceFieldLabel')} file={invoiceFile} onChange={setInvoiceFile} uploadPrefix={t('approveRegistration.uploadPrefix')} />
               </>
             )}
             {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-xs text-status-error">{error}</div>}
             <div className="flex justify-end gap-2">
               <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={() => setShowSignature(true)}
                 disabled={!canContinue}
                 className="rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
-                Continue to Sign
+                {t('approveRegistration.continueToSign')}
               </button>
             </div>
           </div>
@@ -179,7 +181,7 @@ export function ApproveRegistrationModal({
         <SignatureModal
           isOpen={true}
           onClose={() => setShowSignature(false)}
-          documentTitle={`Approve — ${toStateName}`}
+          documentTitle={t('approveRegistration.title', { stateName: toStateName })}
           documentId={workflowInstanceId}
           onSigned={async ({ signatureToken, intentStatement }) => {
             setBusy(true)
@@ -189,7 +191,7 @@ export function ApproveRegistrationModal({
               await postTransition(workflowInstanceId, 'approved', { signatureToken, intentStatement }, undefined, payload)
               onApproved()
             } catch (err) {
-              setError(getErrorMessage(err, 'Could not approve this registration.'))
+              setError(getErrorMessage(err, t('approveRegistration.couldNotApprove')))
               setShowSignature(false)
             } finally {
               setBusy(false)

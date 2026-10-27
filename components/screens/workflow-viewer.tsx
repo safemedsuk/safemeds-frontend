@@ -15,6 +15,7 @@ import {
 import { getSignaturesForRecord, SignatureEvent } from '@/lib/api/signatures'
 import { SignatureModal } from '@/components/ui/signature-modal'
 import { WorkflowStepper } from '@/components/ui/workflow-stepper'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const RECORD_TYPE = 'pv_case'
 const RECENT_INSTANCES_KEY = 'safemeds:workflow-viewer:recent-instance-ids'
@@ -44,6 +45,7 @@ function saveRecentInstanceIds(ids: string[]): void {
  * sitting unreachable behind a module that doesn't exist yet.
  */
 export function WorkflowViewer() {
+  const { t } = useTranslation()
   const [instanceIds, setInstanceIds] = useState<string[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
   const [instance, setInstance] = useState<WorkflowInstanceDetail | null>(null)
@@ -73,7 +75,7 @@ export function WorkflowViewer() {
         // instance's own recordId, not the instance's own id.
         setSignatures(await getSignaturesForRecord(RECORD_TYPE, inst.recordId))
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load this workflow instance.')))
+      .catch((err) => setError(getErrorMessage(err, t('workflowViewer.errorLoadInstance'))))
       .finally(() => setLoading(false))
   }
 
@@ -93,7 +95,7 @@ export function WorkflowViewer() {
       saveRecentInstanceIds(nextIds)
       setSelectedId(created.id)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create a demo case.'))
+      setError(getErrorMessage(err, t('workflowViewer.errorCreateDemo')))
     } finally {
       setBusy(false)
     }
@@ -106,10 +108,10 @@ export function WorkflowViewer() {
     setNotice(null)
     try {
       await postTransition(instance.id, toStateKey, signature)
-      setNotice(`Moved to "${toStateKey.replace(/_/g, ' ')}".`)
+      setNotice(t('workflowViewer.movedTo', { state: toStateKey.replace(/_/g, ' ') }))
       loadInstance(instance.id)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not perform this transition.'))
+      setError(getErrorMessage(err, t('workflowViewer.errorTransition')))
     } finally {
       setBusy(false)
     }
@@ -128,17 +130,15 @@ export function WorkflowViewer() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Workflow Viewer</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            The PV case lifecycle (Phase 5 — Intake through Submitted), wired to the real workflow engine
-          </p>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('workflowViewer.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('workflowViewer.subtitle')}</p>
         </div>
         <button
           onClick={handleCreateDemo}
           disabled={busy}
           className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
         >
-          <Plus className="h-4 w-4" /> New demo case
+          <Plus className="h-4 w-4" /> {t('workflowViewer.newDemoCase')}
         </button>
       </div>
 
@@ -151,13 +151,9 @@ export function WorkflowViewer() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1 space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
-            Recent Demo Cases
-          </label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">{t('workflowViewer.recentDemoCases')}</label>
           {instanceIds.length === 0 ? (
-            <p className="text-xs text-muted-foreground p-3 rounded-lg bg-muted/50">
-              No demo cases yet — create one to walk the workflow.
-            </p>
+            <p className="text-xs text-muted-foreground p-3 rounded-lg bg-muted/50">{t('workflowViewer.noDemoCasesYet')}</p>
           ) : (
             <div className="space-y-2">
               {instanceIds.map((id) => (
@@ -180,7 +176,7 @@ export function WorkflowViewer() {
         <div className="lg:col-span-2 space-y-6">
           {loading && (
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+              <Loader2 className="h-4 w-4 animate-spin" /> {t('workflowViewer.loadingEllipsis')}
             </div>
           )}
 
@@ -194,7 +190,7 @@ export function WorkflowViewer() {
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Current state: <span className="font-medium text-foreground">{instance.currentState.name}</span>
+                  {t('workflowViewer.currentState')} <span className="font-medium text-foreground">{instance.currentState.name}</span>
                 </p>
               </div>
 
@@ -208,10 +204,10 @@ export function WorkflowViewer() {
 
               <div className="space-y-2">
                 <h3 className="font-semibold text-foreground text-sm flex items-center gap-1.5">
-                  <ShieldCheck className="h-4 w-4" /> Signatures
+                  <ShieldCheck className="h-4 w-4" /> {t('workflowViewer.signatures')}
                 </h3>
                 {signatures.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No signatures recorded for this case yet.</p>
+                  <p className="text-xs text-muted-foreground">{t('workflowViewer.noSignaturesYet')}</p>
                 ) : (
                   <div className="space-y-2">
                     {signatures.map((sig) => (
@@ -232,7 +228,7 @@ export function WorkflowViewer() {
 
           {!loading && !instance && (
             <div className="rounded-lg border border-border bg-card/50 p-12 text-center">
-              <p className="text-sm text-muted-foreground">Select or create a demo case to view its workflow.</p>
+              <p className="text-sm text-muted-foreground">{t('workflowViewer.selectOrCreate')}</p>
             </div>
           )}
         </div>
@@ -242,7 +238,7 @@ export function WorkflowViewer() {
         <SignatureModal
           isOpen
           onClose={() => setPendingSignatureTransition(null)}
-          documentTitle={`Approve transition to "${pendingSignatureTransition.toStateName}"`}
+          documentTitle={t('workflowViewer.approveTransitionTitle', { state: pendingSignatureTransition.toStateName })}
           documentId={instance?.id ?? ''}
           onSigned={async ({ intentStatement, signatureToken }) => {
             const transition = pendingSignatureTransition

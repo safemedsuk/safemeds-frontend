@@ -8,6 +8,8 @@ import { listRegDossiers, type RegDossierKind, type RegDossierListRow } from '@/
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
 import { NewDossierModal } from '@/components/reg-dossiers/new-dossier-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const STATUS_STYLES: Record<string, string> = {
   planning: 'bg-status-info/10 text-status-info',
@@ -23,20 +25,30 @@ const STATUS_STYLES: Record<string, string> = {
   rejected: 'bg-status-error/10 text-status-error',
 }
 
+const STATUS_LABEL_KEYS: Record<string, MessageKey> = {
+  planning: 'regDossiersList.statusPlanning',
+  compiling: 'regDossiersList.statusCompiling',
+  completeness_check: 'regDossiersList.statusCompletenessCheck',
+  variation_application: 'regDossiersList.statusVariationApplication',
+  renewal_requested: 'regDossiersList.statusRenewalRequested',
+  submitted: 'regDossiersList.statusSubmitted',
+  query_received: 'regDossiersList.statusQueryReceived',
+  responding: 'regDossiersList.statusResponding',
+  resubmitted_for_review: 'regDossiersList.statusResubmittedForReview',
+  approved: 'regDossiersList.statusApproved',
+  rejected: 'regDossiersList.statusRejected',
+}
+
 /** testing-correction-explanation.md §2.5 — the dossier list's "Kind" column, distinguishing a fresh registration from a variation/renewal of an existing one. */
-const KIND_LABELS: Record<RegDossierKind, string> = {
-  registration: 'Registration',
-  variation: 'Variation',
-  renewal: 'Renewal',
+const KIND_LABEL_KEYS: Record<RegDossierKind, MessageKey> = {
+  registration: 'regDossiersList.kindRegistration',
+  variation: 'regDossiersList.kindVariation',
+  renewal: 'regDossiersList.kindRenewal',
 }
 const KIND_STYLES: Record<RegDossierKind, string> = {
   registration: 'bg-muted text-muted-foreground',
   variation: 'bg-status-info/10 text-status-info',
   renewal: 'bg-status-warning/10 text-status-warning',
-}
-
-function statusLabel(status: string): string {
-  return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 function formatDate(value: string): string {
@@ -53,6 +65,7 @@ function formatDate(value: string): string {
  * completeness/workflow sections.
  */
 export function RegDossiersList() {
+  const { t } = useTranslation()
   const router = useRouter()
   const { hasAny } = usePermissions()
   const canView = hasAny('regulatory.view_all', 'records.view_all')
@@ -76,7 +89,7 @@ export function RegDossiersList() {
         setTotalPages(meta.totalPages)
         setTotal(meta.total)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load dossiers.')))
+      .catch((err) => setError(getErrorMessage(err, t('regDossiersList.couldNotLoad'))))
       .finally(() => setLoading(false))
   }
 
@@ -85,10 +98,10 @@ export function RegDossiersList() {
   if (!canView) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Regulatory Dossiers</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('regDossiersList.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view regulatory dossiers. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('regDossiersList.noPermission')}</p>
         </div>
       </div>
     )
@@ -97,39 +110,41 @@ export function RegDossiersList() {
   const columns: DataTableColumn<RegDossierListRow>[] = [
     {
       key: 'product',
-      label: 'Product',
+      label: t('regDossiersList.colProduct'),
       render: (_v, row) => <span className="text-sm text-foreground">{row.product.brandName}</span>,
     },
     {
       key: 'kind',
-      label: 'Kind',
+      label: t('regDossiersList.colKind'),
       render: (v) => (
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${KIND_STYLES[v as RegDossierKind]}`}>
-          {KIND_LABELS[v as RegDossierKind]}
+          {t(KIND_LABEL_KEYS[v as RegDossierKind])}
         </span>
       ),
     },
-    { key: 'productClass', label: 'Product Class', render: (v) => <span className="font-mono text-sm text-foreground">{v as string}</span> },
-    { key: 'route', label: 'Route' },
+    { key: 'productClass', label: t('regDossiersList.colProductClass'), render: (v) => <span className="font-mono text-sm text-foreground">{v as string}</span> },
+    { key: 'route', label: t('regDossiersList.colRoute') },
     {
       key: 'status',
-      label: 'Status',
+      label: t('regDossiersList.colStatus'),
       render: (v) => (
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${STATUS_STYLES[v as string] ?? 'bg-muted text-muted-foreground'}`}>
-          {statusLabel(v as string)}
+          {STATUS_LABEL_KEYS[v as string] ? t(STATUS_LABEL_KEYS[v as string]) : (v as string)}
         </span>
       ),
     },
-    { key: 'createdAt', label: 'Started', render: (v) => formatDate(v as string) },
+    { key: 'createdAt', label: t('regDossiersList.colStarted'), render: (v) => formatDate(v as string) },
   ]
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Regulatory Dossiers</h1>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('regDossiersList.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {total} {total === 1 ? 'dossier' : 'dossiers'} · classification, compilation, and the completeness gate
+            {total === 1
+              ? t('regDossiersList.dossierCountSingular', { count: String(total) })
+              : t('regDossiersList.dossierCountPlural', { count: String(total) })}
           </p>
         </div>
         <button
@@ -137,7 +152,7 @@ export function RegDossiersList() {
           className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
         >
           <Plus className="h-4 w-4" />
-          Start New Dossier
+          {t('regDossiersList.startNewDossier')}
         </button>
       </div>
 
@@ -161,9 +176,9 @@ export function RegDossiersList() {
       {!loading && dossiers.length === 0 && (
         <div className="rounded-lg border border-dashed border-border p-12 text-center">
           <FolderOpen className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">No dossiers yet.</p>
+          <p className="text-sm text-muted-foreground">{t('regDossiersList.noDossiersYet')}</p>
           <button onClick={() => setShowNew(true)} className="mt-3 text-sm font-medium text-safemeds-teal hover:underline">
-            Start your first dossier
+            {t('regDossiersList.startYourFirstDossier')}
           </button>
         </div>
       )}

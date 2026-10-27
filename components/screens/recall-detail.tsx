@@ -24,6 +24,8 @@ import {
   RecallClosureReadinessSection,
   RecallCompliancePackSection,
 } from '@/components/recalls/recall-closure-sections'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 
@@ -62,24 +64,23 @@ interface Props {
  * Statuses mirror the recall's own lifecycle (RecallWorkflowGuards); the text is guidance, the
  * workflow buttons below are what actually move the recall.
  */
-const NEXT_STEP_GUIDANCE: Record<string, string> = {
-  draft: 'Next: move this recall to Under assessment. Then build the product and batch scope and freeze it, because approval needs a frozen scope.',
-  under_assessment:
-    'Next: finish the product and batch scope and freeze it, add the countries, and complete the risk assessment. Approval is blocked until a frozen scope and a risk assessment both exist.',
-  approved: 'Next: notify the stakeholders. Send their portal links and messages so they can confirm receipt and count stock.',
-  notification: 'Next: record each delivery and stakeholder stock count, so the recall can be carried out (execution).',
-  execution: 'Next: reconcile stock. Show what is recovered, quarantined, destroyed and still outstanding, then move to reconciliation.',
-  reconciliation: 'Next: confirm the reconciliation and move the recall to Closure pending.',
-  closure_pending:
-    'Next: close the recall. Closure is blocked until every obligation is met, discrepancies are resolved, recovered stock is destroyed with a certificate, and a root-cause CAPA is linked.',
-  closed: 'Closed. Nothing further is needed. The record stays in the audit trail.',
-  cancelled: 'Cancelled. The record is kept for the audit trail.',
+const NEXT_STEP_GUIDANCE_KEYS: Record<string, MessageKey> = {
+  draft: 'recallDetail.nextStepDraft',
+  under_assessment: 'recallDetail.nextStepUnderAssessment',
+  approved: 'recallDetail.nextStepApproved',
+  notification: 'recallDetail.nextStepNotification',
+  execution: 'recallDetail.nextStepExecution',
+  reconciliation: 'recallDetail.nextStepReconciliation',
+  closure_pending: 'recallDetail.nextStepClosurePending',
+  closed: 'recallDetail.nextStepClosed',
+  cancelled: 'recallDetail.nextStepCancelled',
 }
 
 function RecallNextStepBanner({ status }: { status: string }) {
-  const text = NEXT_STEP_GUIDANCE[status]
-  if (!text) return null
-  return <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-foreground">{text}</div>
+  const { t } = useTranslation()
+  const key = NEXT_STEP_GUIDANCE_KEYS[status]
+  if (!key) return null
+  return <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-foreground">{t(key)}</div>
 }
 
 const RISK_LEVEL_STYLES: Record<string, string> = {
@@ -104,6 +105,7 @@ function RecallRiskAssessmentSection({
   recallRef: string | null
   productName: string
 }) {
+  const { t } = useTranslation()
   const [risks, setRisks] = useState<RiskAssessment[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -111,8 +113,8 @@ function RecallRiskAssessmentSection({
   const load = useCallback(() => {
     listRiskAssessments({ sourceRecordType: 'recall', sourceRecordId: recallId, limit: 10 })
       .then((page) => setRisks(page.rows))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load the risk assessment.')))
-  }, [recallId])
+      .catch((err) => setError(getErrorMessage(err, t('recallDetail.errorLoadRisk'))))
+  }, [recallId, t])
 
   useEffect(() => {
     load()
@@ -121,21 +123,21 @@ function RecallRiskAssessmentSection({
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Risk Assessment</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('recallDetail.riskAssessment')}</p>
         <button
           onClick={() => setShowCreate(true)}
           className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
         >
-          <Plus className="h-3.5 w-3.5" /> New Risk Assessment for this Recall
+          <Plus className="h-3.5 w-3.5" /> {t('recallDetail.newRiskAssessment')}
         </button>
       </div>
       {error && <p className="text-xs text-status-error">{error}</p>}
       {risks === null ? (
-        <p className="text-xs text-muted-foreground">Loading…</p>
+        <p className="text-xs text-muted-foreground">{t('recallDetail.loading')}</p>
       ) : risks.length === 0 ? (
         <div className="flex items-start gap-2 text-xs text-status-warning">
           <ShieldAlert className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-          <p>No risk assessment is linked yet. Approval is blocked until one exists — create one above.</p>
+          <p>{t('recallDetail.noRiskLinkedYet')}</p>
         </div>
       ) : (
         <ul className="space-y-1">
@@ -149,12 +151,12 @@ function RecallRiskAssessmentSection({
           ))}
         </ul>
       )}
-      <p className="text-[11px] text-muted-foreground">The full register is on Controlled Documents → Risk Register.</p>
+      <p className="text-[11px] text-muted-foreground">{t('recallDetail.registerNote')}</p>
 
       {showCreate && (
         <RecallRiskAssessmentModal
           recallId={recallId}
-          defaultTitle={`Recall risk assessment — ${recallRef ?? ''} ${productName}`.trim()}
+          defaultTitle={t('recallDetail.riskAssessmentDefaultTitle', { ref: recallRef ?? '', product: productName }).trim()}
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false)
@@ -177,6 +179,7 @@ function RecallRiskAssessmentModal({
   onClose: () => void
   onCreated: () => void
 }) {
+  const { t } = useTranslation()
   const [title, setTitle] = useState(defaultTitle)
   const [severity, setSeverity] = useState(3)
   const [probability, setProbability] = useState(3)
@@ -199,7 +202,7 @@ function RecallRiskAssessmentModal({
       })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not record this risk assessment.'))
+      setError(getErrorMessage(err, t('recallDetail.errorRecordRisk')))
       setSubmitting(false)
     }
   }
@@ -207,29 +210,29 @@ function RecallRiskAssessmentModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h3 className="font-display font-bold text-base text-foreground">New Risk Assessment for this Recall</h3>
+        <h3 className="font-display font-bold text-base text-foreground">{t('recallDetail.newRiskAssessment')}</h3>
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Title *</label>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('recallDetail.titleField')}</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Severity (1–5) *</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('recallDetail.severityField')}</label>
             <input type="number" min={1} max={5} value={severity} onChange={(e) => setSeverity(Number(e.target.value))} className={inputClass} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Probability (1–5) *</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('recallDetail.probabilityField')}</label>
             <input type="number" min={1} max={5} value={probability} onChange={(e) => setProbability(Number(e.target.value))} className={inputClass} />
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Mitigation Actions</label>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('recallDetail.mitigationActions')}</label>
           <textarea value={mitigationActions} onChange={(e) => setMitigationActions(e.target.value)} rows={2} className={inputClass} />
         </div>
         {error && <p className="text-sm text-status-error">{error}</p>}
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -237,7 +240,7 @@ function RecallRiskAssessmentModal({
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Record
+            {t('recallDetail.record')}
           </button>
         </div>
       </div>
@@ -247,6 +250,7 @@ function RecallRiskAssessmentModal({
 
 export function RecallDetail({ recallId }: Props) {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('regulatory.manage_recalls')
 
@@ -264,12 +268,12 @@ export function RecallDetail({ recallId }: Props) {
       try {
         setRecall(await getRecall(recallId))
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not load this recall.'))
+        setError(getErrorMessage(err, t('recallDetail.errorLoad')))
       } finally {
         if (!silent) setLoading(false)
       }
     },
-    [recallId],
+    [recallId, t],
   )
 
   const refresh = useCallback(() => load(true), [load])
@@ -289,7 +293,7 @@ export function RecallDetail({ recallId }: Props) {
   if (error || !recall) {
     return (
       <div className="space-y-6 p-6">
-        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error ?? 'Recall not found.'}</div>
+        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error ?? t('recallDetail.notFound')}</div>
       </div>
     )
   }
@@ -297,7 +301,7 @@ export function RecallDetail({ recallId }: Props) {
   return (
     <div className="space-y-6 p-6">
       <button onClick={() => router.push('/recalls')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to Recalls
+        <ArrowLeft className="h-4 w-4" /> {t('recallDetail.backToRecalls')}
       </button>
 
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -317,34 +321,34 @@ export function RecallDetail({ recallId }: Props) {
       {notice && <div className="rounded-lg border border-status-success bg-status-success/10 p-3 text-sm text-status-success">{notice}</div>}
 
       <div className="rounded-lg border border-border bg-card p-5">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Details</h2>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">{t('recallDetail.detailsHeading')}</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="text-xs text-muted-foreground">Reference</p>
+            <p className="text-xs text-muted-foreground">{t('recallDetail.reference')}</p>
             <p className="font-mono text-sm text-foreground">{recall.ref ?? '—'}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Mode</p>
-            <p className="text-sm text-foreground">{recall.mode === 'mock' ? 'Drill (mock)' : 'Real'}</p>
+            <p className="text-xs text-muted-foreground">{t('recallDetail.mode')}</p>
+            <p className="text-sm text-foreground">{recall.mode === 'mock' ? t('recallDetail.modeMock') : t('recallDetail.modeReal')}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Opened</p>
+            <p className="text-xs text-muted-foreground">{t('recallDetail.opened')}</p>
             <p className="text-sm text-foreground">{formatDateTime(recall.openedAt)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Closed</p>
+            <p className="text-xs text-muted-foreground">{t('recallDetail.closed')}</p>
             <p className="text-sm text-foreground">{formatDateTime(recall.closedAt)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Root-cause CAPA</p>
-            <p className="text-sm text-foreground">{recall.rootCauseCapaId ? 'Linked' : '—'}</p>
+            <p className="text-xs text-muted-foreground">{t('recallDetail.rootCauseCapa')}</p>
+            <p className="text-sm text-foreground">{recall.rootCauseCapaId ? t('recallDetail.linked') : '—'}</p>
           </div>
         </div>
       </div>
 
       {recall.mode === 'mock' && (
         <div className="rounded-lg border border-status-warning bg-status-warning/10 p-3 text-sm font-medium text-status-warning">
-          This is a drill (mock recall) — excluded from real dashboards, metrics, and regulator submissions.
+          {t('recallDetail.mockBanner')}
         </div>
       )}
 
@@ -393,6 +397,7 @@ function EvidenceCasesCard({
   setError: (msg: string | null) => void
 }) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [showSearch, setShowSearch] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<PvCase[]>([])
@@ -407,7 +412,7 @@ function EvidenceCasesCard({
       const { cases } = await listPvCases({ search: query.trim() || undefined, limit: 10 })
       setResults(cases)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not search cases.'))
+      setError(getErrorMessage(err, t('recallDetail.errorSearchCases')))
     } finally {
       setSearching(false)
     }
@@ -417,10 +422,10 @@ function EvidenceCasesCard({
     setLinking(caseId)
     try {
       await linkRecallCases(recall.id, [caseId])
-      setNotice('Case linked as evidence.')
+      setNotice(t('recallDetail.caseLinkedNotice'))
       onLinked()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not link this case.'))
+      setError(getErrorMessage(err, t('recallDetail.errorLinkCase')))
     } finally {
       setLinking(null)
     }
@@ -430,12 +435,12 @@ function EvidenceCasesCard({
     <div className="rounded-lg border border-border bg-card p-5">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Evidence Cases</h2>
-          <p className="text-xs text-muted-foreground">{recall.linkedCases.length} linked — a plain lookup link to real PV cases, not a shared workflow.</p>
+          <h2 className="text-sm font-semibold text-foreground">{t('recallDetail.evidenceCases')}</h2>
+          <p className="text-xs text-muted-foreground">{t('recallDetail.linkedCasesCount', { count: String(recall.linkedCases.length) })}</p>
         </div>
         {canManage && (
           <button onClick={() => setShowSearch((s) => !s)} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-            <Link2 className="h-3.5 w-3.5" /> Link a Case
+            <Link2 className="h-3.5 w-3.5" /> {t('recallDetail.linkACase')}
           </button>
         )}
       </div>
@@ -447,12 +452,12 @@ function EvidenceCasesCard({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && runSearch()}
-              placeholder="Search by reference number"
+              placeholder={t('recallDetail.searchPlaceholder')}
               className={inputClass}
             />
             <button onClick={runSearch} disabled={searching} className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-2 text-xs font-medium text-white disabled:opacity-50">
               {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-              Search
+              {t('recallDetail.search')}
             </button>
           </div>
           {results.length > 0 && (
@@ -463,10 +468,10 @@ function EvidenceCasesCard({
                     {c.referenceNumber} <span className="text-muted-foreground">({c.status})</span>
                   </span>
                   {linkedIds.has(c.id) ? (
-                    <span className="text-xs text-muted-foreground">Already linked</span>
+                    <span className="text-xs text-muted-foreground">{t('recallDetail.alreadyLinked')}</span>
                   ) : (
                     <button onClick={() => link(c.id)} disabled={linking === c.id} className="text-xs font-medium text-safemeds-teal hover:underline disabled:opacity-50">
-                      {linking === c.id ? 'Linking…' : 'Link'}
+                      {linking === c.id ? t('recallDetail.linking') : t('recallDetail.link')}
                     </button>
                   )}
                 </li>
@@ -477,7 +482,7 @@ function EvidenceCasesCard({
       )}
 
       {recall.linkedCases.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No cases linked yet.</p>
+        <p className="text-sm text-muted-foreground">{t('recallDetail.noCasesLinkedYet')}</p>
       ) : (
         <ul className="divide-y divide-border">
           {recall.linkedCases.map((c) => (

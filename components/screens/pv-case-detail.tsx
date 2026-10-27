@@ -49,6 +49,8 @@ import { DeadlineChip } from '@/components/ui/deadline-chip'
 import { DecisionHistoryCard } from '@/components/ui/decision-history-card'
 import { DocumentsPanel } from '@/components/documents/documents-panel'
 import { RecordTasksPanel } from '@/components/tasks/record-tasks-panel'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const STATUS_STYLES: Record<string, string> = {
   intake: 'bg-status-info/10 text-status-info',
@@ -80,42 +82,45 @@ function statusLabel(status: string): string {
  * (`WorkflowValidityBanner`, "Expectedness / Listedness", "Case
  * Follow-Up") for where those actually live, and `workflow.seed-data.ts`'s
  * own doc comment for why forcing them into this linear chain would
- * misrepresent them.
+ * misrepresent them. Stage labels are translated via their own message
+ * keys below — this const only carries the stable English label as a
+ * fallback key name, never rendered directly.
  */
-const PV_CASE_STAGES = [
-  { key: 'intake', label: 'Intake' },
-  { key: 'triage', label: 'Triage & Seriousness' },
-  { key: 'medical_review', label: 'Causality & Medical Review' },
-  { key: 'coding', label: 'Code & Enter' },
-  { key: 'narrative', label: 'Narrative' },
-  { key: 'quality_check', label: 'Quality Check' },
-  { key: 'submission_ready', label: 'Submission Ready' },
-  { key: 'submitted', label: 'Submit (E2B)' },
-  { key: 'closed_archived', label: 'Close & Archive' },
+const PV_CASE_STAGE_KEYS: { key: string; labelKey: MessageKey }[] = [
+  { key: 'intake', labelKey: 'pvCaseDetail.stageIntake' },
+  { key: 'triage', labelKey: 'pvCaseDetail.stageTriage' },
+  { key: 'medical_review', labelKey: 'pvCaseDetail.stageMedicalReview' },
+  { key: 'coding', labelKey: 'pvCaseDetail.stageCoding' },
+  { key: 'narrative', labelKey: 'pvCaseDetail.stageNarrative' },
+  { key: 'quality_check', labelKey: 'pvCaseDetail.stageQualityCheck' },
+  { key: 'submission_ready', labelKey: 'pvCaseDetail.stageSubmissionReady' },
+  { key: 'submitted', labelKey: 'pvCaseDetail.stageSubmitted' },
+  { key: 'closed_archived', labelKey: 'pvCaseDetail.stageClosedArchived' },
 ]
 
 function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleDateString() : '—'
 }
 
-const SERIOUSNESS_FIELDS = [
-  ['seriousnessDeath', 'Death'],
-  ['seriousnessLifeThreatening', 'Life threatening'],
-  ['seriousnessHospitalization', 'Hospitalization'],
-  ['seriousnessDisabling', 'Disability'],
-  ['seriousnessCongenitalAnomaly', 'Congenital anomaly'],
-  ['seriousnessOther', 'Other'],
+const SERIOUSNESS_FIELD_KEYS = [
+  ['seriousnessDeath', 'pvCaseDetail.seriousnessDeath'],
+  ['seriousnessLifeThreatening', 'pvCaseDetail.seriousnessLifeThreatening'],
+  ['seriousnessHospitalization', 'pvCaseDetail.seriousnessHospitalization'],
+  ['seriousnessDisabling', 'pvCaseDetail.seriousnessDisabling'],
+  ['seriousnessCongenitalAnomaly', 'pvCaseDetail.seriousnessCongenitalAnomaly'],
+  ['seriousnessOther', 'pvCaseDetail.seriousnessOther'],
 ] as const
 
-const SPECIAL_SITUATION_PRODUCT_FIELDS = [
-  ['isOverdose', 'Overdose'],
-  ['isOffLabelUse', 'Off-label use'],
-  ['isMisuse', 'Misuse'],
-  ['isMedicationError', 'Medication error'],
+const SPECIAL_SITUATION_PRODUCT_FIELD_KEYS = [
+  ['isOverdose', 'pvCaseDetail.overdose'],
+  ['isOffLabelUse', 'pvCaseDetail.offLabelUse'],
+  ['isMisuse', 'pvCaseDetail.misuse'],
+  ['isMedicationError', 'pvCaseDetail.medicationError'],
 ] as const
 
 export function PvCaseDetail({ caseId }: { caseId: string }) {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManageDocs = has('documents.manage')
   const canTriage = has('pv.triage_case')
@@ -184,13 +189,13 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
         if (err instanceof ApiRequestError && err.status === 404) {
           setNotFound(true)
         } else {
-          setError(getErrorMessage(err, 'Could not load this case.'))
+          setError(getErrorMessage(err, t('pvCaseDetail.errorLoadCase')))
         }
       } finally {
         if (!silent) setLoading(false)
       }
     },
-    [caseId],
+    [caseId, t],
   )
 
   const refresh = useCallback(() => load(true), [load])
@@ -202,7 +207,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       await confirmDraftCase(caseId)
       await refresh()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not confirm this case.'))
+      setError(getErrorMessage(err, t('pvCaseDetail.errorConfirmCase')))
     } finally {
       setConfirming(false)
     }
@@ -216,7 +221,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       setSeriousnessOverride('')
       await refresh()
     } catch (err) {
-      setClassifyError(getErrorMessage(err, 'Could not classify this case.'))
+      setClassifyError(getErrorMessage(err, t('pvCaseDetail.errorClassifyCase')))
     } finally {
       setClassifying(false)
     }
@@ -230,7 +235,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       stopRecoding(adverseEventId)
       await refresh()
     } catch (err) {
-      setCodingError(getErrorMessage(err, 'Could not code this adverse event.'))
+      setCodingError(getErrorMessage(err, t('pvCaseDetail.errorCodeEvent')))
     } finally {
       setCodingBusyId(null)
     }
@@ -244,7 +249,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       stopRecoding(suspectProductId)
       await refresh()
     } catch (err) {
-      setCodingError(getErrorMessage(err, 'Could not code this suspect product.'))
+      setCodingError(getErrorMessage(err, t('pvCaseDetail.errorCodeProduct')))
     } finally {
       setCodingBusyId(null)
     }
@@ -257,7 +262,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       await assessExpectedness(caseId, { expectednessFlag: expectednessFlagInput, note: expectednessNoteInput.trim() || undefined })
       await refresh()
     } catch (err) {
-      setExpectednessError(getErrorMessage(err, 'Could not record this expectedness assessment.'))
+      setExpectednessError(getErrorMessage(err, t('pvCaseDetail.errorExpectedness')))
     } finally {
       setAssessingExpectedness(false)
     }
@@ -295,7 +300,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       await linkSourceDocument(caseId, documentId)
       await loadDocuments()
     } catch (err) {
-      setSourceDocsError(getErrorMessage(err, 'Could not link this document as a source document.'))
+      setSourceDocsError(getErrorMessage(err, t('pvCaseDetail.errorLinkSource')))
     } finally {
       setSourceDocsBusy(null)
     }
@@ -314,7 +319,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       setRedactingSourceDocId(null)
       await loadDocuments()
     } catch (err) {
-      setSourceDocsError(getErrorMessage(err, 'Could not mark this document as redacted.'))
+      setSourceDocsError(getErrorMessage(err, t('pvCaseDetail.errorRedact')))
     } finally {
       setSourceDocsBusy(null)
     }
@@ -323,7 +328,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading case…
+        <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('pvCaseDetail.loadingCase')}
       </div>
     )
   }
@@ -332,14 +337,11 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
     return (
       <div className="space-y-6 p-6">
         <button onClick={() => router.push('/pv-cases')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back to PV Cases
+          <ArrowLeft className="h-4 w-4" /> {t('pvCaseDetail.backToCases')}
         </button>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">
-            This case doesn&apos;t exist, or you don&apos;t have permission to view it — a front-line reporter can only see cases they
-            personally created.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('pvCaseDetail.notFoundBody')}</p>
         </div>
       </div>
     )
@@ -348,7 +350,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
   if (error || !pvCase) {
     return (
       <div className="space-y-6 p-6">
-        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error ?? 'Something went wrong.'}</div>
+        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error ?? t('pvCaseDetail.genericError')}</div>
       </div>
     )
   }
@@ -359,10 +361,12 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
   // would just 403 once clicked.
   const canEditCase = canCapture && pvCase.status === 'intake'
 
+  const pvCaseStages = PV_CASE_STAGE_KEYS.map(({ key, labelKey }) => ({ key, label: t(labelKey) }))
+
   return (
     <div className="space-y-6 p-6 max-w-4xl">
       <button onClick={() => router.push('/pv-cases')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to PV Cases
+        <ArrowLeft className="h-4 w-4" /> {t('pvCaseDetail.backToCases')}
       </button>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -375,14 +379,16 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
               </span>
             )}
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">Received {formatDate(pvCase.receivedDate)} · Awareness {formatDate(pvCase.awarenessDate)}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t('pvCaseDetail.receivedAwareness', { received: formatDate(pvCase.receivedDate), awareness: formatDate(pvCase.awarenessDate) })}
+          </p>
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_STYLES[pvCase.status] ?? 'bg-muted text-muted-foreground'}`}>
           {statusLabel(pvCase.status)}
         </span>
       </div>
 
-      <CaseStageTracker stages={PV_CASE_STAGES} currentKey={pvCase.status} />
+      <CaseStageTracker stages={pvCaseStages} currentKey={pvCase.status} />
 
       {/*
         Real-usage request, 22 Sep 2026 — a reason is now required for
@@ -404,14 +410,10 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
 
       <RecordTasksPanel recordType="pv_case" recordId={pvCase.id} />
 
-      <Section title="Validity Gate & Triage" subtitle="The four minimum criteria a case needs before it can leave Intake, plus seriousness classification and the real regulatory reporting deadline">
+      <Section title={t('pvCaseDetail.sectionValidityGate')} subtitle={t('pvCaseDetail.subtitleValidityGate')}>
         <InfoNote>
-          <strong className="text-foreground">Validity Gate:</strong> a case cannot move out of Intake until it has an
-          identifiable patient, an identifiable reporter, at least one suspect product, at least one adverse event,
-          and at least one source document attached — the reporting clock holds at zero until then.{' '}
-          <strong className="text-foreground">Triage:</strong> classifying the case as fatal, serious, or
-          non-serious starts (or restarts) the real legal countdown to when this case must be reported to the
-          regulator.
+          <strong className="text-foreground">{t('pvCaseDetail.infoValidityGatePrefix')}</strong> {t('pvCaseDetail.infoValidityGateBody')}{' '}
+          <strong className="text-foreground">{t('pvCaseDetail.infoTriagePrefix')}</strong> {t('pvCaseDetail.infoTriageBody')}
         </InfoNote>
 
         <div className="grid gap-2 sm:grid-cols-2 mb-5">
@@ -432,9 +434,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
               ) : (
                 <Circle className="h-4 w-4 flex-shrink-0 text-muted-foreground/40" />
               )}
-              <span className={sourceDocuments.length > 0 ? 'text-foreground' : 'text-muted-foreground'}>
-                At least one source document attached
-              </span>
+              <span className={sourceDocuments.length > 0 ? 'text-foreground' : 'text-muted-foreground'}>{t('pvCaseDetail.atLeastOneSourceDoc')}</span>
             </div>
           )}
         </div>
@@ -442,28 +442,28 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
         <div className="rounded-lg border border-border p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Seriousness</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('pvCaseDetail.seriousness')}</span>
               {pvCase.seriousnessClass ? (
                 <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
                   {SERIOUSNESS_CLASS_LABELS[pvCase.seriousnessClass]}
                 </span>
               ) : (
-                <span className="text-xs text-muted-foreground">Not yet classified</span>
+                <span className="text-xs text-muted-foreground">{t('pvCaseDetail.notYetClassified')}</span>
               )}
             </div>
             <div>
               {pvCase.deadline ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Due {formatDate(pvCase.deadline.dueAt)}</span>
+                  <span className="text-xs text-muted-foreground">{t('pvCaseDetail.due', { date: formatDate(pvCase.deadline.dueAt) })}</span>
                   <DeadlineChip dueAt={pvCase.deadline.dueAt} />
                 </div>
               ) : pvCase.seriousnessClass ? (
                 <span className="flex items-center gap-1.5 rounded-full bg-status-warning/10 px-2.5 py-0.5 text-xs font-medium text-status-warning">
-                  <Clock className="h-3 w-3" /> Deadline unavailable — no confirmed reporting rule yet
+                  <Clock className="h-3 w-3" /> {t('pvCaseDetail.deadlineUnavailable')}
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                  <Clock className="h-3 w-3" /> Clock not started
+                  <Clock className="h-3 w-3" /> {t('pvCaseDetail.clockNotStarted')}
                 </span>
               )}
             </div>
@@ -476,10 +476,10 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
                 onChange={(e) => setSeriousnessOverride(e.target.value as SeriousnessClass | '')}
                 className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
               >
-                <option value="">Auto-derive from adverse events</option>
-                <option value="fatal">Fatal</option>
-                <option value="serious">Serious</option>
-                <option value="non_serious">Non-serious</option>
+                <option value="">{t('pvCaseDetail.autoDerive')}</option>
+                <option value="fatal">{t('pvCaseDetail.fatal')}</option>
+                <option value="serious">{t('pvCaseDetail.serious')}</option>
+                <option value="non_serious">{t('pvCaseDetail.nonSerious')}</option>
               </select>
               <button
                 onClick={handleClassify}
@@ -487,7 +487,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
                 className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
               >
                 {classifying && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {pvCase.seriousnessClass ? 'Reclassify' : 'Classify'}
+                {pvCase.seriousnessClass ? t('pvCaseDetail.reclassify') : t('pvCaseDetail.classify')}
               </button>
               {classifyError && <span className="text-xs text-status-error">{classifyError}</span>}
             </div>
@@ -496,13 +496,8 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       </Section>
 
       {pvCase.status === 'submission_ready' && (
-        <Section title="Regulatory Submission" subtitle="A real E2B(R2) XML and a human-readable PDF, generated from this case's own captured data — no live gateway, generate then upload to the authority's own portal">
-          <InfoNote>
-            This generates the actual electronic report the regulator expects (E2B XML) plus a readable PDF version
-            for your own records — it does not submit anywhere automatically. Once you&apos;ve uploaded the XML to
-            the authority&apos;s own portal (e.g. VigiFlow/PvERS) yourself, come back and attach proof of that
-            upload below — the case can&apos;t move to &quot;Submitted&quot; until that&apos;s attached.
-          </InfoNote>
+        <Section title={t('pvCaseDetail.sectionRegulatorySubmission')} subtitle={t('pvCaseDetail.subtitleRegulatorySubmission')}>
+          <InfoNote>{t('pvCaseDetail.infoRegSubmission')}</InfoNote>
           <RegulatorySubmissionPanel caseId={pvCase.id} canGenerate={canGenerateSubmission} canAttachEvidence={canManageDocs} />
         </Section>
       )}
@@ -510,7 +505,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       {pvCase.createdBy === null && (
         <div className="rounded-lg border border-status-info/30 bg-status-info/5 p-3 text-xs text-muted-foreground flex items-center gap-2">
           <Info className="h-3.5 w-3.5 flex-shrink-0 text-status-info" />
-          Captured via {CASE_CHANNEL_LABELS[pvCase.channel] ?? pvCase.channel}, with no logged-in reporter — no human staff member created this case directly.
+          {t('pvCaseDetail.capturedVia', { channel: CASE_CHANNEL_LABELS[pvCase.channel] ?? pvCase.channel })}
           {pvCase.sourceChannelReference && <span className="font-mono">({pvCase.sourceChannelReference})</span>}
         </div>
       )}
@@ -520,10 +515,8 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
           <div className="flex items-start gap-2.5">
             <ShieldAlert className="h-5 w-5 flex-shrink-0 text-status-warning mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-foreground">Awaiting confirmation</p>
-              <p className="text-xs text-muted-foreground">
-                This case was captured automatically and hasn&apos;t been reviewed by a person yet — it won&apos;t enter normal triage until confirmed.
-              </p>
+              <p className="text-sm font-medium text-foreground">{t('pvCaseDetail.awaitingConfirmation')}</p>
+              <p className="text-xs text-muted-foreground">{t('pvCaseDetail.awaitingConfirmationBody')}</p>
             </div>
           </div>
           {canTriage && (
@@ -533,7 +526,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
               className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50 whitespace-nowrap"
             >
               {confirming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-              Confirm this case
+              {t('pvCaseDetail.confirmThisCase')}
             </button>
           )}
         </div>
@@ -542,7 +535,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       {pvCase.suspectedFalsifiedOrSubstandard && (
         <div className="rounded-lg border border-status-error/30 bg-status-error/5 p-3 text-xs font-medium text-status-error flex items-center gap-2">
           <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-          Suspected falsified or substandard product
+          {t('pvCaseDetail.suspectedFalsified')}
         </div>
       )}
 
@@ -550,7 +543,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
         <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-foreground flex items-start gap-2">
           <StickyNote className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-muted-foreground" />
           <div>
-            <p className="mb-0.5 font-semibold uppercase tracking-wide text-[10px] text-muted-foreground">Additional information</p>
+            <p className="mb-0.5 font-semibold uppercase tracking-wide text-[10px] text-muted-foreground">{t('pvCaseDetail.additionalInformation')}</p>
             <p>{pvCase.additionalInformation}</p>
           </div>
         </div>
@@ -559,24 +552,21 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       <DuplicateReviewBanner caseId={pvCase.id} canTriage={canTriage} onResolved={refresh} />
 
       {pvCase.clinicalTrialId && (
-        <Section title="Clinical Trial" subtitle="Solicited data — this case is a clinical-trial SAE, not a spontaneous report">
+        <Section title={t('pvCaseDetail.sectionClinicalTrial')} subtitle={t('pvCaseDetail.subtitleClinicalTrial')}>
           <ClinicalTrialInfoPanel clinicalTrialId={pvCase.clinicalTrialId} clinicalTrialSubjectId={pvCase.clinicalTrialSubjectId} />
         </Section>
       )}
 
-      <Section title="Expectedness / Listedness" subtitle="Whether this reaction is already covered by the product's approved label — a manual reviewer judgment">
+      <Section title={t('pvCaseDetail.sectionExpectedness')} subtitle={t('pvCaseDetail.subtitleExpectedness')}>
         <InfoNote>
-          <strong className="text-foreground">Listed (expected):</strong> the reaction is already described in the
-          product&apos;s approved label (SmPC/package insert). <strong className="text-foreground">Unlisted
-          (unexpected):</strong> it isn&apos;t — this is often what makes a case reportable on an expedited timeline.
-          Automated comparison against a label document isn&apos;t built yet, so this is a human judgment call, not a
-          computed one.
+          <strong className="text-foreground">{t('pvCaseDetail.infoExpectednessListedPrefix')}</strong> {t('pvCaseDetail.infoExpectednessListedBody')}{' '}
+          <strong className="text-foreground">{t('pvCaseDetail.infoExpectednessUnlistedPrefix')}</strong> {t('pvCaseDetail.infoExpectednessUnlistedBody')}
         </InfoNote>
 
         <div className="rounded-lg border border-border p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Assessment</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('pvCaseDetail.assessment')}</span>
               <span
                 className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                   pvCase.expectednessFlag === 'listed'
@@ -589,7 +579,9 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
                 {EXPECTEDNESS_FLAG_LABELS[pvCase.expectednessFlag]}
               </span>
             </div>
-            {pvCase.expectednessAssessedAt && <span className="text-xs text-muted-foreground">Assessed {formatDate(pvCase.expectednessAssessedAt)}</span>}
+            {pvCase.expectednessAssessedAt && (
+              <span className="text-xs text-muted-foreground">{t('pvCaseDetail.assessed', { date: formatDate(pvCase.expectednessAssessedAt) })}</span>
+            )}
           </div>
 
           {pvCase.expectednessNote && <p className="text-sm text-foreground border-t border-border pt-3">{pvCase.expectednessNote}</p>}
@@ -602,9 +594,9 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
                   onChange={(e) => setExpectednessFlagInput(e.target.value as ExpectednessFlag)}
                   className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
                 >
-                  <option value="not_assessed">Not yet assessed</option>
-                  <option value="listed">Listed (expected)</option>
-                  <option value="unlisted">Unlisted (unexpected)</option>
+                  <option value="not_assessed">{t('pvCaseDetail.notYetAssessed')}</option>
+                  <option value="listed">{t('pvCaseDetail.listedExpected')}</option>
+                  <option value="unlisted">{t('pvCaseDetail.unlistedUnexpected')}</option>
                 </select>
                 <button
                   onClick={handleAssessExpectedness}
@@ -612,13 +604,13 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
                   className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
                 >
                   {assessingExpectedness && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  {pvCase.expectednessAssessedAt ? 'Reassess' : 'Assess'}
+                  {pvCase.expectednessAssessedAt ? t('pvCaseDetail.reassess') : t('pvCaseDetail.assess')}
                 </button>
               </div>
               <textarea
                 value={expectednessNoteInput}
                 onChange={(e) => setExpectednessNoteInput(e.target.value)}
-                placeholder="Reasoning — e.g. which label version you checked against (optional)"
+                placeholder={t('pvCaseDetail.expectednessNotePlaceholder')}
                 rows={2}
                 className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
               />
@@ -628,62 +620,68 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
         </div>
       </Section>
 
-      <Section title="Reporter">
+      <Section title={t('pvCaseDetail.sectionReporter')}>
         {canEditCase && (
           <div className="mb-3 flex justify-end">
             <button onClick={() => setEditingReporter(true)} className="text-xs font-medium text-safemeds-teal hover:underline">
-              Edit reporter
+              {t('pvCaseDetail.editReporter')}
             </button>
           </div>
         )}
         {pvCase.reporter ? (
           <dl className="grid gap-3 sm:grid-cols-2 text-sm">
-            <Field label="Type" value={pvCase.reporter.reporterType === 'healthcare_professional' ? 'Healthcare Professional' : 'Consumer / Patient'} />
-            <Field label="Name" value={pvCase.reporter.fullName} />
-            <Field label="Qualification" value={pvCase.reporter.qualification} />
-            <Field label="Organization" value={pvCase.reporter.organization} />
-            <Field label="Email" value={pvCase.reporter.email} />
-            <Field label="Phone" value={pvCase.reporter.phone} />
+            <Field
+              label={t('pvCaseDetail.fieldType')}
+              value={pvCase.reporter.reporterType === 'healthcare_professional' ? t('pvCaseWizard.healthcareProfessional') : t('pvCaseWizard.consumerPatient')}
+            />
+            <Field label={t('common.name')} value={pvCase.reporter.fullName} />
+            <Field label={t('pvCaseDetail.fieldQualification')} value={pvCase.reporter.qualification} />
+            <Field label={t('pvCaseDetail.fieldOrganization')} value={pvCase.reporter.organization} />
+            <Field label={t('pvCaseDetail.fieldEmail')} value={pvCase.reporter.email} />
+            <Field label={t('pvCaseDetail.fieldPhone')} value={pvCase.reporter.phone} />
           </dl>
         ) : (
-          <p className="text-sm text-muted-foreground">No reporter information.</p>
+          <p className="text-sm text-muted-foreground">{t('pvCaseDetail.noReporterInfo')}</p>
         )}
       </Section>
 
-      <Section title="Patient">
+      <Section title={t('pvCaseDetail.sectionPatient')}>
         {canEditCase && (
           <div className="mb-3 flex justify-end">
             <button onClick={() => setEditingPatient(true)} className="text-xs font-medium text-safemeds-teal hover:underline">
-              Edit patient
+              {t('pvCaseDetail.editPatient')}
             </button>
           </div>
         )}
         {pvCase.patient ? (
           <>
             <dl className="grid gap-3 sm:grid-cols-3 text-sm">
-              <Field label="Initials" value={pvCase.patient.initials} />
-              <Field label="Age" value={pvCase.patient.ageYears !== null ? `${pvCase.patient.ageYears} years` : null} />
-              <Field label="Sex" value={pvCase.patient.sex === 'unknown' ? 'Unknown' : pvCase.patient.sex === 'male' ? 'Male' : 'Female'} />
-              <Field label="Weight" value={pvCase.patient.weightKg !== null ? `${pvCase.patient.weightKg} kg` : null} />
-              <Field label="Height" value={pvCase.patient.heightCm !== null ? `${pvCase.patient.heightCm} cm` : null} />
+              <Field label={t('pvCaseDetail.fieldInitials')} value={pvCase.patient.initials} />
+              <Field label={t('pvCaseDetail.fieldAge')} value={pvCase.patient.ageYears !== null ? t('pvCaseDetail.ageYearsValue', { age: String(pvCase.patient.ageYears) }) : null} />
+              <Field
+                label={t('pvCaseDetail.fieldSex')}
+                value={pvCase.patient.sex === 'unknown' ? t('common.unknown') : pvCase.patient.sex === 'male' ? t('pvCaseWizard.male') : t('pvCaseWizard.female')}
+              />
+              <Field label={t('pvCaseDetail.fieldWeight')} value={pvCase.patient.weightKg !== null ? t('pvCaseDetail.weightKgValue', { weight: String(pvCase.patient.weightKg) }) : null} />
+              <Field label={t('pvCaseDetail.fieldHeight')} value={pvCase.patient.heightCm !== null ? t('pvCaseDetail.heightCmValue', { height: String(pvCase.patient.heightCm) }) : null} />
             </dl>
             {pvCase.patient.medicalHistory && (
               <div className="mt-3 pt-3 border-t border-border">
-                <p className="text-xs text-muted-foreground mb-1">Relevant medical history</p>
+                <p className="text-xs text-muted-foreground mb-1">{t('pvCaseDetail.medicalHistory')}</p>
                 <p className="text-sm text-foreground">{pvCase.patient.medicalHistory}</p>
               </div>
             )}
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">No patient information.</p>
+          <p className="text-sm text-muted-foreground">{t('pvCaseDetail.noPatientInfo')}</p>
         )}
       </Section>
 
-      <Section title={`Suspect Products (${pvCase.suspectProducts.length})`}>
+      <Section title={t('pvCaseDetail.sectionSuspectProducts', { n: String(pvCase.suspectProducts.length) })}>
         {canEditCase && (
           <div className="mb-3 flex justify-end">
             <button onClick={() => setAddingProduct(true)} className="text-xs font-medium text-safemeds-teal hover:underline">
-              + Add suspect product
+              {t('pvCaseDetail.addSuspectProduct')}
             </button>
           </div>
         )}
@@ -696,25 +694,25 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
                 <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground capitalize">{p.drugCharacterization}</span>
               </div>
               <dl className="mt-2 grid gap-2 sm:grid-cols-3 text-xs">
-                <Field label="Active substance" value={p.activeSubstanceName} compact />
-                <Field label="Batch" value={p.batchNumber} compact />
-                <Field label="Dose" value={p.doseText} compact />
-                <Field label="Route" value={p.route} compact />
-                <Field label="Start" value={formatDate(p.startDate)} compact />
-                <Field label="End" value={formatDate(p.endDate)} compact />
+                <Field label={t('pvCaseDetail.fieldActiveSubstance')} value={p.activeSubstanceName} compact />
+                <Field label={t('pvCaseDetail.fieldBatch')} value={p.batchNumber} compact />
+                <Field label={t('pvCaseDetail.fieldDose')} value={p.doseText} compact />
+                <Field label={t('pvCaseDetail.fieldRoute')} value={p.route} compact />
+                <Field label={t('pvCaseDetail.fieldStart')} value={formatDate(p.startDate)} compact />
+                <Field label={t('pvCaseDetail.fieldEnd')} value={formatDate(p.endDate)} compact />
               </dl>
-              {SPECIAL_SITUATION_PRODUCT_FIELDS.some(([field]) => p[field]) && (
+              {SPECIAL_SITUATION_PRODUCT_FIELD_KEYS.some(([field]) => p[field]) && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {SPECIAL_SITUATION_PRODUCT_FIELDS.filter(([field]) => p[field]).map(([field, label]) => (
+                  {SPECIAL_SITUATION_PRODUCT_FIELD_KEYS.filter(([field]) => p[field]).map(([field, labelKey]) => (
                     <span key={field} className="rounded-full bg-status-warning/10 px-2 py-0.5 text-xs font-medium text-status-warning">
-                      {label}
+                      {t(labelKey)}
                     </span>
                   ))}
                 </div>
               )}
               {canCode && (
                 <div className="mt-3 pt-3 border-t border-border">
-                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">WHODrug coding</p>
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t('pvCaseDetail.whoDrugCoding')}</p>
                   <WhoDrugPicker
                     codedTerm={recodingIds.has(p.id) ? null : p.whoDrugTerm}
                     busy={codingBusyId === p.id}
@@ -728,18 +726,18 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
         </div>
       </Section>
 
-      <Section title={`Adverse Events (${pvCase.adverseEvents.length})`}>
+      <Section title={t('pvCaseDetail.sectionAdverseEvents', { n: String(pvCase.adverseEvents.length) })}>
         {canEditCase && (
           <div className="mb-3 flex justify-end">
             <button onClick={() => setAddingEvent(true)} className="text-xs font-medium text-safemeds-teal hover:underline">
-              + Add adverse event
+              {t('pvCaseDetail.addAdverseEvent')}
             </button>
           </div>
         )}
         {codingError && <p className="mb-3 text-xs text-status-error">{codingError}</p>}
         <div className="space-y-3">
           {pvCase.adverseEvents.map((e) => {
-            const seriousnessFlags = SERIOUSNESS_FIELDS.filter(([field]) => e[field])
+            const seriousnessFlags = SERIOUSNESS_FIELD_KEYS.filter(([field]) => e[field])
             return (
               <div key={e.id} className="rounded-lg border border-border p-3">
                 <div className="flex items-center justify-between">
@@ -748,24 +746,24 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
                 </div>
                 {e.narrative && <p className="mt-1.5 text-sm text-foreground">{e.narrative}</p>}
                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  <span className="text-muted-foreground">Onset {formatDate(e.onsetDate)}</span>
-                  <span className="text-muted-foreground">· Resolved {formatDate(e.resolutionDate)}</span>
+                  <span className="text-muted-foreground">{t('pvCaseDetail.onset', { date: formatDate(e.onsetDate) })}</span>
+                  <span className="text-muted-foreground">{t('pvCaseDetail.resolved', { date: formatDate(e.resolutionDate) })}</span>
                 </div>
                 {(seriousnessFlags.length > 0 || e.isLackOfEfficacy) && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {seriousnessFlags.map(([field, label]) => (
+                    {seriousnessFlags.map(([field, labelKey]) => (
                       <span key={field} className="rounded-full bg-status-error/10 px-2 py-0.5 text-xs font-medium text-status-error">
-                        {label}
+                        {t(labelKey)}
                       </span>
                     ))}
                     {e.isLackOfEfficacy && (
-                      <span className="rounded-full bg-status-warning/10 px-2 py-0.5 text-xs font-medium text-status-warning">Lack of efficacy</span>
+                      <span className="rounded-full bg-status-warning/10 px-2 py-0.5 text-xs font-medium text-status-warning">{t('pvCaseDetail.lackOfEfficacy')}</span>
                     )}
                   </div>
                 )}
                 {canCode && (
                   <div className="mt-3 pt-3 border-t border-border">
-                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">MedDRA coding</p>
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t('pvCaseDetail.meddraCoding')}</p>
                     <MeddraPicker
                       codedTerm={recodingIds.has(e.id) ? null : e.meddraTerm}
                       busy={codingBusyId === e.id}
@@ -781,35 +779,34 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
       </Section>
 
       {pvCase.pregnancyContext && (
-        <Section title="Pregnancy Exposure">
+        <Section title={t('pvCaseDetail.sectionPregnancyExposure')}>
           <dl className="grid gap-3 sm:grid-cols-3 text-sm">
-            <Field label="Outcome" value={PREGNANCY_OUTCOME_LABELS[pvCase.pregnancyContext.outcome]} />
-            <Field label="Expected delivery date" value={formatDate(pvCase.pregnancyContext.expectedDeliveryDate)} />
+            <Field label={t('pvCaseWizard.outcome')} value={PREGNANCY_OUTCOME_LABELS[pvCase.pregnancyContext.outcome]} />
+            <Field label={t('pvCaseWizard.expectedDeliveryDate')} value={formatDate(pvCase.pregnancyContext.expectedDeliveryDate)} />
             <Field
-              label="Gestation at exposure"
-              value={pvCase.pregnancyContext.gestationWeeksAtExposure !== null ? `${pvCase.pregnancyContext.gestationWeeksAtExposure} weeks` : null}
+              label={t('pvCaseDetail.gestationAtExposure')}
+              value={
+                pvCase.pregnancyContext.gestationWeeksAtExposure !== null
+                  ? t('pvCaseDetail.weeksValue', { weeks: String(pvCase.pregnancyContext.gestationWeeksAtExposure) })
+                  : null
+              }
             />
           </dl>
           {pvCase.pregnancyContext.congenitalAnomalyDetail && (
             <p className="mt-3 text-sm text-foreground">{pvCase.pregnancyContext.congenitalAnomalyDetail}</p>
           )}
           {pvCase.pregnancyContext.followUpDueAt && (
-            <p className="mt-3 text-xs text-muted-foreground">Follow-up due {formatDate(pvCase.pregnancyContext.followUpDueAt)}</p>
+            <p className="mt-3 text-xs text-muted-foreground">{t('pvCaseDetail.followUpDue', { date: formatDate(pvCase.pregnancyContext.followUpDueAt) })}</p>
           )}
         </Section>
       )}
 
-      <Section title={`Causality Assessments (${pvCase.causalityAssessments.length})`}>
+      <Section title={t('pvCaseDetail.sectionCausalityAssessments', { n: String(pvCase.causalityAssessments.length) })}>
         <InfoNote>
-          <strong className="text-foreground">What this is:</strong> for every suspect product paired with every
-          reported reaction, someone has to judge <em>how likely it is that this specific drug caused this specific
-          reaction</em> — not just per case, but per pair, because a case with 2 drugs and 2 reactions needs 4
-          separate judgments (Drug A might clearly explain the rash while being unrelated to the nausea, for
-          example). Two real pharmacovigilance scoring methods produce that judgment, captured independently:{' '}
-          <strong>WHO-UMC</strong> (pick one of 6 categories — Certain, Probable, Possible, Unlikely, and so on —
-          guided by a checklist of what has to be true for each) and <strong>Naranjo</strong> (10 yes/no/don&apos;t-know
-          questions, auto-totaled into a score from roughly -4 to +13, interpreted as Definite/Probable/Possible/
-          Doubtful). Click a pair below to open its assessment.
+          <strong className="text-foreground">{t('pvCaseDetail.infoCausalityWhatThisIs')}</strong> {t('pvCaseDetail.infoCausalityBody1')}{' '}
+          <em>{t('pvCaseDetail.infoCausalityBodyEm')}</em> {t('pvCaseDetail.infoCausalityBody2')}{' '}
+          <strong>{t('pvCaseDetail.whoUmcLabel')}</strong> {t('pvCaseDetail.infoCausalityWhoUmc')} {t('pvCaseDetail.andWord')}{' '}
+          <strong>{t('pvCaseDetail.naranjoLabel')}</strong> {t('pvCaseDetail.infoCausalityNaranjo')}
         </InfoNote>
         <div className="space-y-2">
           {pvCase.causalityAssessments.map((ca) => {
@@ -830,34 +827,23 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
         </div>
       </Section>
 
-      <Section title="Consent">
+      <Section title={t('pvCaseDetail.sectionConsent')}>
         <InfoNote>
-          <strong className="text-foreground">What this means here:</strong> not consent to treatment — consent to{' '}
-          <em>process and report</em> this adverse-event information, including sharing it with the regulator (PPB)
-          if required. A case report often contains identifiable health information, so before it&apos;s used and
-          forwarded, there should be a record of whether the patient (or whoever reported on their behalf) was asked
-          and agreed. This is a compliance/audit-trail record, not a clinical requirement — the case still exists and
-          can still be processed either way; this just tracks whether permission was sought and what the answer was.
+          <strong className="text-foreground">{t('pvCaseDetail.infoConsentWhatThisMeans')}</strong> {t('pvCaseDetail.infoConsentBody1')}{' '}
+          <em>{t('pvCaseDetail.infoConsentBodyEm')}</em> {t('pvCaseDetail.infoConsentBody2')}
         </InfoNote>
-        <ConsentCaptureWidget recordType="pv_case" recordId={pvCase.id} consentType="report" label="Report consent" />
+        <ConsentCaptureWidget recordType="pv_case" recordId={pvCase.id} consentType="report" label={t('pvCaseDetail.reportConsentLabel')} />
       </Section>
 
-      <Section title="Case Follow-Up" subtitle="Checking back with the reporter for missing details or an outcome update — up to two attempts, closing within 28 days">
-        <InfoNote>
-          Follow-up needs the reporter&apos;s consent to be contacted (a separate &quot;contact&quot; consent from the
-          report consent above) before an automated email goes out — without it, the system opens the same tracked
-          attempt window but relies on a human calling the reporter and logging what happened. Attempt 1 gets 5
-          working days to get a response; no response escalates to attempt 2 on the same terms; still nothing closes
-          the case as failed-to-follow-up. Any real reply resets the clock to a fresh 7 days. The whole cycle closes
-          within 28 days of starting, no matter what.
-        </InfoNote>
+      <Section title={t('pvCaseDetail.sectionCaseFollowUp')} subtitle={t('pvCaseDetail.subtitleCaseFollowUp')}>
+        <InfoNote>{t('pvCaseDetail.infoFollowUp')}</InfoNote>
         <CaseFollowUpPanel caseId={pvCase.id} canTriage={canTriage} />
       </Section>
 
-      <Section title="Source Documents" subtitle="The mandatory original artifact(s) this case was captured from">
+      <Section title={t('pvCaseDetail.sectionSourceDocuments')} subtitle={t('pvCaseDetail.subtitleSourceDocuments')}>
         {sourceDocsError && <p className="mb-3 text-xs text-status-error">{sourceDocsError}</p>}
         {sourceDocuments.length === 0 ? (
-          <p className="text-sm text-muted-foreground mb-3">No source document linked yet.</p>
+          <p className="text-sm text-muted-foreground mb-3">{t('pvCaseDetail.noSourceDocLinked')}</p>
         ) : (
           <div className="space-y-2 mb-3">
             {sourceDocuments.map((sd) => {
@@ -870,7 +856,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
                       <FileText className="h-4 w-4 text-muted-foreground" />
                       <span className="text-foreground">{doc?.title ?? sd.documentId}</span>
                       {sd.redactionApplied && (
-                        <span title="Redacted">
+                        <span title={t('pvCaseDetail.redactedTitle')}>
                           <ShieldCheck className="h-3.5 w-3.5 text-status-warning" />
                         </span>
                       )}
@@ -881,12 +867,12 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
                         disabled={sourceDocsBusy === sd.id}
                         className="text-xs font-medium text-status-warning hover:underline disabled:opacity-50"
                       >
-                        Mark redacted
+                        {t('pvCaseDetail.markRedacted')}
                       </button>
                     )}
                   </div>
                   {sd.redactionApplied && redactedCopy && (
-                    <p className="mt-1.5 pl-6 text-xs text-muted-foreground">Redacted copy on file: {redactedCopy.title}</p>
+                    <p className="mt-1.5 pl-6 text-xs text-muted-foreground">{t('pvCaseDetail.redactedCopyOnFile', { title: redactedCopy.title })}</p>
                   )}
                   {redactingSourceDocId === sd.id && (
                     <RedactConfirmPanel
@@ -903,7 +889,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
 
         {canManageDocs && unlinkedDocuments.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Uploaded but not yet marked as a source document</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('pvCaseDetail.uploadedNotMarked')}</p>
             {unlinkedDocuments.map((d) => (
               <div key={d.id} className="flex items-center justify-between rounded-lg border border-dashed border-border p-2.5 text-sm">
                 <span className="text-foreground">{d.title}</span>
@@ -913,7 +899,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
                   className="flex items-center gap-1.5 text-xs font-medium text-safemeds-teal hover:underline disabled:opacity-50"
                 >
                   {sourceDocsBusy === d.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
-                  Link as source
+                  {t('pvCaseDetail.linkAsSource')}
                 </button>
               </div>
             ))}
@@ -922,7 +908,7 @@ export function PvCaseDetail({ caseId }: { caseId: string }) {
 
         <div className="mt-4 pt-4 border-t border-border">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-            <AlertCircle className="h-3.5 w-3.5" /> Upload the original artifact here, then link it above
+            <AlertCircle className="h-3.5 w-3.5" /> {t('pvCaseDetail.uploadOriginalHint')}
           </p>
           <DocumentsPanel recordType="pv_case" recordId={pvCase.id} onUploaded={loadDocuments} />
         </div>
@@ -959,6 +945,7 @@ function EditReporterModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  const { t } = useTranslation()
   const [reporterType, setReporterType] = useState<ReporterType>(reporter?.reporterType ?? 'healthcare_professional')
   const [fullName, setFullName] = useState(reporter?.fullName ?? '')
   const [email, setEmail] = useState(reporter?.email ?? '')
@@ -982,49 +969,49 @@ function EditReporterModal({
       })
       onSaved()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save the reporter.'))
+      setError(getErrorMessage(err, t('pvCaseDetail.errorSaveReporter')))
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="Edit Reporter" onClose={onClose}>
+    <Modal title={t('pvCaseDetail.editReporterModalTitle')} onClose={onClose}>
       <div className="space-y-3">
         {error && <p className="text-xs text-status-error">{error}</p>}
         <div>
-          <label className={modalLabelClass}>Type</label>
+          <label className={modalLabelClass}>{t('pvCaseDetail.fieldType')}</label>
           <select value={reporterType} onChange={(e) => setReporterType(e.target.value as ReporterType)} className={modalInputClass}>
-            <option value="healthcare_professional">Healthcare Professional</option>
-            <option value="consumer">Consumer / Patient</option>
+            <option value="healthcare_professional">{t('pvCaseWizard.healthcareProfessional')}</option>
+            <option value="consumer">{t('pvCaseWizard.consumerPatient')}</option>
           </select>
         </div>
         <div>
-          <label className={modalLabelClass}>Full name</label>
+          <label className={modalLabelClass}>{t('pvCaseWizard.fullName')}</label>
           <input value={fullName} onChange={(e) => setFullName(e.target.value)} className={modalInputClass} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={modalLabelClass}>Email</label>
+            <label className={modalLabelClass}>{t('pvCaseDetail.fieldEmail')}</label>
             <input value={email} onChange={(e) => setEmail(e.target.value)} className={modalInputClass} />
           </div>
           <div>
-            <label className={modalLabelClass}>Phone</label>
+            <label className={modalLabelClass}>{t('pvCaseDetail.fieldPhone')}</label>
             <input value={phone} onChange={(e) => setPhone(e.target.value)} className={modalInputClass} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={modalLabelClass}>Qualification</label>
+            <label className={modalLabelClass}>{t('pvCaseDetail.fieldQualification')}</label>
             <input value={qualification} onChange={(e) => setQualification(e.target.value)} className={modalInputClass} />
           </div>
           <div>
-            <label className={modalLabelClass}>Organization</label>
+            <label className={modalLabelClass}>{t('pvCaseDetail.fieldOrganization')}</label>
             <input value={organization} onChange={(e) => setOrganization(e.target.value)} className={modalInputClass} />
           </div>
         </div>
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSave}
@@ -1032,7 +1019,7 @@ function EditReporterModal({
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save changes
+            {t('pvCaseDetail.saveChanges')}
           </button>
         </div>
       </div>
@@ -1051,6 +1038,7 @@ function EditPatientModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  const { t } = useTranslation()
   const [initials, setInitials] = useState(patient?.initials ?? '')
   const [ageYears, setAgeYears] = useState(patient?.ageYears?.toString() ?? '')
   const [sex, setSex] = useState<PatientSex>(patient?.sex ?? 'unknown')
@@ -1074,51 +1062,51 @@ function EditPatientModal({
       })
       onSaved()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save the patient.'))
+      setError(getErrorMessage(err, t('pvCaseDetail.errorSavePatient')))
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="Edit Patient" onClose={onClose}>
+    <Modal title={t('pvCaseDetail.editPatientModalTitle')} onClose={onClose}>
       <div className="space-y-3">
         {error && <p className="text-xs text-status-error">{error}</p>}
-        <p className="text-xs text-muted-foreground">At least one of initials, age, or sex must be set for the patient to count as identifiable.</p>
+        <p className="text-xs text-muted-foreground">{t('pvCaseDetail.atLeastOneIdentifiable')}</p>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className={modalLabelClass}>Initials</label>
-            <input value={initials} onChange={(e) => setInitials(e.target.value)} placeholder="e.g. J.M." className={modalInputClass} />
+            <label className={modalLabelClass}>{t('pvCaseDetail.fieldInitials')}</label>
+            <input value={initials} onChange={(e) => setInitials(e.target.value)} placeholder={t('pvCaseWizard.initialsPlaceholder')} className={modalInputClass} />
           </div>
           <div>
-            <label className={modalLabelClass}>Age (years)</label>
+            <label className={modalLabelClass}>{t('pvCaseWizard.ageYears')}</label>
             <input type="number" min={0} max={130} value={ageYears} onChange={(e) => setAgeYears(e.target.value)} className={modalInputClass} />
           </div>
           <div>
-            <label className={modalLabelClass}>Sex</label>
+            <label className={modalLabelClass}>{t('pvCaseDetail.fieldSex')}</label>
             <select value={sex} onChange={(e) => setSex(e.target.value as PatientSex)} className={modalInputClass}>
-              <option value="unknown">Unknown</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
+              <option value="unknown">{t('common.unknown')}</option>
+              <option value="male">{t('pvCaseWizard.male')}</option>
+              <option value="female">{t('pvCaseWizard.female')}</option>
             </select>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={modalLabelClass}>Weight (kg)</label>
+            <label className={modalLabelClass}>{t('pvCaseWizard.weightKg')}</label>
             <input type="number" min={0} value={weightKg} onChange={(e) => setWeightKg(e.target.value)} className={modalInputClass} />
           </div>
           <div>
-            <label className={modalLabelClass}>Height (cm)</label>
+            <label className={modalLabelClass}>{t('pvCaseWizard.heightCm')}</label>
             <input type="number" min={0} value={heightCm} onChange={(e) => setHeightCm(e.target.value)} className={modalInputClass} />
           </div>
         </div>
         <div>
-          <label className={modalLabelClass}>Relevant medical history</label>
+          <label className={modalLabelClass}>{t('pvCaseDetail.medicalHistory')}</label>
           <textarea value={medicalHistory} onChange={(e) => setMedicalHistory(e.target.value)} rows={3} className={modalInputClass} />
         </div>
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSave}
@@ -1126,7 +1114,7 @@ function EditPatientModal({
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save changes
+            {t('pvCaseDetail.saveChanges')}
           </button>
         </div>
       </div>
@@ -1135,6 +1123,7 @@ function EditPatientModal({
 }
 
 function AddSuspectProductModal({ caseId, onClose, onSaved }: { caseId: string; onClose: () => void; onSaved: () => void }) {
+  const { t } = useTranslation()
   const [drugCharacterization, setDrugCharacterization] = useState<DrugCharacterization>('suspect')
   const [medicinalProduct, setMedicinalProduct] = useState('')
   const [batchNumber, setBatchNumber] = useState('')
@@ -1151,34 +1140,34 @@ function AddSuspectProductModal({ caseId, onClose, onSaved }: { caseId: string; 
       await addCaseSuspectProduct(caseId, { drugCharacterization, medicinalProduct: medicinalProduct.trim(), batchNumber: batchNumber.trim() || undefined })
       onSaved()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not add this suspect product.'))
+      setError(getErrorMessage(err, t('pvCaseDetail.errorAddProduct')))
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="Add Suspect Product" onClose={onClose}>
+    <Modal title={t('pvCaseDetail.addSuspectProductModalTitle')} onClose={onClose}>
       <div className="space-y-3">
         {error && <p className="text-xs text-status-error">{error}</p>}
         <div>
-          <label className={modalLabelClass}>Role</label>
+          <label className={modalLabelClass}>{t('pvCaseDetail.role')}</label>
           <select value={drugCharacterization} onChange={(e) => setDrugCharacterization(e.target.value as DrugCharacterization)} className={modalInputClass}>
-            <option value="suspect">Suspect</option>
-            <option value="concomitant">Concomitant</option>
-            <option value="interacting">Interacting</option>
+            <option value="suspect">{t('pvCaseWizard.suspect')}</option>
+            <option value="concomitant">{t('pvCaseWizard.concomitant')}</option>
+            <option value="interacting">{t('pvCaseWizard.interacting')}</option>
           </select>
         </div>
         <div>
-          <label className={modalLabelClass}>Product name *</label>
+          <label className={modalLabelClass}>{t('pvCaseDetail.productNameRequired')}</label>
           <input value={medicinalProduct} onChange={(e) => setMedicinalProduct(e.target.value)} className={modalInputClass} />
         </div>
         <div>
-          <label className={modalLabelClass}>Batch number</label>
+          <label className={modalLabelClass}>{t('pvCaseDetail.batchNumber')}</label>
           <input value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} className={modalInputClass} />
         </div>
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSave}
@@ -1186,7 +1175,7 @@ function AddSuspectProductModal({ caseId, onClose, onSaved }: { caseId: string; 
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Add product
+            {t('pvCaseDetail.addProduct')}
           </button>
         </div>
       </div>
@@ -1195,6 +1184,7 @@ function AddSuspectProductModal({ caseId, onClose, onSaved }: { caseId: string; 
 }
 
 function AddAdverseEventModal({ caseId, onClose, onSaved }: { caseId: string; onClose: () => void; onSaved: () => void }) {
+  const { t } = useTranslation()
   const [reportedTerm, setReportedTerm] = useState('')
   const [narrative, setNarrative] = useState('')
   const [busy, setBusy] = useState(false)
@@ -1210,26 +1200,26 @@ function AddAdverseEventModal({ caseId, onClose, onSaved }: { caseId: string; on
       await addCaseAdverseEvent(caseId, { reportedTerm: reportedTerm.trim(), narrative: narrative.trim() })
       onSaved()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not add this adverse event.'))
+      setError(getErrorMessage(err, t('pvCaseDetail.errorAddEvent')))
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="Add Adverse Event" onClose={onClose}>
+    <Modal title={t('pvCaseDetail.addAdverseEventModalTitle')} onClose={onClose}>
       <div className="space-y-3">
         {error && <p className="text-xs text-status-error">{error}</p>}
         <div>
-          <label className={modalLabelClass}>Reported term *</label>
-          <input value={reportedTerm} onChange={(e) => setReportedTerm(e.target.value)} placeholder="The reporter's own words" className={modalInputClass} />
+          <label className={modalLabelClass}>{t('pvCaseWizard.reportedTerm')}</label>
+          <input value={reportedTerm} onChange={(e) => setReportedTerm(e.target.value)} placeholder={t('pvCaseDetail.reportedTermPlaceholderShort')} className={modalInputClass} />
         </div>
         <div>
-          <label className={modalLabelClass}>Narrative *</label>
+          <label className={modalLabelClass}>{t('pvCaseWizard.narrative')}</label>
           <textarea value={narrative} onChange={(e) => setNarrative(e.target.value)} rows={4} className={modalInputClass} />
         </div>
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSave}
@@ -1237,7 +1227,7 @@ function AddAdverseEventModal({ caseId, onClose, onSaved }: { caseId: string; on
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Add event
+            {t('pvCaseDetail.addEvent')}
           </button>
         </div>
       </div>
@@ -1277,11 +1267,12 @@ function Field({ label, value, compact }: { label: string; value: string | null;
 
 /** VigiCloud Stage 3.7 — "a flag + a redacted-copy upload slot, distinct from the original." The redacted copy is genuinely optional: confirming with no file chosen still applies the flag alone, matching the previous behavior exactly. */
 function RedactConfirmPanel({ busy, onConfirm, onCancel }: { busy: boolean; onConfirm: (file: File | null) => void; onCancel: () => void }) {
+  const { t } = useTranslation()
   const [file, setFile] = useState<File | null>(null)
 
   return (
     <div className="mt-2 ml-6 rounded-lg border border-dashed border-status-warning/40 bg-status-warning/5 p-3 space-y-2">
-      <p className="text-xs text-muted-foreground">Optionally attach a redacted copy (safe to share with a regulator) before confirming.</p>
+      <p className="text-xs text-muted-foreground">{t('pvCaseDetail.optionallyAttachRedacted')}</p>
       <input
         type="file"
         onChange={(e) => setFile(e.target.files?.[0] ?? null)}
@@ -1294,10 +1285,10 @@ function RedactConfirmPanel({ busy, onConfirm, onCancel }: { busy: boolean; onCo
           className="flex items-center gap-1.5 rounded-md bg-status-warning px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
         >
           {busy && <Loader2 className="h-3 w-3 animate-spin" />}
-          Confirm redaction
+          {t('pvCaseDetail.confirmRedaction')}
         </button>
         <button onClick={onCancel} disabled={busy} className="text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50">
-          Cancel
+          {t('common.cancel')}
         </button>
       </div>
     </div>

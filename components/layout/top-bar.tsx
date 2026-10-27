@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { LogoMark } from '@/components/ui/logo-mark'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { getUnreadCount, listNotifications, markNotificationRead, type Notification } from '@/lib/api/notifications'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface TopBarProps {
   companyName?: string
@@ -17,6 +18,7 @@ interface TopBarProps {
 }
 
 export function TopBar({ companyName = 'PharmaTech Solutions', userName = 'John Doe', onLogout, enableNotifications = true }: TopBarProps) {
+  const { t } = useTranslation()
   const router = useRouter()
   const [showNotifications, setShowNotifications] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -84,7 +86,7 @@ export function TopBar({ companyName = 'PharmaTech Solutions', userName = 'John 
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search products, batches, tasks..."
+              placeholder={t('topBar.searchPlaceholder')}
               className="w-full rounded-lg border border-input bg-background py-2 pl-9 pr-4 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-safemeds-teal"
             />
           </div>
@@ -101,7 +103,7 @@ export function TopBar({ companyName = 'PharmaTech Solutions', userName = 'John 
             <button
               onClick={handleOpenNotifications}
               className="relative rounded-lg p-2 hover:bg-[var(--surface-raised)]"
-              aria-label="Notifications"
+              aria-label={t('topBar.notificationsAriaLabel')}
             >
               <Bell className="h-5 w-5 text-[var(--text)]" />
               {unreadCount > 0 && <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-[var(--bad)]"></span>}
@@ -109,8 +111,8 @@ export function TopBar({ companyName = 'PharmaTech Solutions', userName = 'John 
             {showNotifications && (
               <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-border bg-card shadow-lg">
                 <div className="border-b border-border px-4 py-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
-                  {unreadCount > 0 && <span className="text-xs text-[var(--text-muted)]">{unreadCount} unread</span>}
+                  <h3 className="text-sm font-semibold text-foreground">{t('topBar.notifications')}</h3>
+                  {unreadCount > 0 && <span className="text-xs text-[var(--text-muted)]">{t('topBar.unreadCount', { count: String(unreadCount) })}</span>}
                 </div>
                 <div className="max-h-96 overflow-y-auto">
                   {loadingNotifications ? (
@@ -118,7 +120,7 @@ export function TopBar({ companyName = 'PharmaTech Solutions', userName = 'John 
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>
                   ) : notifications.length === 0 ? (
-                    <p className="px-4 py-6 text-center text-sm text-muted-foreground">Nothing yet.</p>
+                    <p className="px-4 py-6 text-center text-sm text-muted-foreground">{t('topBar.noNotifications')}</p>
                   ) : (
                     notifications.map((notif) => (
                       <button
@@ -138,7 +140,7 @@ export function TopBar({ companyName = 'PharmaTech Solutions', userName = 'John 
                 </div>
                 <div className="border-t border-border p-2 text-center">
                   <Link href="/notifications" onClick={() => setShowNotifications(false)} className="text-xs font-medium text-safemeds-teal hover:underline">
-                    View all notifications
+                    {t('topBar.viewAllNotifications')}
                   </Link>
                 </div>
               </div>
@@ -151,7 +153,7 @@ export function TopBar({ companyName = 'PharmaTech Solutions', userName = 'John 
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="flex items-center gap-2 rounded-lg p-2 hover:bg-muted"
-              aria-label="User menu"
+              aria-label={t('topBar.userMenuAriaLabel')}
             >
               <div className="h-8 w-8 rounded-full bg-safemeds-gold flex items-center justify-center text-xs font-bold text-safemeds-spruce">
                 {userName
@@ -165,7 +167,7 @@ export function TopBar({ companyName = 'PharmaTech Solutions', userName = 'John 
               <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border border-border bg-card shadow-lg">
                 <button className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted flex items-center gap-2">
                   <User className="h-4 w-4" />
-                  Profile
+                  {t('topBar.profile')}
                 </button>
                 <button
                   onClick={() => {
@@ -175,7 +177,7 @@ export function TopBar({ companyName = 'PharmaTech Solutions', userName = 'John 
                   className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted flex items-center gap-2"
                 >
                   <Settings className="h-4 w-4" />
-                  Settings
+                  {t('topBar.settings')}
                 </button>
                 <hr className="my-1 border-border" />
                 <button
@@ -186,7 +188,7 @@ export function TopBar({ companyName = 'PharmaTech Solutions', userName = 'John 
                   className="w-full px-4 py-2 text-left text-sm text-status-error hover:bg-muted flex items-center gap-2"
                 >
                   <LogOut className="h-4 w-4" />
-                  Logout
+                  {t('topBar.logout')}
                 </button>
               </div>
             )}

@@ -12,13 +12,15 @@ import {
 import { RegulatoryAuthority, listRegulatoryAuthorities } from '@/lib/api/regulatory-authorities'
 import { Modal } from '@/components/ui/modal'
 import { usePermissions } from '@/lib/hooks/use-permissions'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
 
-const SOURCE_LABELS: Record<RequirementDefinition['source'], string> = {
-  system_generated: 'Live (system-computed)',
-  person_uploads: 'Manual (human-uploaded evidence)',
+const SOURCE_LABEL_KEYS: Record<RequirementDefinition['source'], MessageKey> = {
+  system_generated: 'auditChecklistAdmin.sourceLive',
+  person_uploads: 'auditChecklistAdmin.sourceManual',
 }
 
 /**
@@ -33,6 +35,7 @@ const SOURCE_LABELS: Record<RequirementDefinition['source'], string> = {
  * resolver dependency.
  */
 export function AuditChecklistAdmin() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('platform.config.manage')
 
@@ -51,8 +54,8 @@ export function AuditChecklistAdmin() {
         setAuthorities(rows)
         setAuthorityId(rows[0]?.id ?? '')
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load regulatory authorities.')))
-  }, [canManage])
+      .catch((err) => setError(getErrorMessage(err, t('auditChecklistAdmin.errorLoadAuthorities'))))
+  }, [canManage, t])
 
   const load = (id: string) => {
     if (!id) return
@@ -60,7 +63,7 @@ export function AuditChecklistAdmin() {
     setError(null)
     listRequirementDefinitions(id)
       .then((rows) => setDefinitions(rows.slice().sort((a, b) => a.sortOrder - b.sortOrder)))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load requirement definitions.')))
+      .catch((err) => setError(getErrorMessage(err, t('auditChecklistAdmin.errorLoadDefinitions'))))
       .finally(() => setLoading(false))
   }
 
@@ -72,10 +75,10 @@ export function AuditChecklistAdmin() {
   if (!canManage) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Audit Checklist</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('auditChecklistAdmin.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage the audit-readiness checklist.</p>
+          <p className="text-sm text-muted-foreground">{t('auditChecklistAdmin.noPermission')}</p>
         </div>
       </div>
     )
@@ -87,31 +90,29 @@ export function AuditChecklistAdmin() {
         <div>
           <div className="flex items-center gap-3">
             <ClipboardList className="h-6 w-6 text-safemeds-teal" />
-            <h1 className="text-3xl font-display font-bold text-foreground">Audit Checklist</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground">{t('auditChecklistAdmin.title')}</h1>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">The PPB inspection-requirement catalog every tenant&apos;s Audit Readiness dashboard is built from.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('auditChecklistAdmin.subtitle')}</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
           disabled={!authorityId}
           className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
         >
-          <Plus className="h-4 w-4" /> Add Requirement
+          <Plus className="h-4 w-4" /> {t('auditChecklistAdmin.addRequirement')}
         </button>
       </div>
 
       <div className="flex items-start gap-2 rounded-lg border border-status-info/30 bg-status-info/5 p-3 text-xs leading-relaxed text-muted-foreground">
         <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-info" />
         <p>
-          <strong className="text-foreground">What this is:</strong> every tenant&apos;s Audit Readiness dashboard reads its 15 rows from
-          this catalog. Editing a row here changes what every company under this authority sees — you can rewrite the title, description,
-          and guideline citation, and add genuinely new manual (&quot;person_uploads&quot;) rows. You <strong>cannot</strong> change how a{' '}
-          <em>live</em> row&apos;s status is computed here — that&apos;s real code, not configuration, and stays that way on purpose.
+          <strong className="text-foreground">{t('auditChecklistAdmin.infoWhatThisIs')}</strong> {t('auditChecklistAdmin.infoBody1')}{' '}
+          <strong>{t('auditChecklistAdmin.infoCannot')}</strong> {t('auditChecklistAdmin.infoBody2')}
         </p>
       </div>
 
       <div className="rounded-lg border border-border bg-card p-4">
-        <label className={labelClass}>Regulatory authority</label>
+        <label className={labelClass}>{t('auditChecklistAdmin.regulatoryAuthority')}</label>
         <select value={authorityId} onChange={(e) => setAuthorityId(e.target.value)} className={`${inputClass} max-w-sm`}>
           {authorities.map((a) => (
             <option key={a.id} value={a.id}>
@@ -131,18 +132,18 @@ export function AuditChecklistAdmin() {
         ) : definitions.length === 0 ? (
           <div className="p-12 text-center">
             <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No requirement definitions exist for this authority yet.</p>
+            <p className="text-sm text-muted-foreground">{t('auditChecklistAdmin.noDefinitionsYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">#</th>
-                <th className="p-3">Title</th>
-                <th className="p-3">Guideline Reference</th>
-                <th className="p-3">Source</th>
-                <th className="p-3">Mandatory</th>
-                <th className="p-3">Active</th>
+                <th className="p-3">{t('auditChecklistAdmin.columnNumber')}</th>
+                <th className="p-3">{t('auditChecklistAdmin.columnTitle')}</th>
+                <th className="p-3">{t('auditChecklistAdmin.columnGuidelineReference')}</th>
+                <th className="p-3">{t('auditChecklistAdmin.columnSource')}</th>
+                <th className="p-3">{t('auditChecklistAdmin.columnMandatory')}</th>
+                <th className="p-3">{t('auditChecklistAdmin.columnActive')}</th>
                 <th className="p-3" />
               </tr>
             </thead>
@@ -159,14 +160,14 @@ export function AuditChecklistAdmin() {
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs ${d.source === 'system_generated' ? 'bg-safemeds-teal/10 text-safemeds-teal' : 'bg-muted text-muted-foreground'}`}
                     >
-                      {SOURCE_LABELS[d.source]}
+                      {t(SOURCE_LABEL_KEYS[d.source])}
                     </span>
                   </td>
-                  <td className="p-3 text-foreground">{d.isMandatory ? 'Yes' : 'No'}</td>
-                  <td className="p-3 text-foreground">{d.active ? 'Active' : 'Inactive'}</td>
+                  <td className="p-3 text-foreground">{d.isMandatory ? t('auditChecklistAdmin.yes') : t('auditChecklistAdmin.no')}</td>
+                  <td className="p-3 text-foreground">{d.active ? t('auditChecklistAdmin.active') : t('auditChecklistAdmin.inactive')}</td>
                   <td className="p-3 text-right">
                     <button onClick={() => setEditing(d)} className="flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline">
-                      <Pencil className="h-3 w-3" /> Edit
+                      <Pencil className="h-3 w-3" /> {t('auditChecklistAdmin.edit')}
                     </button>
                   </td>
                 </tr>
@@ -211,6 +212,7 @@ function RequirementDefinitionEditModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  const { t } = useTranslation()
   const [title, setTitle] = useState(definition.title)
   const [description, setDescription] = useState(definition.description)
   const [guidelineReference, setGuidelineReference] = useState(definition.guidelineReference ?? '')
@@ -236,61 +238,62 @@ function RequirementDefinitionEditModal({
       })
       onSaved()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save this requirement.'))
+      setError(getErrorMessage(err, t('auditChecklistAdmin.errorSave')))
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="Edit Requirement" onClose={onClose}>
+    <Modal title={t('auditChecklistAdmin.editModalTitle')} onClose={onClose}>
       <div className="space-y-3">
         {error && <p className="text-xs text-status-error">{error}</p>}
 
         <div className="rounded-lg bg-muted/40 p-2.5 text-xs text-muted-foreground">
-          <span className="font-mono">{definition.requirementKey}</span> — {SOURCE_LABELS[definition.source]}, never editable here.
+          <span className="font-mono">{definition.requirementKey}</span>{' '}
+          {t('auditChecklistAdmin.neverEditableNote', { source: t(SOURCE_LABEL_KEYS[definition.source]) })}
         </div>
 
         <div>
-          <label className={labelClass}>Title</label>
+          <label className={labelClass}>{t('auditChecklistAdmin.titleLabel')}</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Description</label>
+          <label className={labelClass}>{t('auditChecklistAdmin.description')}</label>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Guideline reference</label>
+          <label className={labelClass}>{t('auditChecklistAdmin.guidelineReference')}</label>
           <input
             value={guidelineReference}
             onChange={(e) => setGuidelineReference(e.target.value)}
-            placeholder="e.g. GUD/022 §6.6"
+            placeholder={t('auditChecklistAdmin.guidelineReferencePlaceholder')}
             className={inputClass}
           />
         </div>
         <div>
-          <label className={labelClass}>Evidence artifact type</label>
+          <label className={labelClass}>{t('auditChecklistAdmin.evidenceArtifactType')}</label>
           <input value={evidenceArtifactType} onChange={(e) => setEvidenceArtifactType(e.target.value)} className={inputClass} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Sort order</label>
+            <label className={labelClass}>{t('auditChecklistAdmin.sortOrder')}</label>
             <input type="number" min={1} value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value))} className={inputClass} />
           </div>
           <div className="flex flex-col justify-end gap-2 pb-1">
             <label className="flex items-center gap-2 text-sm text-foreground">
               <input type="checkbox" checked={isMandatory} onChange={(e) => setIsMandatory(e.target.checked)} className="h-4 w-4 rounded border-input" />
-              Mandatory
+              {t('auditChecklistAdmin.mandatory')}
             </label>
             <label className="flex items-center gap-2 text-sm text-foreground">
               <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4 rounded border-input" />
-              Active
+              {t('auditChecklistAdmin.active')}
             </label>
           </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSave}
@@ -298,7 +301,7 @@ function RequirementDefinitionEditModal({
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save changes
+            {t('pvCaseDetail.saveChanges')}
           </button>
         </div>
       </div>
@@ -317,6 +320,7 @@ function RequirementDefinitionCreateModal({
   onClose: () => void
   onCreated: () => void
 }) {
+  const { t } = useTranslation()
   const [requirementKey, setRequirementKey] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -346,67 +350,67 @@ function RequirementDefinitionCreateModal({
       })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this requirement.'))
+      setError(getErrorMessage(err, t('auditChecklistAdmin.errorCreate')))
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="Add a New Requirement" onClose={onClose}>
+    <Modal title={t('auditChecklistAdmin.createModalTitle')} onClose={onClose}>
       <div className="space-y-3">
         <div className="flex items-start gap-2 rounded-lg border border-status-info/30 bg-status-info/5 p-2.5 text-xs text-muted-foreground">
           <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-info" />
-          Always created as a <strong className="text-foreground">manual (person_uploads)</strong> requirement — a live, system-computed
-          row needs a matching resolver an engineer ships in code, so that option isn&apos;t available here.
+          {t('auditChecklistAdmin.alwaysManualPrefix')} <strong className="text-foreground">{t('auditChecklistAdmin.alwaysManualBold')}</strong>{' '}
+          {t('auditChecklistAdmin.alwaysManualSuffix')}
         </div>
         {error && <p className="text-xs text-status-error">{error}</p>}
 
         <div>
-          <label className={labelClass}>Requirement key</label>
+          <label className={labelClass}>{t('auditChecklistAdmin.requirementKey')}</label>
           <input
             value={requirementKey}
             onChange={(e) => setRequirementKey(e.target.value)}
-            placeholder="e.g. field_expert_new_row"
+            placeholder={t('auditChecklistAdmin.requirementKeyPlaceholder')}
             className={inputClass}
           />
         </div>
         <div>
-          <label className={labelClass}>Title</label>
+          <label className={labelClass}>{t('auditChecklistAdmin.titleLabel')}</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Description</label>
+          <label className={labelClass}>{t('auditChecklistAdmin.description')}</label>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Guideline reference (optional)</label>
+          <label className={labelClass}>{t('auditChecklistAdmin.guidelineReferenceOptional')}</label>
           <input
             value={guidelineReference}
             onChange={(e) => setGuidelineReference(e.target.value)}
-            placeholder="e.g. GUD/099 §2"
+            placeholder={t('auditChecklistAdmin.guidelineReferenceOptionalPlaceholder')}
             className={inputClass}
           />
         </div>
         <div>
-          <label className={labelClass}>Evidence artifact type</label>
+          <label className={labelClass}>{t('auditChecklistAdmin.evidenceArtifactType')}</label>
           <input value={evidenceArtifactType} onChange={(e) => setEvidenceArtifactType(e.target.value)} className={inputClass} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Sort order</label>
+            <label className={labelClass}>{t('auditChecklistAdmin.sortOrder')}</label>
             <input type="number" min={1} value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value))} className={inputClass} />
           </div>
           <div className="flex items-end pb-2">
             <label className="flex items-center gap-2 text-sm text-foreground">
               <input type="checkbox" checked={isMandatory} onChange={(e) => setIsMandatory(e.target.checked)} className="h-4 w-4 rounded border-input" />
-              Mandatory
+              {t('auditChecklistAdmin.mandatory')}
             </label>
           </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleCreate}
@@ -414,7 +418,7 @@ function RequirementDefinitionCreateModal({
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create requirement
+            {t('auditChecklistAdmin.createRequirement')}
           </button>
         </div>
       </div>

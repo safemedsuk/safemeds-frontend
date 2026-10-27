@@ -26,6 +26,22 @@ import { RegulatorySubmissionPanel } from '@/components/reg-dossiers/regulatory-
 import { RegQueryPanel } from '@/components/reg-dossiers/reg-query-panel'
 import { ApproveRegistrationModal } from '@/components/reg-dossiers/approve-registration-modal'
 import { VariationApplicationPanel } from '@/components/reg-dossiers/variation-application-panel'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
+
+const STATUS_LABEL_KEYS: Record<string, MessageKey> = {
+  planning: 'regDossiersList.statusPlanning',
+  compiling: 'regDossiersList.statusCompiling',
+  completeness_check: 'regDossiersList.statusCompletenessCheck',
+  variation_application: 'regDossiersList.statusVariationApplication',
+  renewal_requested: 'regDossiersList.statusRenewalRequested',
+  submitted: 'regDossiersList.statusSubmitted',
+  query_received: 'regDossiersList.statusQueryReceived',
+  responding: 'regDossiersList.statusResponding',
+  resubmitted_for_review: 'regDossiersList.statusResubmittedForReview',
+  approved: 'regDossiersList.statusApproved',
+  rejected: 'regDossiersList.statusRejected',
+}
 
 /**
  * testing-correction-explanation.md §2.3 — a real dossier lifecycle
@@ -40,33 +56,35 @@ import { VariationApplicationPanel } from '@/components/reg-dossiers/variation-a
  * the forward-progress track (it's a bad-outcome terminal, not a step
  * toward one — the status pill above already carries that in red).
  */
-const REG_DOSSIER_STAGES: Record<RegDossierKind, StageTrackerStage[]> = {
-  registration: [
-    { key: 'planning', label: 'Planning' },
-    { key: 'compiling', label: 'Compile' },
-    { key: 'completeness_check', label: 'Completeness' },
-    { key: 'submitted', label: 'Submitted' },
-    { key: 'query_received', label: 'Query' },
-    { key: 'responding', label: 'Responding' },
-    { key: 'resubmitted_for_review', label: 'Resubmitted' },
-    { key: 'approved', label: 'Approved' },
-  ],
-  variation: [
-    { key: 'variation_application', label: 'Variation App.' },
-    { key: 'submitted', label: 'Submitted' },
-    { key: 'query_received', label: 'Query' },
-    { key: 'responding', label: 'Responding' },
-    { key: 'resubmitted_for_review', label: 'Resubmitted' },
-    { key: 'approved', label: 'Approved' },
-  ],
-  renewal: [
-    { key: 'renewal_requested', label: 'Renewal Req.' },
-    { key: 'submitted', label: 'Submitted' },
-    { key: 'query_received', label: 'Query' },
-    { key: 'responding', label: 'Responding' },
-    { key: 'resubmitted_for_review', label: 'Resubmitted' },
-    { key: 'approved', label: 'Approved' },
-  ],
+function buildRegDossierStages(t: ReturnType<typeof useTranslation>['t']): Record<RegDossierKind, StageTrackerStage[]> {
+  return {
+    registration: [
+      { key: 'planning', label: t('regDossierDetail.stagePlanning') },
+      { key: 'compiling', label: t('regDossierDetail.stageCompile') },
+      { key: 'completeness_check', label: t('regDossierDetail.stageCompleteness') },
+      { key: 'submitted', label: t('regDossierDetail.stageSubmitted') },
+      { key: 'query_received', label: t('regDossierDetail.stageQuery') },
+      { key: 'responding', label: t('regDossierDetail.stageResponding') },
+      { key: 'resubmitted_for_review', label: t('regDossierDetail.stageResubmitted') },
+      { key: 'approved', label: t('regDossierDetail.stageApproved') },
+    ],
+    variation: [
+      { key: 'variation_application', label: t('regDossierDetail.stageVariationApp') },
+      { key: 'submitted', label: t('regDossierDetail.stageSubmitted') },
+      { key: 'query_received', label: t('regDossierDetail.stageQuery') },
+      { key: 'responding', label: t('regDossierDetail.stageResponding') },
+      { key: 'resubmitted_for_review', label: t('regDossierDetail.stageResubmitted') },
+      { key: 'approved', label: t('regDossierDetail.stageApproved') },
+    ],
+    renewal: [
+      { key: 'renewal_requested', label: t('regDossierDetail.stageRenewalReq') },
+      { key: 'submitted', label: t('regDossierDetail.stageSubmitted') },
+      { key: 'query_received', label: t('regDossierDetail.stageQuery') },
+      { key: 'responding', label: t('regDossierDetail.stageResponding') },
+      { key: 'resubmitted_for_review', label: t('regDossierDetail.stageResubmitted') },
+      { key: 'approved', label: t('regDossierDetail.stageApproved') },
+    ],
+  }
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -119,7 +137,9 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
  * the audit trail.
  */
 export function RegDossierDetail({ dossierId }: { dossierId: string }) {
+  const { t } = useTranslation()
   const router = useRouter()
+  const statusText = (status: string) => (STATUS_LABEL_KEYS[status] ? t(STATUS_LABEL_KEYS[status]) : statusLabel(status))
   const { has } = usePermissions()
   const canManageDossier = has('regulatory.manage_dossier')
 
@@ -152,13 +172,13 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
         if (err instanceof ApiRequestError && err.status === 404) {
           setNotFound(true)
         } else {
-          setError(getErrorMessage(err, 'Could not load this dossier.'))
+          setError(getErrorMessage(err, t('regDossierDetail.couldNotLoad')))
         }
       } finally {
         if (!silent) setLoading(false)
       }
     },
-    [dossierId],
+    [dossierId, t],
   )
 
   const refresh = useCallback(() => load(true), [load])
@@ -178,7 +198,7 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
       await attachRegDossierDocument(dossierId, slotId, documentId)
       await refresh()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not attach this document.'))
+      setError(getErrorMessage(err, t('regDossierDetail.couldNotAttach')))
     } finally {
       setBusySlotId(null)
     }
@@ -191,7 +211,7 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
       await detachRegDossierDocument(dossierId, slotId)
       await refresh()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not detach this document.'))
+      setError(getErrorMessage(err, t('regDossierDetail.couldNotDetach')))
     } finally {
       setBusySlotId(null)
     }
@@ -200,7 +220,7 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading dossier…
+        <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('regDossierDetail.loadingDossier')}
       </div>
     )
   }
@@ -209,11 +229,11 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
     return (
       <div className="space-y-6 p-6">
         <button onClick={() => router.push('/reg-dossiers')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back to Regulatory Dossiers
+          <ArrowLeft className="h-4 w-4" /> {t('regDossierDetail.backToDossiers')}
         </button>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">This dossier doesn&apos;t exist, or you don&apos;t have permission to view it.</p>
+          <p className="text-sm text-muted-foreground">{t('regDossierDetail.notFound')}</p>
         </div>
       </div>
     )
@@ -222,7 +242,7 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
   if (error || !dossier) {
     return (
       <div className="space-y-6 p-6">
-        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error ?? 'Something went wrong.'}</div>
+        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error ?? t('regDossierDetail.somethingWentWrong')}</div>
       </div>
     )
   }
@@ -237,38 +257,38 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
   return (
     <div className="space-y-6 p-6 max-w-4xl">
       <button onClick={() => router.push('/reg-dossiers')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to Regulatory Dossiers
+        <ArrowLeft className="h-4 w-4" /> {t('regDossierDetail.backToDossiers')}
       </button>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground">{dossier.product.brandName}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {dossier.authority.name} ({dossier.authority.code}) · Class: <span className="font-mono">{dossier.productClass}</span>
-            {dossier.route !== '*' && <> · Route: <span className="font-mono">{dossier.route}</span></>}
+            {dossier.authority.name} ({dossier.authority.code}) · {t('regDossierDetail.classLabel')} <span className="font-mono">{dossier.productClass}</span>
+            {dossier.route !== '*' && <> · {t('regDossierDetail.routeLabel')} <span className="font-mono">{dossier.route}</span></>}
           </p>
           {dossier.variation && (
             <p className="mt-1 text-xs text-status-info">
-              {dossier.variation.variationType === 'renewal' ? 'Renewal' : 'Variation'} of registration{' '}
+              {dossier.variation.variationType === 'renewal' ? t('regDossierDetail.renewalOf') : t('regDossierDetail.variationOf')}{' '}
               <span className="font-mono">{dossier.variation.productRegistrationNumber}</span>
             </p>
           )}
           {dossier.effectiveEngagementType !== 'full_service' && (
             <p className="mt-1 flex items-center gap-1.5 text-xs text-status-warning">
               <Info className="h-3.5 w-3.5" />
-              Engagement model: {ENGAGEMENT_TYPE_LABELS[dossier.effectiveEngagementType] ?? dossier.effectiveEngagementType}
-              {dossier.engagementType && ' (dossier override)'}
+              {t('regDossierDetail.engagementModelLabel')} {ENGAGEMENT_TYPE_LABELS[dossier.effectiveEngagementType] ?? dossier.effectiveEngagementType}
+              {dossier.engagementType && t('regDossierDetail.dossierOverrideSuffix')}
             </p>
           )}
         </div>
         <span className={`rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap ${STATUS_STYLES[dossier.status] ?? 'bg-muted text-muted-foreground'}`}>
-          {statusLabel(dossier.status)}
+          {statusText(dossier.status)}
         </span>
       </div>
 
       {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-sm text-status-error">{error}</div>}
 
-      <CaseStageTracker stages={REG_DOSSIER_STAGES[dossier.kind]} currentKey={dossier.status} />
+      <CaseStageTracker stages={buildRegDossierStages(t)[dossier.kind]} currentKey={dossier.status} />
 
       {dossier.variation && dossier.status === 'variation_application' && (
         <VariationApplicationPanel variationId={dossier.variation.id} onChanged={refresh} />
@@ -289,35 +309,33 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
         }}
       />
 
-      <DecisionHistoryCard entries={dossier.transitionHistory} resolveLabel={statusLabel} />
+      <DecisionHistoryCard entries={dossier.transitionHistory} resolveLabel={statusText} />
 
       <Section
-        title="Completeness Check"
+        title={t('regDossierDetail.completenessCheckTitle')}
         subtitle={
           dossier.completeness.guidanceOnly
-            ? 'Documents commonly required for this country/authority/product class — shown as guidance, never blocking'
-            : 'Every checklist item resolved for this country/authority/product class — the flagship gate blocks Compiling → Completeness Check until every mandatory one has a document attached'
+            ? t('regDossierDetail.completenessGuidanceSubtitle')
+            : t('regDossierDetail.completenessGateSubtitle')
         }
       >
         <InfoNote>
           {dossier.completeness.guidanceOnly ? (
             <>
-              This checklist is configured for a fresh <strong className="text-foreground">registration</strong>, so
-              it's shown here for guidance only — nothing below is required to proceed with this variation/renewal.
-              Upload whatever the regulator actually asks for.
+              {t('regDossierDetail.guidanceNotePrefix')} <strong className="text-foreground">{t('regDossierDetail.guidanceNoteRegistration')}</strong>
+              {t('regDossierDetail.guidanceNoteSuffix')}
             </>
           ) : (
             <>
-              <strong className="text-foreground">Mandatory</strong> items must have a document attached before this
-              dossier can pass the completeness gate. An <strong className="text-foreground">optional</strong> item, or
-              one you added yourself as an extra, is shown for visibility but never blocks progress.
+              <strong className="text-foreground">{t('regDossierDetail.mandatoryNoteMandatory')}</strong> {t('regDossierDetail.mandatoryNoteSuffix')}{' '}
+              <strong className="text-foreground">{t('regDossierDetail.mandatoryNoteOptional')}</strong> {t('regDossierDetail.mandatoryNoteTail')}
             </>
           )}
         </InfoNote>
 
         {dossier.completeness.slots.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No document checklist is configured yet for this country/authority/product class — nothing blocks this dossier.
+            {t('regDossierDetail.noChecklist')}
           </p>
         ) : (
           <ul className="space-y-2">
@@ -335,10 +353,10 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
                     )}
                     <span className={`truncate text-sm ${done ? 'text-foreground' : 'text-muted-foreground'}`}>{status.label}</span>
                     {status.isMandatory && (
-                      <span className="rounded-full bg-status-error/10 px-2 py-0.5 text-[10px] font-medium text-status-error whitespace-nowrap">Mandatory</span>
+                      <span className="rounded-full bg-status-error/10 px-2 py-0.5 text-[10px] font-medium text-status-error whitespace-nowrap">{t('regDossierDetail.mandatoryBadge')}</span>
                     )}
                     {dossier.completeness.guidanceOnly && (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground whitespace-nowrap">Suggested</span>
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground whitespace-nowrap">{t('regDossierDetail.suggestedBadge')}</span>
                     )}
                     {status.ctdModule && <span className="text-xs text-muted-foreground whitespace-nowrap">{status.ctdModule}</span>}
                   </div>
@@ -352,7 +370,7 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
                           className="flex items-center gap-1 text-xs font-medium text-status-error hover:underline disabled:opacity-50"
                         >
                           {busySlotId === slot.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unlink className="h-3 w-3" />}
-                          Unlink
+                          {t('regDossierDetail.unlink')}
                         </button>
                       ) : (
                         <select
@@ -362,7 +380,7 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
                           className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground disabled:opacity-50"
                         >
                           <option value="">
-                            {attachableDocuments.length === 0 ? 'Upload a document below first' : 'Link a document…'}
+                            {attachableDocuments.length === 0 ? t('regDossierDetail.uploadFirst') : t('regDossierDetail.linkADocument')}
                           </option>
                           {attachableDocuments.map((d) => (
                             <option key={d.id} value={d.id}>
@@ -381,7 +399,7 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
 
         {canManageDossier && (
           <button onClick={() => setShowAddSlot(true)} className="mt-3 flex items-center gap-1.5 text-xs font-medium text-safemeds-teal hover:underline">
-            <Plus className="h-3.5 w-3.5" /> Add another document
+            <Plus className="h-3.5 w-3.5" /> {t('regDossierDetail.addAnotherDocument')}
           </button>
         )}
       </Section>
@@ -423,6 +441,7 @@ export function RegDossierDetail({ dossierId }: { dossierId: string }) {
 }
 
 function AddSlotModal({ dossierId, onClose, onAdded }: { dossierId: string; onClose: () => void; onAdded: () => void }) {
+  const { t } = useTranslation()
   const [labelOverride, setLabelOverride] = useState('')
   const [ctdModule, setCtdModule] = useState('')
   const [saving, setSaving] = useState(false)
@@ -436,42 +455,42 @@ function AddSlotModal({ dossierId, onClose, onAdded }: { dossierId: string; onCl
       await addRegDossierSlot(dossierId, { labelOverride: labelOverride.trim(), ctdModule: ctdModule.trim() || undefined })
       onAdded()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not add this document.'))
+      setError(getErrorMessage(err, t('addSlotModal.couldNotAdd')))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal title="Add an ad-hoc document" onClose={onClose}>
+    <Modal title={t('addSlotModal.title')} onClose={onClose}>
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          For a document the checklist didn&apos;t anticipate — this is never treated as mandatory by the completeness gate.
+          {t('addSlotModal.notice')}
         </p>
         <div>
           <label className="mb-1.5 block text-xs font-medium text-foreground">
-            Label <Link2 className="inline h-3 w-3 text-muted-foreground" />
+            {t('addSlotModal.labelLabel')} <Link2 className="inline h-3 w-3 text-muted-foreground" />
           </label>
           <input
             value={labelOverride}
             onChange={(e) => setLabelOverride(e.target.value)}
-            placeholder="e.g. Supplementary cover letter"
+            placeholder={t('addSlotModal.labelPlaceholder')}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">CTD module (optional)</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('addSlotModal.ctdModuleLabel')}</label>
           <input
             value={ctdModule}
             onChange={(e) => setCtdModule(e.target.value)}
-            placeholder="e.g. Module 1"
+            placeholder={t('addSlotModal.ctdModulePlaceholder')}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
           />
         </div>
         {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-xs text-status-error">{error}</div>}
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={submit}
@@ -479,7 +498,7 @@ function AddSlotModal({ dossierId, onClose, onAdded }: { dossierId: string; onCl
             className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Add
+            {t('addSlotModal.add')}
           </button>
         </div>
       </div>

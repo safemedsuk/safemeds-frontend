@@ -24,6 +24,7 @@ import {
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { SignatureModal } from '@/components/ui/signature-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const QUALITY_STATUS_STYLES: Record<string, string> = {
   quarantine: 'bg-muted text-foreground',
@@ -49,6 +50,7 @@ function formatDate(value: string | null): string {
  */
 export function BatchDetail({ batchId }: { batchId: string }) {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canReview = has('quality.review_batch_records')
   const canRelease = has('quality.manage_batch_release')
@@ -87,9 +89,9 @@ export function BatchDetail({ batchId }: { batchId: string }) {
         setReadiness(readinessRes)
         setReleaseDecisions(decisionsRes)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load this batch.')))
+      .catch((err) => setError(getErrorMessage(err, t('batchDetail.errorLoad'))))
       .finally(() => setLoading(false))
-  }, [batchId])
+  }, [batchId, t])
 
   useEffect(() => load(), [load])
 
@@ -108,26 +110,24 @@ export function BatchDetail({ batchId }: { batchId: string }) {
       <div className="space-y-6 p-6">
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">{error ?? 'Batch not found.'}</p>
+          <p className="text-sm text-muted-foreground">{error ?? t('batchDetail.notFound')}</p>
         </div>
       </div>
     )
   }
 
-  const pendingReview = reviews.find((r) => !r.disposition)
-
   return (
     <div className="space-y-6 p-6">
       <button onClick={() => router.push('/master-data')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to Master Data
+        <ArrowLeft className="h-4 w-4" /> {t('batchDetail.backToMasterData')}
       </button>
 
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-mono text-xs text-muted-foreground">{batch.product.brandName}</p>
-          <h1 className="text-2xl font-display font-bold text-foreground">Batch {batch.batchNumber}</h1>
+          <h1 className="text-2xl font-display font-bold text-foreground">{t('batchDetail.batch', { number: batch.batchNumber })}</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Manufactured {formatDate(batch.manufacturedOn)} · Expires {formatDate(batch.expiresOn)}
+            {t('batchDetail.manufactured', { mfgDate: formatDate(batch.manufacturedOn), expDate: formatDate(batch.expiresOn) })}
             {batch.batchSize && ` · ${batch.batchSize}${batch.unit ? ` ${batch.unit}` : ''}`}
           </p>
         </div>
@@ -142,13 +142,13 @@ export function BatchDetail({ batchId }: { batchId: string }) {
       <div className="rounded-lg border border-border bg-card p-4 space-y-4">
         <div className="flex items-center gap-2">
           <GitBranch className="h-4 w-4 text-muted-foreground" />
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Batch Genealogy</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('batchDetail.genealogy')}</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Upstream (made from)</p>
+            <p className="text-xs font-medium text-muted-foreground mb-2">{t('batchDetail.upstream')}</p>
             {trace.upstreamBatches.length === 0 && trace.unresolvedUpstreamIds.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No upstream batches recorded.</p>
+              <p className="text-xs text-muted-foreground">{t('batchDetail.noUpstream')}</p>
             ) : (
               <ul className="space-y-1">
                 {trace.upstreamBatches.map((b) => (
@@ -160,16 +160,16 @@ export function BatchDetail({ batchId }: { batchId: string }) {
                 ))}
                 {trace.unresolvedUpstreamIds.map((id) => (
                   <li key={id} className="text-sm text-muted-foreground">
-                    {id} <span className="text-xs">(external lot, not in this catalog)</span>
+                    {id} <span className="text-xs">{t('batchDetail.externalLot')}</span>
                   </li>
                 ))}
               </ul>
             )}
           </div>
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Downstream (used in)</p>
+            <p className="text-xs font-medium text-muted-foreground mb-2">{t('batchDetail.downstream')}</p>
             {trace.downstreamBatches.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No downstream batches recorded.</p>
+              <p className="text-xs text-muted-foreground">{t('batchDetail.noDownstream')}</p>
             ) : (
               <ul className="space-y-1">
                 {trace.downstreamBatches.map((b) => (
@@ -186,32 +186,32 @@ export function BatchDetail({ batchId }: { batchId: string }) {
       </div>
 
       <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Linked Quality Events</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('batchDetail.linkedQualityEvents')}</p>
         {trace.deviations.length === 0 && trace.changeControls.length === 0 && trace.complaints.length === 0 && trace.oosRecords.length === 0 && trace.recallsOnSameProduct.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No quality events linked to this batch.</p>
+          <p className="text-xs text-muted-foreground">{t('batchDetail.noQualityEvents')}</p>
         ) : (
           <ul className="space-y-1.5 text-sm">
             {trace.deviations.map((d) => (
               <li key={d.id} className="flex items-center justify-between">
-                <span className="text-foreground">Deviation {d.deviationNumber} — {d.title}</span>
+                <span className="text-foreground">{t('batchDetail.deviation', { number: d.deviationNumber, title: d.title })}</span>
                 <span className="text-xs text-muted-foreground capitalize">{d.status.replace(/_/g, ' ')}</span>
               </li>
             ))}
             {trace.changeControls.map((c) => (
               <li key={c.id} className="flex items-center justify-between">
-                <span className="text-foreground">Change Control {c.changeNumber} — {c.title}</span>
+                <span className="text-foreground">{t('batchDetail.changeControl', { number: c.changeNumber, title: c.title })}</span>
                 <span className="text-xs text-muted-foreground capitalize">{c.status.replace(/_/g, ' ')}</span>
               </li>
             ))}
             {trace.complaints.map((c) => (
               <li key={c.id} className="flex items-center justify-between">
-                <span className="text-foreground">Complaint {c.complaintNumber}</span>
+                <span className="text-foreground">{t('batchDetail.complaint', { number: c.complaintNumber })}</span>
                 <span className="text-xs text-muted-foreground capitalize">{c.status.replace(/_/g, ' ')}</span>
               </li>
             ))}
             {trace.oosRecords.map((o) => (
               <li key={o.id} className="flex items-center justify-between">
-                <span className="text-foreground">OOS {o.oosNumber}</span>
+                <span className="text-foreground">{t('batchDetail.oos', { number: o.oosNumber })}</span>
                 <span className="text-xs text-muted-foreground capitalize">{o.status.replace(/_/g, ' ')}</span>
               </li>
             ))}
@@ -219,7 +219,7 @@ export function BatchDetail({ batchId }: { batchId: string }) {
               <li className="flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning/5 p-2.5 mt-2">
                 <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-warning" />
                 <span className="text-xs text-muted-foreground">
-                  {trace.recallsOnSameProduct.length} recall(s) on this same product (recalls aren&apos;t tracked at the batch level in this schema — shown for awareness, not necessarily this exact batch).
+                  {t('batchDetail.recallsNote', { count: String(trace.recallsOnSameProduct.length) })}
                 </span>
               </li>
             )}
@@ -229,26 +229,26 @@ export function BatchDetail({ batchId }: { batchId: string }) {
 
       <div className="rounded-lg border border-border bg-card p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Batch Record Review</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('batchDetail.batchRecordReview')}</p>
           {canReview && (
             <button onClick={() => setShowCreateReview(true)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-              New Review
+              {t('batchDetail.newReview')}
             </button>
           )}
         </div>
         <div className="flex items-start gap-2 rounded-lg border border-status-info/30 bg-status-info/5 p-2.5 text-xs leading-relaxed text-muted-foreground">
           <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-info" />
-          <p>This is the QA batch-record review (pre-Qualified-Person). The separate, more senior QP release gate is below.</p>
+          <p>{t('batchDetail.qaReviewNote')}</p>
         </div>
         {reviews.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No reviews recorded yet.</p>
+          <p className="text-xs text-muted-foreground">{t('batchDetail.noReviewsYet')}</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground">
-                <th className="py-1 pr-3">Findings</th>
-                <th className="py-1 pr-3">Disposition</th>
-                <th className="py-1">Action</th>
+                <th className="py-1 pr-3">{t('batchDetail.columnFindings')}</th>
+                <th className="py-1 pr-3">{t('batchDetail.columnDisposition')}</th>
+                <th className="py-1">{t('batchDetail.columnAction')}</th>
               </tr>
             </thead>
             <tbody>
@@ -259,13 +259,13 @@ export function BatchDetail({ batchId }: { batchId: string }) {
                     {r.disposition ? (
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${QUALITY_STATUS_STYLES[r.disposition] ?? 'bg-muted text-foreground'}`}>{r.disposition}</span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">Pending</span>
+                      <span className="text-xs text-muted-foreground">{t('batchDetail.pending')}</span>
                     )}
                   </td>
                   <td className="py-2">
                     {!r.disposition && canReview && (
                       <button onClick={() => setChoosingDispositionFor(r)} className="text-xs font-medium text-safemeds-teal hover:underline">
-                        Record Disposition
+                        {t('batchDetail.recordDisposition')}
                       </button>
                     )}
                   </td>
@@ -280,21 +280,18 @@ export function BatchDetail({ batchId }: { batchId: string }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Batch Release (Qualified Person)</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('batchDetail.batchRelease')}</p>
           </div>
           {canRelease && releaseDecisions.length === 0 && (
             <button onClick={() => setShowRelease(true)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-              Review Readiness &amp; Release
+              {t('batchDetail.reviewReadinessAndRelease')}
             </button>
           )}
         </div>
         <div className="flex items-start gap-2 rounded-lg border border-status-info/30 bg-status-info/5 p-2.5 text-xs leading-relaxed text-muted-foreground">
           <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-info" />
           <p>
-            A distinct, more senior gate than the QA review above — real-world Qualified Person designation is a
-            jurisdiction-specific professional credential, so this is modeled as a permission
-            (<code>quality.manage_batch_release</code>) a platform operator grants to a specific role, not a new
-            role this product invents.
+            {t('batchDetail.qpNote', { permission: 'quality.manage_batch_release' })}
           </p>
         </div>
         {releaseDecisions.length > 0 ? (
@@ -307,14 +304,14 @@ export function BatchDetail({ batchId }: { batchId: string }) {
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-muted-foreground">No release decision has been recorded yet.</p>
+          <p className="text-xs text-muted-foreground">{t('batchDetail.noReleaseDecision')}</p>
         )}
         {batch.qualityStatus === 'rejected' || batch.qualityStatus === 'recalled' ? (
           <button
             onClick={() => router.push(`/quality-waste-disposal?batchId=${batchId}`)}
             className="flex items-center gap-1.5 text-xs font-medium text-safemeds-teal hover:underline"
           >
-            <Trash2 className="h-3.5 w-3.5" /> Log the disposal of this batch
+            <Trash2 className="h-3.5 w-3.5" /> {t('batchDetail.logDisposal')}
           </button>
         ) : null}
       </div>
@@ -334,7 +331,7 @@ export function BatchDetail({ batchId }: { batchId: string }) {
         <SignatureModal
           isOpen={true}
           onClose={() => setReleasing(null)}
-          documentTitle={`Release batch ${batch.batchNumber}`}
+          documentTitle={t('batchDetail.releaseTitle', { number: batch.batchNumber })}
           documentId={batchId}
           onSigned={async ({ signatureToken, intentStatement }) => {
             await releaseBatch(batchId, {
@@ -344,7 +341,7 @@ export function BatchDetail({ batchId }: { batchId: string }) {
               signatureToken,
             })
             setReleasing(null)
-            setNotice('Batch release decision recorded.')
+            setNotice(t('batchDetail.releaseDecisionRecordedNotice'))
             refresh()
           }}
         />
@@ -356,7 +353,7 @@ export function BatchDetail({ batchId }: { batchId: string }) {
           onClose={() => setShowCreateReview(false)}
           onCreated={() => {
             setShowCreateReview(false)
-            setNotice('Review recorded.')
+            setNotice(t('batchDetail.reviewRecordedNotice'))
             refresh()
           }}
         />
@@ -377,7 +374,7 @@ export function BatchDetail({ batchId }: { batchId: string }) {
         <SignatureModal
           isOpen={true}
           onClose={() => setDispositioning(null)}
-          documentTitle={`${dispositioning.disposition} — batch ${batch.batchNumber}`}
+          documentTitle={t('batchDetail.dispositionTitle', { disposition: dispositioning.disposition, number: batch.batchNumber })}
           documentId={dispositioning.review.id}
           onSigned={async ({ signatureToken, intentStatement }) => {
             await recordBatchDisposition(dispositioning.review.id, {
@@ -386,7 +383,7 @@ export function BatchDetail({ batchId }: { batchId: string }) {
               signatureToken,
             })
             setDispositioning(null)
-            setNotice('Disposition recorded.')
+            setNotice(t('batchDetail.dispositionRecordedNotice'))
             refresh()
           }}
         />
@@ -396,11 +393,12 @@ export function BatchDetail({ batchId }: { batchId: string }) {
 }
 
 function ChooseDispositionModal({ onClose, onChosen }: { onClose: () => void; onChosen: (disposition: string) => void }) {
+  const { t } = useTranslation()
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 space-y-4">
-        <h3 className="font-display font-bold text-base text-foreground">Record Disposition</h3>
-        <p className="text-xs text-muted-foreground">This will require an electronic signature.</p>
+        <h3 className="font-display font-bold text-base text-foreground">{t('batchDetail.recordDispositionTitle')}</h3>
+        <p className="text-xs text-muted-foreground">{t('batchDetail.signatureRequiredNote')}</p>
         <div className="space-y-2">
           {BATCH_RECORD_REVIEW_DISPOSITIONS.map((d) => (
             <button
@@ -414,7 +412,7 @@ function ChooseDispositionModal({ onClose, onChosen }: { onClose: () => void; on
         </div>
         <div className="flex justify-end pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       </div>
@@ -431,6 +429,7 @@ function ReleaseReadinessModal({
   onClose: () => void
   onReadyToSign: (riskAcceptances: { recordType: string; recordId: string; reason: string }[]) => void
 }) {
+  const { t } = useTranslation()
   const failingWithRecord = readiness.items.filter((i) => !i.passed && i.recordType && i.recordId)
   const [reasons, setReasons] = useState<Record<string, string>>({})
 
@@ -440,9 +439,9 @@ function ReleaseReadinessModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
       <div className="w-full max-w-lg rounded-lg border border-border bg-card p-6 space-y-4 my-8">
-        <h3 className="font-display font-bold text-base text-foreground">Release Readiness</h3>
+        <h3 className="font-display font-bold text-base text-foreground">{t('batchDetail.releaseReadinessTitle')}</h3>
         <p className="text-xs text-muted-foreground">
-          Every condition below is shown clearly, pass or fail, before any signature is offered.
+          {t('batchDetail.readinessSubtitle')}
         </p>
         <ul className="space-y-2">
           {readiness.items.map((item) => (
@@ -450,18 +449,18 @@ function ReleaseReadinessModal({
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-foreground">{item.label}</span>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${item.passed ? 'bg-status-success/10 text-status-success' : 'bg-status-error/10 text-status-error'}`}>
-                  {item.passed ? 'Pass' : 'Fail'}
+                  {item.passed ? t('batchDetail.pass') : t('batchDetail.fail')}
                 </span>
               </div>
               {!item.passed && item.detail && <p className="mt-1 text-xs text-muted-foreground">{item.detail}</p>}
               {!item.passed && item.recordType && item.recordId && (
                 <div className="mt-2">
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Risk-acceptance reason (required to proceed anyway)</label>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('batchDetail.riskAcceptanceReasonLabel')}</label>
                   <input
                     value={reasons[item.key] ?? ''}
                     onChange={(e) => setReasons((prev) => ({ ...prev, [item.key]: e.target.value }))}
                     className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground"
-                    placeholder="e.g. Unrelated to this batch, confirmed by QA"
+                    placeholder={t('batchDetail.riskAcceptancePlaceholder')}
                   />
                 </div>
               )}
@@ -470,7 +469,7 @@ function ReleaseReadinessModal({
         </ul>
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={() => {
@@ -484,7 +483,7 @@ function ReleaseReadinessModal({
             disabled={!canProceed}
             className="rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
-            Continue to Signature
+            {t('batchDetail.continueToSignature')}
           </button>
         </div>
       </div>
@@ -493,6 +492,7 @@ function ReleaseReadinessModal({
 }
 
 function CreateReviewModal({ batchId, onClose, onCreated }: { batchId: string; onClose: () => void; onCreated: () => void }) {
+  const { t } = useTranslation()
   const [reviewFindings, setReviewFindings] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -504,7 +504,7 @@ function CreateReviewModal({ batchId, onClose, onCreated }: { batchId: string; o
       await createBatchRecordReview({ batchId, reviewFindings: reviewFindings.trim() || undefined })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this review.'))
+      setError(getErrorMessage(err, t('batchDetail.errorCreateReview')))
       setSubmitting(false)
     }
   }
@@ -512,21 +512,21 @@ function CreateReviewModal({ batchId, onClose, onCreated }: { batchId: string; o
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h3 className="font-display font-bold text-base text-foreground">New Batch Record Review</h3>
+        <h3 className="font-display font-bold text-base text-foreground">{t('batchDetail.newReviewTitle')}</h3>
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Review Findings</label>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('batchDetail.reviewFindingsField')}</label>
           <textarea
             value={reviewFindings}
             onChange={(e) => setReviewFindings(e.target.value)}
             rows={4}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
-            placeholder="e.g. All in-process checks reviewed and pass"
+            placeholder={t('batchDetail.reviewFindingsPlaceholder')}
           />
         </div>
         {error && <p className="text-sm text-status-error">{error}</p>}
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -534,7 +534,7 @@ function CreateReviewModal({ batchId, onClose, onCreated }: { batchId: string; o
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create
+            {t('batchDetail.create')}
           </button>
         </div>
       </div>

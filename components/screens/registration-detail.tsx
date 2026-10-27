@@ -17,6 +17,7 @@ import { type RequiredDocumentDefinition } from '@/lib/api/regulatory-config'
 import { getRegistration } from '@/lib/api/master-data'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { Modal } from '@/components/ui/modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const OBLIGATION_STATUS_STYLES: Record<string, string> = {
   pending: 'bg-[var(--surface-raised)] text-[var(--text-muted)]',
@@ -37,6 +38,7 @@ function formatDate(v: string | null | undefined): string {
  */
 export function RegistrationDetail({ productRegistrationId }: { productRegistrationId: string }) {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManageObligations = has('regulatory.manage_obligations')
 
@@ -65,9 +67,9 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
         setObligations(obligationPage.rows)
         setRetentions(retentionRows)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load this registration.')))
+      .catch((err) => setError(getErrorMessage(err, t('registrationDetail.errorLoad'))))
       .finally(() => setLoading(false))
-  }, [productRegistrationId])
+  }, [productRegistrationId, t])
 
   useEffect(load, [load])
 
@@ -77,7 +79,7 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
     try {
       await downloadRegistrationArchiveCsv(productRegistrationId, archive.registration.registrationNumber)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not export the archive.'))
+      setError(getErrorMessage(err, t('registrationDetail.errorExport')))
     } finally {
       setExporting(false)
     }
@@ -92,13 +94,13 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
   }
 
   if (!archive) {
-    return <div className="p-6 text-sm text-status-error">{error ?? 'Registration not found.'}</div>
+    return <div className="p-6 text-sm text-status-error">{error ?? t('registrationDetail.notFound')}</div>
   }
 
   return (
     <div className="space-y-6 p-6">
       <button onClick={() => router.push('/master-data')} className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text)]">
-        <ArrowLeft className="h-3.5 w-3.5" /> Back to Master Data
+        <ArrowLeft className="h-3.5 w-3.5" /> {t('registrationDetail.backToMasterData')}
       </button>
 
       <div className="flex items-start justify-between">
@@ -115,11 +117,11 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
 
       <div className="grid grid-cols-2 gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <div>
-          <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Issued</p>
+          <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">{t('registrationDetail.issued')}</p>
           <p className="text-sm text-[var(--text)]">{formatDate(archive.registration.issuedOn)}</p>
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Expires</p>
+          <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">{t('registrationDetail.expires')}</p>
           <p className="text-sm text-[var(--text)]">{formatDate(archive.registration.expiresOn)}</p>
         </div>
       </div>
@@ -132,19 +134,19 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
               <CalendarClock className="h-5 w-5 text-[var(--primary)]" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-[var(--text)]">Post-Market Obligations</h2>
-              <p className="text-xs text-[var(--text-muted)]">Recurring compliance cycles — annual reports, periodic safety-and-quality updates.</p>
+              <h2 className="text-sm font-semibold text-[var(--text)]">{t('registrationDetail.postMarketObligationsTitle')}</h2>
+              <p className="text-xs text-[var(--text-muted)]">{t('registrationDetail.postMarketObligationsDescription')}</p>
             </div>
           </div>
           {canManageObligations && (
             <button onClick={() => setShowLogObligation(true)} className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-white">
-              <Plus className="h-3.5 w-3.5" /> Log Obligation
+              <Plus className="h-3.5 w-3.5" /> {t('registrationDetail.logObligation')}
             </button>
           )}
         </div>
         <div className="p-2">
           {obligations.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[var(--text-muted)]">No post-market obligations tracked yet.</p>
+            <p className="py-8 text-center text-sm text-[var(--text-muted)]">{t('registrationDetail.noObligationsYet')}</p>
           ) : (
             <ul className="divide-y divide-[var(--border)]">
               {obligations.map((o) => (
@@ -152,12 +154,14 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wide ${OBLIGATION_STATUS_STYLES[o.status] ?? ''}`}>{o.status}</span>
                     <span className="text-sm text-[var(--text)]">{o.obligationType.replace(/_/g, ' ')}</span>
-                    <span className="text-xs text-[var(--text-muted)]">due {formatDate(o.dueAt)}</span>
-                    {o.fulfillments.length > 0 && <span className="text-xs text-[var(--text-muted)]">· {o.fulfillments.length} fulfillment(s)</span>}
+                    <span className="text-xs text-[var(--text-muted)]">{t('registrationDetail.due', { date: formatDate(o.dueAt) })}</span>
+                    {o.fulfillments.length > 0 && (
+                      <span className="text-xs text-[var(--text-muted)]">{t('registrationDetail.fulfillmentCount', { count: String(o.fulfillments.length) })}</span>
+                    )}
                   </div>
                   {canManageObligations && (
                     <button onClick={() => setFulfilling(o)} className="text-xs font-medium text-[var(--primary)] hover:underline">
-                      Fulfill
+                      {t('registrationDetail.fulfill')}
                     </button>
                   )}
                 </li>
@@ -175,24 +179,26 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
               <ShieldCheck className="h-5 w-5 text-[var(--primary)]" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-[var(--text)]">Retentions</h2>
-              <p className="text-xs text-[var(--text-muted)]">Proof this registration&apos;s annual retention was paid and logged, every year — every registration must be retained by 31 December.</p>
+              <h2 className="text-sm font-semibold text-[var(--text)]">{t('registrationDetail.retentionsTitle')}</h2>
+              <p className="text-xs text-[var(--text-muted)]">{t('registrationDetail.retentionsDescription')}</p>
             </div>
           </div>
           {canManageRetentions && archive.registration.status === 'active' && new Date(archive.registration.expiresOn) > new Date() && (
             <button onClick={() => setShowLogRetention(true)} className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-white">
-              <Plus className="h-3.5 w-3.5" /> Log Retention
+              <Plus className="h-3.5 w-3.5" /> {t('registrationDetail.logRetention')}
             </button>
           )}
         </div>
         <div className="p-2">
           {archive.registration.status !== 'active' || new Date(archive.registration.expiresOn) <= new Date() ? (
             <p className="py-4 px-3 text-xs text-status-warning">
-              This registration is {archive.registration.status !== 'active' ? archive.registration.status : 'expired'} — retention no longer applies.
+              {t('registrationDetail.retentionNoLongerApplies', {
+                status: archive.registration.status !== 'active' ? archive.registration.status : t('registrationDetail.expiredWord'),
+              })}
             </p>
           ) : null}
           {retentions.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[var(--text-muted)]">No retention logged yet.</p>
+            <p className="py-8 text-center text-sm text-[var(--text-muted)]">{t('registrationDetail.noRetentionYet')}</p>
           ) : (
             <ul className="divide-y divide-[var(--border)]">
               {retentions.map((r) => (
@@ -200,7 +206,9 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
                   <div className="flex items-center gap-2">
                     <span className="rounded-full bg-[var(--ok-bg)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--ok)]">{r.status}</span>
                     <span className="text-sm text-[var(--text)]">{r.year}</span>
-                    <span className="text-xs text-[var(--text-muted)]">{r.displayCode} · paid {formatDate(r.paidAt)}</span>
+                    <span className="text-xs text-[var(--text-muted)]">
+                      {r.displayCode} · {t('registrationDetail.paid', { date: formatDate(r.paidAt) })}
+                    </span>
                   </div>
                 </li>
               ))}
@@ -217,19 +225,19 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
               <FileCheck2 className="h-5 w-5 text-[var(--primary)]" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-[var(--text)]">Full History / Archive</h2>
-              <p className="text-xs text-[var(--text-muted)]">Every dossier, submission, query, and variation ever filed against this registration.</p>
+              <h2 className="text-sm font-semibold text-[var(--text)]">{t('registrationDetail.archiveTitle')}</h2>
+              <p className="text-xs text-[var(--text-muted)]">{t('registrationDetail.archiveDescription')}</p>
             </div>
           </div>
           <button onClick={handleExport} disabled={exporting} className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text)] disabled:opacity-50">
-            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Export CSV
+            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} {t('registrationDetail.exportCsv')}
           </button>
         </div>
         <div className="p-4 space-y-4">
           {archive.dossiers.map((dossier) => (
             <div key={dossier.id} className="rounded-lg border border-[var(--border)] p-3">
               <button onClick={() => router.push(`/reg-dossiers/${dossier.id}`)} className="text-sm font-medium text-[var(--primary)] hover:underline">
-                {dossier.variation ? `${dossier.variation.variationType} dossier` : 'Original dossier'}
+                {dossier.variation ? t('registrationDetail.variationDossier', { type: dossier.variation.variationType }) : t('registrationDetail.originalDossier')}
               </button>
               <span className="ml-2 text-xs text-[var(--text-muted)]">{formatDate(dossier.createdAt)} · {dossier.status}</span>
 
@@ -237,7 +245,12 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
                 <div className="mt-2 ml-3 space-y-1">
                   {dossier.submissions.map((s) => (
                     <p key={s.id} className="text-xs text-[var(--text-muted)]">
-                      Submission #{s.submissionNumber} · {s.channel} · {formatDate(s.generatedAt)} {s.dispatchedAt ? '· dispatched' : ''}
+                      {t('registrationDetail.submissionLine', {
+                        number: String(s.submissionNumber),
+                        channel: s.channel,
+                        date: formatDate(s.generatedAt),
+                        dispatched: s.dispatchedAt ? t('registrationDetail.dispatchedSuffix') : '',
+                      })}
                     </p>
                   ))}
                 </div>
@@ -246,7 +259,7 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
                 <div className="mt-2 ml-3 space-y-1">
                   {dossier.queries.map((q) => (
                     <p key={q.id} className="text-xs text-[var(--text-muted)]">
-                      Query {formatDate(q.receivedDate)} — {q.queryText} ({q.status})
+                      {t('registrationDetail.queryLine', { date: formatDate(q.receivedDate), text: q.queryText, status: q.status })}
                     </p>
                   ))}
                 </div>
@@ -255,10 +268,10 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
           ))}
           {archive.feeInvoices.length > 0 && (
             <div className="rounded-lg border border-[var(--border)] p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">Fees</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">{t('registrationDetail.feesLabel')}</p>
               {archive.feeInvoices.map((f) => (
                 <p key={f.id} className="text-xs text-[var(--text-muted)]">
-                  {f.feeType} — {f.currency} {f.amount} — due {formatDate(f.dueAt)} — {f.status}
+                  {t('registrationDetail.feeLine', { type: f.feeType, currency: f.currency, amount: String(f.amount), date: formatDate(f.dueAt), status: f.status })}
                 </p>
               ))}
             </div>
@@ -301,6 +314,7 @@ export function RegistrationDetail({ productRegistrationId }: { productRegistrat
 }
 
 function LogObligationModal({ productRegistrationId, onClose, onLogged }: { productRegistrationId: string; onClose: () => void; onLogged: () => void }) {
+  const { t } = useTranslation()
   const [obligationType, setObligationType] = useState('')
   const [dueAt, setDueAt] = useState('')
   const [saving, setSaving] = useState(false)
@@ -314,36 +328,36 @@ function LogObligationModal({ productRegistrationId, onClose, onLogged }: { prod
       await createRegPostMarketObligation({ productRegistrationId, obligationType: obligationType.trim(), dueAt: dueAt || undefined })
       onLogged()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not log this obligation.'))
+      setError(getErrorMessage(err, t('registrationDetail.errorLogObligation')))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal title="Log a post-market obligation" onClose={onClose}>
+    <Modal title={t('registrationDetail.logObligationModalTitle')} onClose={onClose}>
       <div className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Obligation type</label>
+          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">{t('registrationDetail.obligationType')}</label>
           <input
             value={obligationType}
             onChange={(e) => setObligationType(e.target.value)}
-            placeholder="e.g. annual_report"
+            placeholder={t('registrationDetail.obligationTypePlaceholder')}
             className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Due date (leave blank to compute from a configured rule)</label>
+          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">{t('registrationDetail.dueDateLabel')}</label>
           <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]" />
         </div>
         {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-xs text-status-error">{error}</div>}
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)]">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button onClick={submit} disabled={!obligationType.trim() || saving} className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Log
+            {t('registrationDetail.log')}
           </button>
         </div>
       </div>
@@ -352,6 +366,7 @@ function LogObligationModal({ productRegistrationId, onClose, onLogged }: { prod
 }
 
 function FulfillObligationModal({ obligation, onClose, onFulfilled }: { obligation: RegPostMarketObligation; onClose: () => void; onFulfilled: () => void }) {
+  const { t } = useTranslation()
   const [note, setNote] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [generateFilingRecord, setGenerateFilingRecord] = useState(false)
@@ -370,41 +385,39 @@ function FulfillObligationModal({ obligation, onClose, onFulfilled }: { obligati
       await fulfillRegPostMarketObligation(obligation.id, { evidenceDocumentId, generateFilingRecord, note: note || undefined })
       onFulfilled()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not record this fulfillment.'))
+      setError(getErrorMessage(err, t('registrationDetail.errorFulfill')))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal title={`Fulfill — ${obligation.obligationType.replace(/_/g, ' ')}`} onClose={onClose}>
+    <Modal title={t('registrationDetail.fulfillModalTitle', { type: obligation.obligationType.replace(/_/g, ' ') })} onClose={onClose}>
       <div className="space-y-4">
-        <p className="text-xs text-[var(--text-muted)]">
-          Fulfilling this rolls the cycle forward to the next due date (if a rule is configured) — nothing here is a real regulatory submission.
-        </p>
+        <p className="text-xs text-[var(--text-muted)]">{t('registrationDetail.fulfillingNote')}</p>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Evidence file (optional)</label>
+          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">{t('registrationDetail.evidenceFileOptional')}</label>
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-xs text-[var(--text-muted)]">
-            <Upload className="h-3.5 w-3.5" /> {file ? file.name : 'Upload proof of filing'}
+            <Upload className="h-3.5 w-3.5" /> {file ? file.name : t('registrationDetail.uploadProofOfFiling')}
             <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
         </div>
         <label className="flex items-center gap-2 text-xs text-[var(--text)]">
           <input type="checkbox" checked={generateFilingRecord} onChange={(e) => setGenerateFilingRecord(e.target.checked)} />
-          Generate an internal filing-record PDF
+          {t('registrationDetail.generateFilingRecord')}
         </label>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Note (optional)</label>
+          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">{t('registrationDetail.noteOptional')}</label>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]" />
         </div>
         {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-xs text-status-error">{error}</div>}
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)]">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button onClick={submit} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Fulfill
+            {t('registrationDetail.fulfill')}
           </button>
         </div>
       </div>
@@ -414,6 +427,7 @@ function FulfillObligationModal({ obligation, onClose, onFulfilled }: { obligati
 
 /** testing-correction-explanation.md §3.3 — two files (invoice + proof of payment) in one request; a real certificate is generated automatically the moment this succeeds. */
 function LogRetentionModal({ productRegistrationId, onClose, onLogged }: { productRegistrationId: string; onClose: () => void; onLogged: () => void }) {
+  const { t } = useTranslation()
   const currentYear = new Date().getFullYear()
   const [year, setYear] = useState(String(currentYear))
   const [paidAt, setPaidAt] = useState('')
@@ -454,21 +468,19 @@ function LogRetentionModal({ productRegistrationId, onClose, onLogged }: { produ
       })
       onLogged()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not log this retention.'))
+      setError(getErrorMessage(err, t('registrationDetail.errorLogRetention')))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal title="Log Retention" onClose={onClose}>
+    <Modal title={t('registrationDetail.logRetentionModalTitle')} onClose={onClose}>
       <div className="space-y-4">
-        <p className="text-xs text-[var(--text-muted)]">
-          Upload the invoice and proof of payment together — a real certificate is generated automatically once both are in.
-        </p>
+        <p className="text-xs text-[var(--text-muted)]">{t('registrationDetail.retentionUploadNote')}</p>
         {guidanceDocs.length > 0 && (
           <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-3">
-            <p className="mb-1.5 text-xs font-medium text-[var(--text)]">Documents commonly required for this product class (guidance only — not enforced here):</p>
+            <p className="mb-1.5 text-xs font-medium text-[var(--text)]">{t('registrationDetail.guidanceDocsLabel')}</p>
             <ul className="space-y-0.5 text-xs text-[var(--text-muted)]">
               {guidanceDocs.map((d) => (
                 <li key={d.id}>• {d.name}</li>
@@ -478,36 +490,36 @@ function LogRetentionModal({ productRegistrationId, onClose, onLogged }: { produ
         )}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Retention year</label>
+            <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">{t('registrationDetail.retentionYear')}</label>
             <input type="number" value={year} onChange={(e) => setYear(e.target.value)} className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]" />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Paid on</label>
+            <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">{t('registrationDetail.paidOn')}</label>
             <input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]" />
           </div>
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Invoice</label>
+          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">{t('registrationDetail.invoice')}</label>
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-xs text-[var(--text-muted)]">
-            <Upload className="h-3.5 w-3.5" /> {invoice ? invoice.name : 'Upload the retention invoice'}
+            <Upload className="h-3.5 w-3.5" /> {invoice ? invoice.name : t('registrationDetail.uploadRetentionInvoice')}
             <input type="file" className="hidden" onChange={(e) => setInvoice(e.target.files?.[0] ?? null)} />
           </label>
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">Proof of Payment</label>
+          <label className="mb-1.5 block text-xs font-medium text-[var(--text)]">{t('registrationDetail.proofOfPayment')}</label>
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-xs text-[var(--text-muted)]">
-            <Upload className="h-3.5 w-3.5" /> {proofOfPayment ? proofOfPayment.name : 'Upload proof of payment'}
+            <Upload className="h-3.5 w-3.5" /> {proofOfPayment ? proofOfPayment.name : t('registrationDetail.uploadProofOfPayment')}
             <input type="file" className="hidden" onChange={(e) => setProofOfPayment(e.target.files?.[0] ?? null)} />
           </label>
         </div>
         {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-xs text-status-error">{error}</div>}
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)]">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button onClick={submit} disabled={!canSubmit || saving} className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Log Retention
+            {t('registrationDetail.logRetention')}
           </button>
         </div>
       </div>

@@ -16,6 +16,7 @@ import { RoleWithPermissions, getRoleCatalog } from '@/lib/api/roles'
 import { Modal } from '@/components/ui/modal'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -44,6 +45,7 @@ type Tab = 'catalog' | 'roles'
  * here affects every tenant on the platform at once.
  */
 export function RbacAdminScreen() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('platform.rbac.manage')
   const [tab, setTab] = useState<Tab>('catalog')
@@ -51,10 +53,10 @@ export function RbacAdminScreen() {
   if (!canManage) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">RBAC Administration</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('rbacAdmin.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage roles and permissions.</p>
+          <p className="text-sm text-muted-foreground">{t('rbacAdmin.noPermission')}</p>
         </div>
       </div>
     )
@@ -65,9 +67,9 @@ export function RbacAdminScreen() {
       <div>
         <div className="flex items-center gap-3">
           <KeyRound className="h-6 w-6 text-safemeds-teal" />
-          <h1 className="text-3xl font-display font-bold text-foreground">RBAC Administration</h1>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('rbacAdmin.title')}</h1>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">What every permission does, and which roles carry it — across the whole platform.</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('rbacAdmin.subtitle')}</p>
       </div>
 
       <div className="flex gap-1 rounded-lg border border-border bg-card p-1 w-fit">
@@ -75,13 +77,13 @@ export function RbacAdminScreen() {
           onClick={() => setTab('catalog')}
           className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${tab === 'catalog' ? 'bg-safemeds-teal text-white' : 'text-muted-foreground hover:text-foreground'}`}
         >
-          Permission Catalog
+          {t('rbacAdmin.tabCatalog')}
         </button>
         <button
           onClick={() => setTab('roles')}
           className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${tab === 'roles' ? 'bg-safemeds-teal text-white' : 'text-muted-foreground hover:text-foreground'}`}
         >
-          Role Editor
+          {t('rbacAdmin.tabRoles')}
         </button>
       </div>
 
@@ -93,6 +95,7 @@ export function RbacAdminScreen() {
 // ── Permission Catalog ───────────────────────────────────────────────────────
 
 function PermissionCatalogTab() {
+  const { t } = useTranslation()
   const [permissions, setPermissions] = useState<PermissionWithRoles[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -105,10 +108,10 @@ function PermissionCatalogTab() {
     setError(null)
     listPermissionsWithRoles()
       .then(setPermissions)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load the permission catalog.')))
+      .catch((err) => setError(getErrorMessage(err, t('rbacAdmin.errorLoadCatalog'))))
       .finally(() => setLoading(false))
   }
-  useEffect(load, [])
+  useEffect(load, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = useMemo(
     () => permissions.filter((p) => p.key.toLowerCase().includes(search.toLowerCase()) || p.description.toLowerCase().includes(search.toLowerCase())),
@@ -121,18 +124,13 @@ function PermissionCatalogTab() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by key or description..."
-            className={`${inputClass} pl-8`}
-          />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('rbacAdmin.searchPlaceholder')} className={`${inputClass} pl-8`} />
         </div>
         <button
           onClick={() => setShowCreate(true)}
           className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce"
         >
-          <Plus className="h-4 w-4" /> New Permission
+          <Plus className="h-4 w-4" /> {t('rbacAdmin.newPermission')}
         </button>
       </div>
 
@@ -159,7 +157,7 @@ function PermissionCatalogTab() {
                       <td className="p-3">
                         <div className="flex flex-wrap gap-1">
                           {p.roleKeys.length === 0 ? (
-                            <span className="text-xs italic text-muted-foreground">Held by no role</span>
+                            <span className="text-xs italic text-muted-foreground">{t('rbacAdmin.heldByNoRole')}</span>
                           ) : (
                             p.roleKeys.map((r) => (
                               <span key={r} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground">
@@ -183,7 +181,7 @@ function PermissionCatalogTab() {
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false)
-            setNotice('Permission created. It gates nothing until an engineer adds a matching check to a real endpoint.')
+            setNotice(t('rbacAdmin.permissionCreatedNotice'))
             load()
           }}
         />
@@ -193,6 +191,7 @@ function PermissionCatalogTab() {
 }
 
 function CreatePermissionModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { t } = useTranslation()
   const [key, setKey] = useState('')
   const [description, setDescription] = useState('')
   const [busy, setBusy] = useState(false)
@@ -208,32 +207,30 @@ function CreatePermissionModal({ onClose, onCreated }: { onClose: () => void; on
       await createPermission({ key, description: description.trim() })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this permission.'))
+      setError(getErrorMessage(err, t('rbacAdmin.errorCreatePermission')))
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="New Permission" onClose={onClose}>
+    <Modal title={t('rbacAdmin.newPermissionModalTitle')} onClose={onClose}>
       <div className="space-y-3">
         <div className="flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning/5 p-2.5 text-xs text-muted-foreground">
           <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-warning" />
-          A new permission gates nothing by itself — it becomes meaningful only once an engineer adds a matching{' '}
-          <code className="font-mono">@RequirePermissions()</code> check to a real endpoint in a later code change. Creating it here just
-          reserves the key and makes it assignable to roles.
+          {t('rbacAdmin.newPermissionWarning')}
         </div>
         {error && <p className="text-xs text-status-error">{error}</p>}
         <div>
-          <label className={labelClass}>Key (domain.action)</label>
-          <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="e.g. pv.new_capability" className={inputClass} />
+          <label className={labelClass}>{t('rbacAdmin.keyDomainAction')}</label>
+          <input value={key} onChange={(e) => setKey(e.target.value)} placeholder={t('rbacAdmin.keyPlaceholder')} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Description</label>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this lets someone do" className={inputClass} />
+          <label className={labelClass}>{t('rbacAdmin.description')}</label>
+          <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('rbacAdmin.descriptionPlaceholder')} className={inputClass} />
         </div>
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleCreate}
@@ -241,7 +238,7 @@ function CreatePermissionModal({ onClose, onCreated }: { onClose: () => void; on
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create permission
+            {t('rbacAdmin.createPermission')}
           </button>
         </div>
       </div>
@@ -252,6 +249,7 @@ function CreatePermissionModal({ onClose, onCreated }: { onClose: () => void; on
 // ── Role Editor ──────────────────────────────────────────────────────────────
 
 function RoleEditorTab() {
+  const { t } = useTranslation()
   const [roles, setRoles] = useState<RoleWithPermissions[]>([])
   const [permissions, setPermissions] = useState<PermissionWithRoles[]>([])
   const [selectedKey, setSelectedKey] = useState('')
@@ -273,10 +271,10 @@ function RoleEditorTab() {
         setPermissions(permRows)
         setSelectedKey((prev) => prev || roleRows[0]?.key || '')
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load roles and permissions.')))
+      .catch((err) => setError(getErrorMessage(err, t('rbacAdmin.errorLoadRolesPermissions'))))
       .finally(() => setLoading(false))
   }
-  useEffect(load, [])
+  useEffect(load, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedRole = roles.find((r) => r.key === selectedKey)
 
@@ -303,7 +301,7 @@ function RoleEditorTab() {
       setImpact(preview)
       setConfirming(true)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not preview this change.'))
+      setError(getErrorMessage(err, t('rbacAdmin.errorPreviewChange')))
     }
   }
 
@@ -313,10 +311,20 @@ function RoleEditorTab() {
     try {
       await updateRolePermissions(selectedKey, Array.from(checked))
       setConfirming(false)
-      setNotice(`Saved. ${impact ? `${impact.userCount} user(s) across ${impact.companyCount} compan${impact.companyCount === 1 ? 'y' : 'ies'} were signed out of their current session.` : ''}`)
+      setNotice(
+        `${t('rbacAdmin.savedNotice')} ${
+          impact
+            ? t('rbacAdmin.signedOutNotice', {
+                userCount: String(impact.userCount),
+                companyCount: String(impact.companyCount),
+                companySuffix: impact.companyCount === 1 ? 'y' : 'ies',
+              })
+            : ''
+        }`,
+      )
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save this role.'))
+      setError(getErrorMessage(err, t('rbacAdmin.errorSaveRole')))
     } finally {
       setSaving(false)
     }
@@ -334,7 +342,7 @@ function RoleEditorTab() {
     <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
       <div className="rounded-lg border border-border bg-card overflow-hidden h-fit">
         <div className="flex items-center justify-between border-b border-border p-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Roles</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('rbacAdmin.rolesHeading')}</p>
           <button onClick={() => setShowCreateRole(true)} className="text-safemeds-teal hover:text-safemeds-spruce">
             <Plus className="h-4 w-4" />
           </button>
@@ -347,7 +355,9 @@ function RoleEditorTab() {
               className={`w-full px-3 py-2.5 text-left text-sm transition-colors ${selectedKey === r.key ? 'bg-safemeds-teal/10 text-safemeds-teal font-medium' : 'text-foreground hover:bg-muted'}`}
             >
               <div>{r.name}</div>
-              <div className="text-[11px] text-muted-foreground">{r.isPlatform ? 'Platform' : 'Tenant'} · {r.permissions.length} permissions</div>
+              <div className="text-[11px] text-muted-foreground">
+                {r.isPlatform ? t('rbacAdmin.platform') : t('rbacAdmin.tenant')} · {t('rbacAdmin.permissionsCount', { count: String(r.permissions.length) })}
+              </div>
             </button>
           ))}
         </div>
@@ -366,8 +376,7 @@ function RoleEditorTab() {
 
             <div className="flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning/5 p-3 text-xs text-muted-foreground">
               <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-warning" />
-              This role carries no company — changing it affects every user holding it, at every tenant, immediately. Everyone currently
-              holding it will need to re-authenticate on their next request.
+              {t('rbacAdmin.noCompanyWarning')}
             </div>
 
             <div className="space-y-3">
@@ -401,7 +410,7 @@ function RoleEditorTab() {
                 onClick={openConfirm}
                 className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-5 py-2.5 text-sm font-medium text-white hover:bg-safemeds-spruce"
               >
-                <Users className="h-4 w-4" /> Save Role Permissions
+                <Users className="h-4 w-4" /> {t('rbacAdmin.saveRolePermissions')}
               </button>
             </div>
           </>
@@ -409,17 +418,19 @@ function RoleEditorTab() {
       </div>
 
       {confirming && impact && (
-        <Modal title="Confirm Role Change" onClose={() => setConfirming(false)}>
+        <Modal title={t('rbacAdmin.confirmRoleChangeTitle')} onClose={() => setConfirming(false)}>
           <div className="space-y-4">
             <p className="text-sm text-foreground">
-              This affects <strong>{impact.userCount}</strong> user{impact.userCount === 1 ? '' : 's'} across{' '}
-              <strong>{impact.companyCount}</strong> {impact.companyCount === 1 ? 'company' : 'companies'} immediately — every one of them
-              will be signed out of their current session on their next request and will see the updated permission set the moment they
-              log back in.
+              {t('rbacAdmin.confirmBody', {
+                userCount: String(impact.userCount),
+                userSuffix: impact.userCount === 1 ? '' : 's',
+                companyCount: String(impact.companyCount),
+                companyWord: impact.companyCount === 1 ? t('rbacAdmin.company') : t('rbacAdmin.companies'),
+              })}
             </p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirming(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleSave}
@@ -427,7 +438,7 @@ function RoleEditorTab() {
                 className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
               >
                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                Confirm and Save
+                {t('rbacAdmin.confirmAndSave')}
               </button>
             </div>
           </div>
@@ -441,7 +452,7 @@ function RoleEditorTab() {
           onCreated={(key) => {
             setShowCreateRole(false)
             setSelectedKey(key)
-            setNotice('Role created.')
+            setNotice(t('rbacAdmin.roleCreatedNotice'))
             load()
           }}
         />
@@ -459,6 +470,7 @@ function CreateRoleModal({
   onClose: () => void
   onCreated: (key: string) => void
 }) {
+  const { t } = useTranslation()
   const [key, setKey] = useState('')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -488,36 +500,36 @@ function CreateRoleModal({
       const created = await createRole(input)
       onCreated(created.key)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this role.'))
+      setError(getErrorMessage(err, t('rbacAdmin.errorCreateRole')))
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="New Role" onClose={onClose}>
+    <Modal title={t('rbacAdmin.newRoleModalTitle')} onClose={onClose}>
       <div className="space-y-3">
         {error && <p className="text-xs text-status-error">{error}</p>}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Key</label>
-            <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="e.g. FPPV" className={inputClass} />
+            <label className={labelClass}>{t('rbacAdmin.key')}</label>
+            <input value={key} onChange={(e) => setKey(e.target.value)} placeholder={t('rbacAdmin.keyRolePlaceholder')} className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Focal Person for PV" className={inputClass} />
+            <label className={labelClass}>{t('rbacAdmin.name')}</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('rbacAdmin.namePlaceholder')} className={inputClass} />
           </div>
         </div>
         <div>
-          <label className={labelClass}>Description</label>
+          <label className={labelClass}>{t('rbacAdmin.description')}</label>
           <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
         </div>
         <label className="flex items-center gap-2 text-sm text-foreground">
           <input type="checkbox" checked={isPlatform} onChange={(e) => setIsPlatform(e.target.checked)} className="h-4 w-4 rounded border-input" />
-          Platform role (SafeMeds staff, not a tenant role)
+          {t('rbacAdmin.platformRoleCheckbox')}
         </label>
 
         <div>
-          <label className={labelClass}>Permissions</label>
+          <label className={labelClass}>{t('rbacAdmin.permissions')}</label>
           <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border border-border p-2">
             {grouped.map(([domain, items]) => (
               <div key={domain}>
@@ -535,7 +547,7 @@ function CreateRoleModal({
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleCreate}
@@ -543,7 +555,7 @@ function CreateRoleModal({
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create role
+            {t('rbacAdmin.createRole')}
           </button>
         </div>
       </div>

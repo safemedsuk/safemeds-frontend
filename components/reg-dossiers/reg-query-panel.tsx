@@ -32,6 +32,8 @@ import { listUsers, type TenantUser } from '@/lib/api/users'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { DocumentPreviewModal } from '@/components/ui/document-preview-modal'
 import { Modal } from '@/components/ui/modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString()
@@ -56,18 +58,18 @@ function canOwnRegQueries(user: TenantUser): boolean {
   return user.roleKeys.includes('REGULATORY_AFFAIRS_OFFICER')
 }
 
-const STATUS_LABEL: Record<RegQuery['status'], string> = {
-  open: 'Open',
-  in_progress: 'In Progress',
-  responded: 'Responded',
-  closed: 'Closed',
+const STATUS_LABEL_KEYS: Record<RegQuery['status'], MessageKey> = {
+  open: 'regQueryPanel.statusOpen',
+  in_progress: 'regQueryPanel.statusInProgress',
+  responded: 'regQueryPanel.statusResponded',
+  closed: 'regQueryPanel.statusClosed',
 }
 
-function StatusBadge({ query }: { query: RegQuery }) {
+function StatusBadge({ query, t }: { query: RegQuery; t: ReturnType<typeof useTranslation>['t'] }) {
   if (query.isOverdue) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-status-error/10 px-2 py-0.5 text-[11px] font-medium text-status-error">
-        <AlertTriangle className="h-3 w-3" /> Overdue
+        <AlertTriangle className="h-3 w-3" /> {t('regQueryPanel.overdue')}
       </span>
     )
   }
@@ -77,7 +79,7 @@ function StatusBadge({ query }: { query: RegQuery }) {
       : query.status === 'responded'
         ? 'bg-[var(--primary)]/10 text-[var(--primary)]'
         : 'bg-status-warning/10 text-status-warning'
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${tone}`}>{STATUS_LABEL[query.status]}</span>
+  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${tone}`}>{t(STATUS_LABEL_KEYS[query.status])}</span>
 }
 
 /**
@@ -114,7 +116,7 @@ function DueDateField({ query, onSave }: { query: RegQuery; onSave: (value: stri
   )
 }
 
-function OwnerField({ query, users, onSave }: { query: RegQuery; users: TenantUser[]; onSave: (userId: string) => void }) {
+function OwnerField({ query, users, onSave, t }: { query: RegQuery; users: TenantUser[]; onSave: (userId: string) => void; t: ReturnType<typeof useTranslation>['t'] }) {
   const [value, setValue] = useState(query.ownerUserId ?? '')
   const assignable = users.filter(canOwnRegQueries)
   // The query's own currently-assigned owner is always offered even if
@@ -136,11 +138,11 @@ function OwnerField({ query, users, onSave }: { query: RegQuery; users: TenantUs
       }}
       className="rounded border border-input bg-background px-1.5 py-0.5 text-xs text-foreground"
     >
-      <option value="">Unassigned</option>
+      <option value="">{t('regQueryPanel.unassigned')}</option>
       {options.map((u) => (
         <option key={u.id} value={u.id}>
           {u.fullName}
-          {canOwnRegQueries(u) ? '' : ' (cannot respond — missing permission)'}
+          {canOwnRegQueries(u) ? '' : t('regQueryPanel.cannotRespondSuffix')}
         </option>
       ))}
     </select>
@@ -159,6 +161,7 @@ function OwnerField({ query, users, onSave }: { query: RegQuery; users: TenantUs
  * owns/answers/closes a query.
  */
 export function RegQueryPanel({ dossierId, onChanged, respondWithNoteOnly = false }: { dossierId: string; onChanged: () => void; respondWithNoteOnly?: boolean }) {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('regulatory.manage_dossier')
 
@@ -179,9 +182,9 @@ export function RegQueryPanel({ dossierId, onChanged, respondWithNoteOnly = fals
         setQueries(q)
         setUsers(u.users)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load queries.')))
+      .catch((err) => setError(getErrorMessage(err, t('regQueryPanel.couldNotLoad'))))
       .finally(() => setLoading(false))
-  }, [dossierId])
+  }, [dossierId, t])
 
   useEffect(load, [load])
 
@@ -199,7 +202,7 @@ export function RegQueryPanel({ dossierId, onChanged, respondWithNoteOnly = fals
       await setRegQueryDueDate(dossierId, query.id, value)
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not set the response due date.'))
+      setError(getErrorMessage(err, t('regQueryPanel.couldNotSetDueDate')))
     }
   }
 
@@ -208,7 +211,7 @@ export function RegQueryPanel({ dossierId, onChanged, respondWithNoteOnly = fals
       await assignRegQueryOwner(dossierId, query.id, ownerUserId || null)
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not assign an owner.'))
+      setError(getErrorMessage(err, t('regQueryPanel.couldNotAssignOwner')))
     }
   }
 
@@ -220,8 +223,8 @@ export function RegQueryPanel({ dossierId, onChanged, respondWithNoteOnly = fals
             <MessageSquare className="h-5 w-5 text-[var(--primary)]" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-[var(--text)]">Correspondence Log</h2>
-            <p className="text-xs text-[var(--text-muted)]">Every query the regulator raised — due date, owner, the full correspondence thread, and how it was answered.</p>
+            <h2 className="text-sm font-semibold text-[var(--text)]">{t('regQueryPanel.heading')}</h2>
+            <p className="text-xs text-[var(--text-muted)]">{t('regQueryPanel.subheading')}</p>
           </div>
         </div>
         {canManage && (
@@ -229,7 +232,7 @@ export function RegQueryPanel({ dossierId, onChanged, respondWithNoteOnly = fals
             onClick={() => setShowLogQuery(true)}
             className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-white"
           >
-            <Plus className="h-3.5 w-3.5" /> Log a Query
+            <Plus className="h-3.5 w-3.5" /> {t('regQueryPanel.logAQuery')}
           </button>
         )}
       </div>
@@ -242,7 +245,7 @@ export function RegQueryPanel({ dossierId, onChanged, respondWithNoteOnly = fals
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         ) : queries.length === 0 ? (
-          <p className="py-8 text-center text-sm text-[var(--text-muted)]">No queries logged yet.</p>
+          <p className="py-8 text-center text-sm text-[var(--text-muted)]">{t('regQueryPanel.noQueriesYet')}</p>
         ) : (
           <ul className="divide-y divide-[var(--border)]">
             {queries.map((q) => (
@@ -256,17 +259,17 @@ export function RegQueryPanel({ dossierId, onChanged, respondWithNoteOnly = fals
                     )}
                     <div className="min-w-0">
                       <p className="text-sm text-[var(--text)]">{q.queryText}</p>
-                      <p className="text-xs text-[var(--text-muted)]">Received {formatDate(q.receivedDate)}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{t('regQueryPanel.receivedOn', { date: formatDate(q.receivedDate) })}</p>
                     </div>
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-2">
-                    <StatusBadge query={q} />
+                    <StatusBadge query={q} t={t} />
                     {q.queryLetterDocumentId && (
                       <button
-                        onClick={() => previewDoc('reg_query', q.id, q.queryLetterDocumentId!, 'Regulator Query Letter')}
+                        onClick={() => previewDoc('reg_query', q.id, q.queryLetterDocumentId!, t('regQueryPanel.queryLetterTitle'))}
                         className="flex items-center gap-1 text-xs font-medium text-[var(--primary)] hover:underline"
                       >
-                        <FileText className="h-3.5 w-3.5" /> Letter
+                        <FileText className="h-3.5 w-3.5" /> {t('regQueryPanel.letter')}
                       </button>
                     )}
                   </div>
@@ -275,7 +278,7 @@ export function RegQueryPanel({ dossierId, onChanged, respondWithNoteOnly = fals
                 <div className="ml-6 flex flex-wrap items-center gap-3 text-xs">
                   <label className="flex items-center gap-1.5 text-[var(--text-muted)]">
                     <Clock className="h-3.5 w-3.5" />
-                    Due:
+                    {t('regQueryPanel.due')}
                     {canManage ? (
                       <DueDateField query={q} onSave={(value) => setDueDate(q, value)} />
                     ) : (
@@ -284,15 +287,15 @@ export function RegQueryPanel({ dossierId, onChanged, respondWithNoteOnly = fals
                   </label>
                   <label className="flex items-center gap-1.5 text-[var(--text-muted)]">
                     <UserIcon className="h-3.5 w-3.5" />
-                    Owner:
+                    {t('regQueryPanel.owner')}
                     {canManage ? (
-                      <OwnerField query={q} users={users} onSave={(userId) => assignOwner(q, userId)} />
+                      <OwnerField query={q} users={users} onSave={(userId) => assignOwner(q, userId)} t={t} />
                     ) : (
-                      <span>{users.find((u) => u.id === q.ownerUserId)?.fullName ?? 'Unassigned'}</span>
+                      <span>{users.find((u) => u.id === q.ownerUserId)?.fullName ?? t('regQueryPanel.unassigned')}</span>
                     )}
                   </label>
                   <button onClick={() => setThreadFor(q)} className="flex items-center gap-1 font-medium text-[var(--primary)] hover:underline">
-                    <MessageSquare className="h-3.5 w-3.5" /> Correspondence Thread
+                    <MessageSquare className="h-3.5 w-3.5" /> {t('regQueryPanel.correspondenceThread')}
                   </button>
                 </div>
 
@@ -306,27 +309,27 @@ export function RegQueryPanel({ dossierId, onChanged, respondWithNoteOnly = fals
                         </p>
                       )}
                       <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
-                        {q.respondedDate && <span>Responded {formatDate(q.respondedDate)}</span>}
+                        {q.respondedDate && <span>{t('regQueryPanel.respondedOn', { date: formatDate(q.respondedDate) })}</span>}
                         {q.responseDocumentId && (
                           <button
-                            onClick={() => previewDoc('reg_query', q.id, q.responseDocumentId!, 'Query Response')}
+                            onClick={() => previewDoc('reg_query', q.id, q.responseDocumentId!, t('regQueryPanel.queryResponseTitle'))}
                             className="flex items-center gap-1 font-medium text-[var(--primary)] hover:underline"
                           >
-                            <FileText className="h-3.5 w-3.5" /> View response
+                            <FileText className="h-3.5 w-3.5" /> {t('regQueryPanel.viewResponse')}
                           </button>
                         )}
                         {canManage && q.status === 'responded' && (
                           <button onClick={() => setClosingQuery(q)} className="font-medium text-status-success hover:underline">
-                            Close
+                            {t('regQueryPanel.close')}
                           </button>
                         )}
-                        {q.status === 'closed' && q.closedAt && <span>Closed {formatDate(q.closedAt)}</span>}
+                        {q.status === 'closed' && q.closedAt && <span>{t('regQueryPanel.closedOn', { date: formatDate(q.closedAt) })}</span>}
                       </div>
                     </>
                   )}
                   {(q.status === 'open' || q.status === 'in_progress') && canManage && (
                     <button onClick={() => setRespondingTo(q)} className="flex items-center gap-1 text-xs font-medium text-status-warning hover:underline">
-                      <Upload className="h-3.5 w-3.5" /> Respond
+                      <Upload className="h-3.5 w-3.5" /> {t('regQueryPanel.respond')}
                     </button>
                   )}
                 </div>
@@ -404,6 +407,7 @@ export function RegQueryPanel({ dossierId, onChanged, respondWithNoteOnly = fals
 
 /** testing-correction-explanation.md §2.1 — the regulator's own scanned query letter is now a mandatory upload. CEO feedback, 30 Sep 2026 — an optional response due date and owner can be set at the same time. */
 function LogQueryModal({ dossierId, users, onClose, onLogged }: { dossierId: string; users: TenantUser[]; onClose: () => void; onLogged: () => void }) {
+  const { t } = useTranslation()
   const [queryText, setQueryText] = useState('')
   const [receivedDate, setReceivedDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [responseDueDate, setResponseDueDate] = useState('')
@@ -428,29 +432,29 @@ function LogQueryModal({ dossierId, users, onClose, onLogged }: { dossierId: str
       })
       onLogged()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not log this query.'))
+      setError(getErrorMessage(err, t('logQueryModal.couldNotLog')))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal title="Log a regulator query" onClose={onClose}>
+    <Modal title={t('logQueryModal.title')} onClose={onClose}>
       <div className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">What did the regulator ask?</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('logQueryModal.whatDidRegulatorAsk')}</label>
           <textarea
             autoFocus
             value={queryText}
             onChange={(e) => setQueryText(e.target.value)}
             rows={4}
-            placeholder="e.g. Please clarify the CPP validity period."
+            placeholder={t('logQueryModal.queryPlaceholder')}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">Received on</label>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">{t('logQueryModal.receivedOnLabel')}</label>
             <input
               type="date"
               value={receivedDate}
@@ -459,7 +463,7 @@ function LogQueryModal({ dossierId, users, onClose, onLogged }: { dossierId: str
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">Response due (optional)</label>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">{t('logQueryModal.responseDueLabel')}</label>
             <input
               type="date"
               value={responseDueDate}
@@ -469,34 +473,34 @@ function LogQueryModal({ dossierId, users, onClose, onLogged }: { dossierId: str
           </div>
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Owner (optional)</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('logQueryModal.ownerLabel')}</label>
           <select
             value={ownerUserId}
             onChange={(e) => setOwnerUserId(e.target.value)}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
           >
-            <option value="">Unassigned</option>
+            <option value="">{t('regQueryPanel.unassigned')}</option>
             {users.filter(canOwnRegQueries).map((u) => (
               <option key={u.id} value={u.id}>{u.fullName}</option>
             ))}
           </select>
           {users.length > 0 && users.filter(canOwnRegQueries).length === 0 && (
             <p className="mt-1 text-xs text-status-warning">
-              No one in this company holds the Regulatory Affairs Officer role yet — a query can be logged without an owner and assigned later once someone does.
+              {t('logQueryModal.noRaoWarning')}
             </p>
           )}
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Regulator&apos;s query letter</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('logQueryModal.queryLetterLabel')}</label>
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-input px-3 py-2 text-xs text-muted-foreground">
-            <Upload className="h-3.5 w-3.5" /> {file ? file.name : 'Upload the scanned query letter'}
+            <Upload className="h-3.5 w-3.5" /> {file ? file.name : t('logQueryModal.uploadQueryLetter')}
             <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
         </div>
         {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-xs text-status-error">{error}</div>}
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={submit}
@@ -504,7 +508,7 @@ function LogQueryModal({ dossierId, users, onClose, onLogged }: { dossierId: str
             className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Log Query
+            {t('logQueryModal.logQuery')}
           </button>
         </div>
       </div>
@@ -526,6 +530,7 @@ function CorrespondenceThreadModal({
   onClose: () => void
   onLogged: () => void
 }) {
+  const { t } = useTranslation()
   const [thread, setThread] = useState<RegQueryCorrespondence[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -538,7 +543,7 @@ function CorrespondenceThreadModal({
   useEffect(load, [load])
 
   return (
-    <Modal title="Correspondence thread" onClose={onClose}>
+    <Modal title={t('correspondenceThread.title')} onClose={onClose}>
       <div className="space-y-4">
         {loading ? (
           <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
@@ -560,7 +565,7 @@ function CorrespondenceThreadModal({
             onClick={() => setShowAdd(true)}
             className="flex items-center gap-1.5 rounded-lg border border-dashed border-input px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
           >
-            <Plus className="h-3.5 w-3.5" /> Log correspondence
+            <Plus className="h-3.5 w-3.5" /> {t('correspondenceThread.logCorrespondence')}
           </button>
         )}
       </div>
@@ -591,6 +596,7 @@ function AddCorrespondenceModal({
   onClose: () => void
   onLogged: () => void
 }) {
+  const { t } = useTranslation()
   const [direction, setDirection] = useState<RegQueryCorrespondence['direction']>('to_regulator')
   const [channel, setChannel] = useState<RegQueryCorrespondence['channel']>('email')
   const [occurredOn, setOccurredOn] = useState(() => new Date().toISOString().slice(0, 10))
@@ -609,56 +615,56 @@ function AddCorrespondenceModal({
       await addRegQueryCorrespondence(dossierId, query.id, { direction, channel, occurredOn, summary: summary.trim(), file: file ?? undefined })
       onLogged()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not log this correspondence.'))
+      setError(getErrorMessage(err, t('addCorrespondence.couldNotLog')))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal title="Log correspondence" onClose={onClose}>
+    <Modal title={t('addCorrespondence.title')} onClose={onClose}>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">Direction</label>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">{t('addCorrespondence.directionLabel')}</label>
             <select value={direction} onChange={(e) => setDirection(e.target.value as RegQueryCorrespondence['direction'])} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground">
-              <option value="from_regulator">From the regulator</option>
-              <option value="to_regulator">To the regulator</option>
-              <option value="internal_note">Internal note</option>
+              <option value="from_regulator">{t('addCorrespondence.fromRegulator')}</option>
+              <option value="to_regulator">{t('addCorrespondence.toRegulator')}</option>
+              <option value="internal_note">{t('addCorrespondence.internalNote')}</option>
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">Channel</label>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">{t('addCorrespondence.channelLabel')}</label>
             <select value={channel} onChange={(e) => setChannel(e.target.value as RegQueryCorrespondence['channel'])} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground">
-              <option value="letter">Letter</option>
-              <option value="email">Email</option>
-              <option value="phone">Phone call</option>
-              <option value="portal">Regulator portal</option>
-              <option value="note">Note</option>
+              <option value="letter">{t('addCorrespondence.channelLetter')}</option>
+              <option value="email">{t('addCorrespondence.channelEmail')}</option>
+              <option value="phone">{t('addCorrespondence.channelPhone')}</option>
+              <option value="portal">{t('addCorrespondence.channelPortal')}</option>
+              <option value="note">{t('addCorrespondence.channelNote')}</option>
             </select>
           </div>
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Date</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('addCorrespondence.dateLabel')}</label>
           <input type="date" value={occurredOn} onChange={(e) => setOccurredOn(e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground" />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Summary</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('addCorrespondence.summaryLabel')}</label>
           <textarea autoFocus value={summary} onChange={(e) => setSummary(e.target.value)} rows={3} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground" />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Document (optional)</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('addCorrespondence.documentLabel')}</label>
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-input px-3 py-2 text-xs text-muted-foreground">
-            <Upload className="h-3.5 w-3.5" /> {file ? file.name : 'Attach a document'}
+            <Upload className="h-3.5 w-3.5" /> {file ? file.name : t('addCorrespondence.attachDocument')}
             <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
         </div>
         {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-xs text-status-error">{error}</div>}
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">Cancel</button>
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">{t('common.cancel')}</button>
           <button onClick={submit} disabled={!canSubmit || saving} className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Log
+            {t('addCorrespondence.log')}
           </button>
         </div>
       </div>
@@ -685,6 +691,7 @@ function RespondToQueryModal({
   onClose: () => void
   onResponded: () => void
 }) {
+  const { t } = useTranslation()
   const [note, setNote] = useState('')
   const [respondedDate, setRespondedDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [file, setFile] = useState<File | null>(null)
@@ -701,34 +708,33 @@ function RespondToQueryModal({
       await respondRegQuery(dossierId, query.id, note.trim(), respondedDate, file ?? undefined)
       onResponded()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not record this response.'))
+      setError(getErrorMessage(err, t('respondToQuery.couldNotRecord')))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal title="Respond to regulator query" onClose={onClose}>
+    <Modal title={t('respondToQuery.title')} onClose={onClose}>
       <div className="space-y-4">
         {!fileRequired && (
           <p className="text-xs text-muted-foreground">
-            This dossier is engaged as &quot;client handles queries&quot; — the client fields the regulator&apos;s follow-up questions
-            directly. A document is optional; the note below is what proves how it was resolved.
+            {t('respondToQuery.clientHandlesNotice')}
           </p>
         )}
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">How was this resolved?</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('respondToQuery.howResolved')}</label>
           <textarea
             autoFocus
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={4}
-            placeholder="e.g. Provided the requested stability data on 23 Aug."
+            placeholder={t('respondToQuery.resolvedPlaceholder')}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Responded on</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('respondToQuery.respondedOnLabel')}</label>
           <input
             type="date"
             value={respondedDate}
@@ -737,16 +743,16 @@ function RespondToQueryModal({
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Response document{fileRequired ? '' : ' (optional)'}</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('respondToQuery.responseDocumentLabel')}{fileRequired ? '' : t('respondToQuery.optionalSuffix')}</label>
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-input px-3 py-2 text-xs text-muted-foreground">
-            <Upload className="h-3.5 w-3.5" /> {file ? file.name : 'Upload the response document'}
+            <Upload className="h-3.5 w-3.5" /> {file ? file.name : t('respondToQuery.uploadResponseDocument')}
             <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
         </div>
         {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-xs text-status-error">{error}</div>}
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={submit}
@@ -754,7 +760,7 @@ function RespondToQueryModal({
             className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Save Response
+            {t('respondToQuery.saveResponse')}
           </button>
         </div>
       </div>
@@ -764,6 +770,7 @@ function RespondToQueryModal({
 
 /** CEO feedback, 30 Sep 2026 — the register's own separate, deliberate "closed" state, reachable only once a response is on file. */
 function CloseQueryModal({ dossierId, query, onClose, onClosed }: { dossierId: string; query: RegQuery; onClose: () => void; onClosed: () => void }) {
+  const { t } = useTranslation()
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -775,25 +782,25 @@ function CloseQueryModal({ dossierId, query, onClose, onClosed }: { dossierId: s
       await closeRegQuery(dossierId, query.id, note.trim() || undefined)
       onClosed()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not close this query.'))
+      setError(getErrorMessage(err, t('closeQueryModal.couldNotClose')))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal title="Close this query" onClose={onClose}>
+    <Modal title={t('closeQueryModal.title')} onClose={onClose}>
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          A response is already on file — this formally files the query away. You can leave a closing note (e.g. a regulator confirmation).
+          {t('closeQueryModal.notice')}
         </p>
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Closing note (optional)" className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground" />
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder={t('closeQueryModal.closingNotePlaceholder')} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground" />
         {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-xs text-status-error">{error}</div>}
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">Cancel</button>
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">{t('common.cancel')}</button>
           <button onClick={submit} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-status-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Close Query
+            {t('closeQueryModal.closeQuery')}
           </button>
         </div>
       </div>

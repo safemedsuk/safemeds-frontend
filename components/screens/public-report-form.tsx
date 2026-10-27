@@ -25,40 +25,34 @@ import type {
   ReporterType,
 } from '@/lib/api/pv-cases'
 import { PREGNANCY_OUTCOME_LABELS } from '@/lib/api/pv-cases'
-
-const OUTCOME_OPTIONS: { value: ReactionOutcome; label: string }[] = [
-  { value: 'unknown', label: 'Unknown' },
-  { value: 'recovered', label: 'Recovered' },
-  { value: 'recovering', label: 'Recovering' },
-  { value: 'not_recovered', label: 'Not recovered' },
-  { value: 'recovered_with_sequelae', label: 'Recovered with sequelae' },
-  { value: 'fatal', label: 'Fatal' },
-]
+import type { PublicProductResult } from '@/lib/api/public-reporting'
+import { PublicProductPicker } from '@/components/screens/public-product-picker'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import { useLocaleStore, SUPPORTED_LOCALES, type Locale } from '@/lib/i18n/locale-store'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 /** Real-usage request, 22 Sep 2026 (item 22-I) — a real dropdown instead of free text, with an "Other" fallback so no genuine qualification is ever blocked. */
-const HCP_QUALIFICATION_OPTIONS = [
-  'Doctor / Physician',
-  'Pharmacist',
-  'Nurse',
-  'Clinical Officer',
-  'Dentist',
-  'Radiologist',
-  'Laboratory Technician',
-  'Medical Student',
-  'Intern',
+const HCP_QUALIFICATION_KEYS: MessageKey[] = [
+  'publicReportForm.hcpDoctor',
+  'publicReportForm.hcpPharmacist',
+  'publicReportForm.hcpNurse',
+  'publicReportForm.hcpClinicalOfficer',
+  'publicReportForm.hcpDentist',
+  'publicReportForm.hcpRadiologist',
+  'publicReportForm.hcpLabTechnician',
+  'publicReportForm.hcpMedicalStudent',
+  'publicReportForm.hcpIntern',
 ]
 const OTHER_OPTION = '__other__'
 
-const SERIOUSNESS_CRITERIA = [
-  ['seriousnessDeath', 'Death'],
-  ['seriousnessLifeThreatening', 'Life threatening'],
-  ['seriousnessHospitalization', 'Hospitalization'],
-  ['seriousnessDisabling', 'Disability'],
-  ['seriousnessCongenitalAnomaly', 'Congenital anomaly'],
-  ['seriousnessOther', 'Other'],
+const SERIOUSNESS_CRITERIA_KEYS = [
+  ['seriousnessDeath', 'pvCaseDetail.seriousnessDeath'],
+  ['seriousnessLifeThreatening', 'pvCaseDetail.seriousnessLifeThreatening'],
+  ['seriousnessHospitalization', 'pvCaseDetail.seriousnessHospitalization'],
+  ['seriousnessDisabling', 'pvCaseDetail.seriousnessDisabling'],
+  ['seriousnessCongenitalAnomaly', 'pvCaseDetail.seriousnessCongenitalAnomaly'],
+  ['seriousnessOther', 'pvCaseDetail.seriousnessOther'],
 ] as const
-import type { PublicProductResult } from '@/lib/api/public-reporting'
-import { PublicProductPicker } from '@/components/screens/public-product-picker'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -85,7 +79,37 @@ function emptyEvent(): EventRow {
 
 type LoadState = 'loading' | 'ready' | 'not_found'
 
+/**
+ * Stage 2's own open sub-task — a locale selector independent of
+ * `User.preferredLocale`, since an anonymous public reporter has no
+ * logged-in account. `useLocaleStore` already persists to localStorage
+ * regardless of auth state, so this is just a visible toggle onto that
+ * same, already-working store — not a second locale mechanism.
+ */
+function PublicLocaleToggle() {
+  const locale = useLocaleStore((s) => s.locale)
+  const setLocale = useLocaleStore((s) => s.setLocale)
+
+  return (
+    <div className="flex items-center justify-center gap-1 text-xs">
+      {SUPPORTED_LOCALES.map((candidate: Locale) => (
+        <button
+          key={candidate}
+          type="button"
+          onClick={() => setLocale(candidate)}
+          className={`rounded-md px-2 py-1 font-medium uppercase ${
+            candidate === locale ? 'bg-safemeds-teal text-white' : 'text-muted-foreground hover:bg-muted'
+          }`}
+        >
+          {candidate}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function PublicReportForm({ slug }: { slug: string }) {
+  const { t } = useTranslation()
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [company, setCompany] = useState<PublicCompanyDisplay | null>(null)
 
@@ -227,7 +251,7 @@ export function PublicReportForm({ slug }: { slug: string }) {
       const result = await submitPublicReport(slug, input)
       setReferenceNumber(result.referenceNumber)
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Something went wrong submitting your report. Please try again.')
+      setSubmitError(err instanceof Error ? err.message : t('publicReportForm.errorSubmit'))
     } finally {
       setSubmitting(false)
     }
@@ -243,10 +267,11 @@ export function PublicReportForm({ slug }: { slug: string }) {
 
   if (loadState === 'not_found') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-paper px-4">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-paper px-4">
+        <PublicLocaleToggle />
         <div className="max-w-sm text-center">
           <ShieldAlert className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
-          <p className="text-sm text-muted-foreground">This reporting link isn&apos;t valid. Please check the link or QR code and try again.</p>
+          <p className="text-sm text-muted-foreground">{t('publicReportForm.notValidLink')}</p>
         </div>
       </div>
     )
@@ -262,35 +287,31 @@ export function PublicReportForm({ slug }: { slug: string }) {
         await attachPublicSourceDocument(slug, referenceNumber, file)
         setAttached(true)
       } catch (err) {
-        setAttachError(err instanceof Error ? err.message : 'Could not attach the document. Please try again.')
+        setAttachError(err instanceof Error ? err.message : t('publicReportForm.errorAttach'))
       } finally {
         setAttaching(false)
       }
     }
 
     return (
-      <div className="flex min-h-screen items-center justify-center bg-paper px-4 py-8">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-paper px-4 py-8">
+        <PublicLocaleToggle />
         <div className="max-w-sm text-center">
           <CheckCircle2 className="mx-auto h-12 w-12 text-status-success mb-4" />
-          <h1 className="text-xl font-display font-semibold text-foreground mb-2">Report received</h1>
-          <p className="text-sm text-muted-foreground mb-1">
-            Thank you for reporting to {company?.companyName}. Your reference number is:
-          </p>
+          <h1 className="text-xl font-display font-semibold text-foreground mb-2">{t('publicReportForm.reportReceived')}</h1>
+          <p className="text-sm text-muted-foreground mb-1">{t('publicReportForm.thankYouPrefix', { company: company?.companyName ?? '' })}</p>
           <p className="font-mono text-lg font-semibold text-foreground my-3">{referenceNumber}</p>
-          <p className="text-xs text-muted-foreground">Our safety team will review this report. No further action is needed from you right now.</p>
+          <p className="text-xs text-muted-foreground">{t('publicReportForm.safetyTeamReview')}</p>
 
           {showAttachmentStep && (
             <div className="mt-6 rounded-lg border border-border bg-card p-4 text-left">
-              <p className="text-sm font-medium text-foreground mb-1">Have a photo or document to add?</p>
-              <p className="text-xs text-muted-foreground mb-3">
-                A photo of the product packaging, a pharmacy receipt, or a discharge note helps our safety team assess your
-                report much more accurately. This is optional — you can still skip it.
-              </p>
+              <p className="text-sm font-medium text-foreground mb-1">{t('publicReportForm.havePhotoQuestion')}</p>
+              <p className="text-xs text-muted-foreground mb-3">{t('publicReportForm.photoHelp')}</p>
               {attachError && <p className="text-xs text-status-error mb-2">{attachError}</p>}
               <div className="flex flex-col gap-2">
                 <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-input bg-background px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted">
                   {attaching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {attaching ? 'Uploading…' : 'Choose a file to attach'}
+                  {attaching ? t('publicReportForm.uploading') : t('publicReportForm.chooseFileToAttach')}
                   <input
                     type="file"
                     accept="image/*,.pdf"
@@ -307,13 +328,13 @@ export function PublicReportForm({ slug }: { slug: string }) {
                   disabled={attaching}
                   className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
                 >
-                  Skip this step
+                  {t('publicReportForm.skipStep')}
                 </button>
               </div>
             </div>
           )}
 
-          {attached && <p className="mt-6 text-xs text-status-success">Your file was attached to this report. Thank you.</p>}
+          {attached && <p className="mt-6 text-xs text-status-success">{t('publicReportForm.fileAttachedThanks')}</p>}
         </div>
       </div>
     )
@@ -322,73 +343,75 @@ export function PublicReportForm({ slug }: { slug: string }) {
   return (
     <div className="min-h-screen bg-paper">
       <div className="mx-auto max-w-lg px-4 py-8 space-y-6">
+        <div className="flex justify-end">
+          <PublicLocaleToggle />
+        </div>
         <div className="flex flex-col items-center text-center gap-3">
           <LogoMark size="md" />
           <div>
-            <h1 className="text-xl font-display font-semibold text-foreground">Report a Safety Concern</h1>
-            <p className="mt-1 text-sm text-muted-foreground">to {company?.companyName}</p>
+            <h1 className="text-xl font-display font-semibold text-foreground">{t('publicReportForm.pageTitle')}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{t('publicReportForm.toCompany', { company: company?.companyName ?? '' })}</p>
           </div>
         </div>
 
         {company?.reportTypeName && (
           <div className="rounded-lg border border-status-info/30 bg-status-info/5 px-4 py-3 text-sm text-foreground">
-            You&apos;re filing a <span className="font-medium">{company.reportTypeName}</span> report. If your concern is about
-            something other than a reaction to a product (for example a device fault or a quality problem), please still submit —
-            our safety team will route it correctly.
+            {t('publicReportForm.filingReportTypePrefix')} <span className="font-medium">{company.reportTypeName}</span>{' '}
+            {t('publicReportForm.filingReportTypeSuffix')}
           </div>
         )}
 
-        <Section title="About you">
+        <Section title={t('publicReportForm.sectionAboutYou')}>
           <div className="space-y-3">
             <div>
-              <label className={labelClass}>I am reporting as a…</label>
+              <label className={labelClass}>{t('publicReportForm.reportingAsLabel')}</label>
               <select value={reporterType} onChange={(e) => setReporterType(e.target.value as ReporterType)} className={inputClass}>
-                <option value="consumer">Patient / consumer</option>
-                <option value="healthcare_professional">Healthcare professional</option>
+                <option value="consumer">{t('publicReportForm.patientConsumer')}</option>
+                <option value="healthcare_professional">{t('publicReportForm.healthcareProfessionalOpt')}</option>
               </select>
             </div>
             <div>
-              <label className={labelClass}>Your name</label>
+              <label className={labelClass}>{t('publicReportForm.yourName')}</label>
               <input value={reporterFullName} onChange={(e) => setReporterFullName(e.target.value)} className={inputClass} />
             </div>
             {reporterType === 'healthcare_professional' && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelClass}>Qualification</label>
+                  <label className={labelClass}>{t('pvCaseWizard.qualification')}</label>
                   <select value={qualificationOption} onChange={(e) => setQualificationOption(e.target.value)} className={inputClass}>
-                    <option value="">Select…</option>
-                    {HCP_QUALIFICATION_OPTIONS.map((q) => (
-                      <option key={q} value={q}>
-                        {q}
+                    <option value="">{t('common.selectPlaceholder')}</option>
+                    {HCP_QUALIFICATION_KEYS.map((qKey) => (
+                      <option key={qKey} value={t(qKey)}>
+                        {t(qKey)}
                       </option>
                     ))}
-                    <option value={OTHER_OPTION}>Other…</option>
+                    <option value={OTHER_OPTION}>{t('publicReportForm.otherEllipsis')}</option>
                   </select>
                   {qualificationOption === OTHER_OPTION && (
                     <input
                       value={reporterQualificationOther}
                       onChange={(e) => setReporterQualificationOther(e.target.value)}
-                      placeholder="Please specify"
+                      placeholder={t('publicReportForm.pleaseSpecify')}
                       className={`${inputClass} mt-2`}
                     />
                   )}
                 </div>
                 <div>
-                  <label className={labelClass}>Organization</label>
+                  <label className={labelClass}>{t('pvCaseWizard.organization')}</label>
                   <select value={organizationOption} onChange={(e) => setOrganizationOption(e.target.value)} className={inputClass}>
-                    <option value="">Select…</option>
+                    <option value="">{t('common.selectPlaceholder')}</option>
                     {organizations.map((o) => (
                       <option key={o.id} value={o.id}>
                         {o.name}
                       </option>
                     ))}
-                    <option value={OTHER_OPTION}>Other / not listed…</option>
+                    <option value={OTHER_OPTION}>{t('publicReportForm.otherNotListed')}</option>
                   </select>
                   {organizationOption === OTHER_OPTION && (
                     <input
                       value={reporterOrganizationOther}
                       onChange={(e) => setReporterOrganizationOther(e.target.value)}
-                      placeholder="Please specify"
+                      placeholder={t('publicReportForm.pleaseSpecify')}
                       className={`${inputClass} mt-2`}
                     />
                   )}
@@ -397,18 +420,18 @@ export function PublicReportForm({ slug }: { slug: string }) {
             )}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass}>Email</label>
+                <label className={labelClass}>{t('pvCaseWizard.email')}</label>
                 <input type="email" value={reporterEmail} onChange={(e) => setReporterEmail(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Phone</label>
+                <label className={labelClass}>{t('pvCaseWizard.phone')}</label>
                 <input value={reporterPhone} onChange={(e) => setReporterPhone(e.target.value)} className={inputClass} />
               </div>
             </div>
             <div>
-              <label className={labelClass}>Country of residence</label>
+              <label className={labelClass}>{t('publicReportForm.countryOfResidence')}</label>
               <select value={countryOfResidenceId} onChange={(e) => setCountryOfResidenceId(e.target.value)} className={inputClass}>
-                <option value="">Select a country…</option>
+                <option value="">{t('publicReportForm.selectCountryEllipsis')}</option>
                 {countries.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -419,39 +442,39 @@ export function PublicReportForm({ slug }: { slug: string }) {
           </div>
         </Section>
 
-        <Section title="About the patient" subtitle="Optional, but helps our safety team assess the report">
+        <Section title={t('publicReportForm.sectionAboutPatient')} subtitle={t('publicReportForm.subtitleAboutPatient')}>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={labelClass}>Age</label>
+              <label className={labelClass}>{t('publicReportForm.age')}</label>
               <input type="number" min={0} max={130} value={patientAgeYears} onChange={(e) => setPatientAgeYears(e.target.value)} className={inputClass} />
             </div>
             <div className="col-span-2">
-              <label className={labelClass}>Sex</label>
+              <label className={labelClass}>{t('pvCaseWizard.sex')}</label>
               <select value={patientSex} onChange={(e) => setPatientSex(e.target.value as PatientSex)} className={inputClass}>
-                <option value="unknown">Prefer not to say</option>
-                <option value="female">Female</option>
-                <option value="male">Male</option>
+                <option value="unknown">{t('publicReportForm.preferNotToSay')}</option>
+                <option value="female">{t('pvCaseWizard.female')}</option>
+                <option value="male">{t('pvCaseWizard.male')}</option>
               </select>
             </div>
           </div>
           <div className="mt-3">
-            <label className={labelClass}>Relevant medical history</label>
+            <label className={labelClass}>{t('pvCaseDetail.medicalHistory')}</label>
             <textarea
               value={patientMedicalHistory}
               onChange={(e) => setPatientMedicalHistory(e.target.value)}
               rows={2}
-              placeholder="Other conditions, allergies, or medications that might be relevant"
+              placeholder={t('publicReportForm.medicalHistoryPlaceholder')}
               className={inputClass}
             />
           </div>
         </Section>
 
-        <Section title="Product(s) involved" subtitle="At least one is required">
+        <Section title={t('publicReportForm.sectionProducts')} subtitle={t('pvCaseWizard.atLeastOneRequired')}>
           <div className="space-y-3">
             {products.map((product, index) => (
               <div key={product.key} className="rounded-lg border border-border p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product {index + 1}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('pvCaseWizard.productN', { n: String(index + 1) })}</p>
                   {products.length > 1 && (
                     <button
                       onClick={() => {
@@ -478,52 +501,57 @@ export function PublicReportForm({ slug }: { slug: string }) {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelClass}>Brand name *</label>
+                    <label className={labelClass}>{t('publicReportForm.brandNameRequired')}</label>
                     <input
                       value={product.medicinalProduct}
                       onChange={(e) => updateProduct(product.key, { medicinalProduct: e.target.value })}
-                      placeholder="e.g. Amoxil 500mg"
+                      placeholder={t('pvCaseWizard.medicinalProductPlaceholder')}
                       className={inputClass}
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Generic name (if known)</label>
+                    <label className={labelClass}>{t('publicReportForm.genericNameIfKnown')}</label>
                     <input
                       value={product.genericName ?? ''}
                       onChange={(e) => updateProduct(product.key, { genericName: e.target.value })}
-                      placeholder="e.g. Amoxicillin"
+                      placeholder={t('publicReportForm.genericNamePlaceholder')}
                       className={inputClass}
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className={labelClass}>Batch/lot number</label>
-                    <input value={product.batchNumber ?? ''} onChange={(e) => updateProduct(product.key, { batchNumber: e.target.value })} placeholder="If visible on the pack" className={inputClass} />
+                    <label className={labelClass}>{t('pvCaseWizard.batchLotNumber')}</label>
+                    <input
+                      value={product.batchNumber ?? ''}
+                      onChange={(e) => updateProduct(product.key, { batchNumber: e.target.value })}
+                      placeholder={t('publicReportForm.ifVisibleOnPack')}
+                      className={inputClass}
+                    />
                   </div>
                   <div>
-                    <label className={labelClass}>Manufacturing date</label>
+                    <label className={labelClass}>{t('publicReportForm.manufacturingDate')}</label>
                     <input type="date" value={product.manufacturingDate ?? ''} onChange={(e) => updateProduct(product.key, { manufacturingDate: e.target.value })} className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Expiry date</label>
+                    <label className={labelClass}>{t('publicReportForm.expiryDate')}</label>
                     <input type="date" value={product.expiryDate ?? ''} onChange={(e) => updateProduct(product.key, { expiryDate: e.target.value })} className={inputClass} />
                   </div>
                 </div>
               </div>
             ))}
             <button onClick={() => setProducts((prev) => [...prev, emptyProduct()])} className="flex items-center gap-1.5 text-sm font-medium text-safemeds-teal hover:underline">
-              <Plus className="h-4 w-4" /> Add another product
+              <Plus className="h-4 w-4" /> {t('publicReportForm.addAnotherProduct')}
             </button>
           </div>
         </Section>
 
-        <Section title="What happened" subtitle="At least one is required">
+        <Section title={t('publicReportForm.sectionWhatHappened')} subtitle={t('pvCaseWizard.atLeastOneRequired')}>
           <div className="space-y-3">
             {events.map((event, index) => (
               <div key={event.key} className="rounded-lg border border-border p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reaction {index + 1}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('publicReportForm.reactionN', { n: String(index + 1) })}</p>
                   {events.length > 1 && (
                     <button onClick={() => setEvents((prev) => prev.filter((e) => e.key !== event.key))} className="text-muted-foreground hover:text-status-error">
                       <Trash2 className="h-4 w-4" />
@@ -531,16 +559,16 @@ export function PublicReportForm({ slug }: { slug: string }) {
                   )}
                 </div>
                 <div>
-                  <label className={labelClass}>In a few words *</label>
+                  <label className={labelClass}>{t('publicReportForm.inAFewWords')}</label>
                   <input
                     value={event.reportedTerm}
                     onChange={(e) => updateEvent(event.key, { reportedTerm: e.target.value })}
-                    placeholder="e.g. skin rash"
+                    placeholder={t('publicReportForm.reactionPlaceholder')}
                     className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>Please describe what happened *</label>
+                  <label className={labelClass}>{t('publicReportForm.pleaseDescribe')}</label>
                   <textarea
                     value={event.narrative}
                     onChange={(e) => updateEvent(event.key, { narrative: e.target.value })}
@@ -550,35 +578,36 @@ export function PublicReportForm({ slug }: { slug: string }) {
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className={labelClass}>When did it start?</label>
+                    <label className={labelClass}>{t('publicReportForm.whenDidItStart')}</label>
                     <input type="date" value={event.onsetDate ?? ''} onChange={(e) => updateEvent(event.key, { onsetDate: e.target.value })} className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>When did it end? (if resolved)</label>
+                    <label className={labelClass}>{t('publicReportForm.whenDidItEnd')}</label>
                     <input type="date" value={event.resolutionDate ?? ''} onChange={(e) => updateEvent(event.key, { resolutionDate: e.target.value })} className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Current status</label>
+                    <label className={labelClass}>{t('publicReportForm.currentStatus')}</label>
                     <select value={event.outcome ?? 'unknown'} onChange={(e) => updateEvent(event.key, { outcome: e.target.value as ReactionOutcome })} className={inputClass}>
-                      {OUTCOME_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
+                      <option value="unknown">{t('common.unknown')}</option>
+                      <option value="recovered">{t('pvCaseWizard.recovered')}</option>
+                      <option value="recovering">{t('pvCaseWizard.recovering')}</option>
+                      <option value="not_recovered">{t('pvCaseWizard.notRecovered')}</option>
+                      <option value="recovered_with_sequelae">{t('pvCaseWizard.recoveredWithSequelae')}</option>
+                      <option value="fatal">{t('pvCaseWizard.fatal')}</option>
                     </select>
                   </div>
                 </div>
                 <div>
-                  <p className={labelClass}>Did any of these happen? (check all that apply)</p>
+                  <p className={labelClass}>{t('publicReportForm.didAnyHappen')}</p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {SERIOUSNESS_CRITERIA.map(([field, label]) => (
+                    {SERIOUSNESS_CRITERIA_KEYS.map(([field, labelKey]) => (
                       <label key={field} className="flex items-center gap-2 text-sm text-foreground">
                         <input
                           type="checkbox"
                           checked={Boolean(event[field])}
                           onChange={(e) => updateEvent(event.key, { [field]: e.target.checked } as Partial<EventRow>)}
                         />
-                        {label}
+                        {t(labelKey)}
                       </label>
                     ))}
                   </div>
@@ -586,25 +615,25 @@ export function PublicReportForm({ slug }: { slug: string }) {
               </div>
             ))}
             <button onClick={() => setEvents((prev) => [...prev, emptyEvent()])} className="flex items-center gap-1.5 text-sm font-medium text-safemeds-teal hover:underline">
-              <Plus className="h-4 w-4" /> Add another reaction
+              <Plus className="h-4 w-4" /> {t('publicReportForm.addAnotherReaction')}
             </button>
           </div>
         </Section>
 
-        <Section title="A few more details" subtitle="Optional — only complete what applies">
+        <Section title={t('publicReportForm.sectionMoreDetails')} subtitle={t('pvCaseWizard.optionalApplicable')}>
           <div className="space-y-4">
             <label className="flex items-center gap-2 text-sm text-foreground">
               <input type="checkbox" checked={suspectedFalsifiedOrSubstandard} onChange={(e) => setSuspectedFalsifiedOrSubstandard(e.target.checked)} />
-              I suspect this product may be fake or substandard
+              {t('publicReportForm.suspectFakeSubstandard')}
             </label>
             <label className="flex items-center gap-2 text-sm text-foreground">
               <input type="checkbox" checked={pregnancyExposure} onChange={(e) => setPregnancyExposure(e.target.checked)} />
-              This report involves a pregnancy
+              {t('publicReportForm.involvesPregnancy')}
             </label>
             {pregnancyExposure && (
               <div className="grid grid-cols-2 gap-3 rounded-lg border border-border p-3">
                 <div>
-                  <label className={labelClass}>Pregnancy outcome</label>
+                  <label className={labelClass}>{t('publicReportForm.pregnancyOutcomeLabel')}</label>
                   <select value={pregnancyOutcome} onChange={(e) => setPregnancyOutcome(e.target.value as PregnancyOutcome)} className={inputClass}>
                     {Object.entries(PREGNANCY_OUTCOME_LABELS).map(([value, label]) => (
                       <option key={value} value={value}>
@@ -614,7 +643,7 @@ export function PublicReportForm({ slug }: { slug: string }) {
                   </select>
                 </div>
                 <div>
-                  <label className={labelClass}>Expected delivery date</label>
+                  <label className={labelClass}>{t('pvCaseWizard.expectedDeliveryDate')}</label>
                   <input type="date" value={pregnancyExpectedDeliveryDate} onChange={(e) => setPregnancyExpectedDeliveryDate(e.target.value)} className={inputClass} />
                 </div>
               </div>
@@ -625,15 +654,11 @@ export function PublicReportForm({ slug }: { slug: string }) {
         <div className="rounded-lg border border-border bg-card p-4 space-y-3">
           <label className="flex items-start gap-2.5 text-sm text-foreground">
             <input type="checkbox" checked={consentGranted} onChange={(e) => setConsentGranted(e.target.checked)} className="mt-0.5" />
-            <span>
-              I consent to {company?.companyName} processing this report, including sharing it with the relevant medicines regulator if required.
-            </span>
+            <span>{t('publicReportForm.consentProcessing', { company: company?.companyName ?? '' })}</span>
           </label>
           <label className="flex items-start gap-2.5 text-sm text-foreground">
             <input type="checkbox" checked={contactConsentGranted} onChange={(e) => setContactConsentGranted(e.target.checked)} className="mt-0.5" />
-            <span>
-              I agree to be contacted again for follow-up on this report if more information is needed (optional — you can still submit without this).
-            </span>
+            <span>{t('publicReportForm.consentFollowUp')}</span>
           </label>
         </div>
 
@@ -649,7 +674,7 @@ export function PublicReportForm({ slug }: { slug: string }) {
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-safemeds-teal px-4 py-3 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
         >
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-          Submit Report
+          {t('publicReportForm.submitReport')}
         </button>
       </div>
     </div>

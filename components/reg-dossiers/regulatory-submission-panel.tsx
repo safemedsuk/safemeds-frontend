@@ -7,17 +7,19 @@ import { listDocuments } from '@/lib/api/documents'
 import { attachRegSubmissionEvidence, generateRegSubmission, listRegSubmissions, removeRegSubmissionEvidence, type RegSubmission } from '@/lib/api/reg-dossiers'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { DocumentPreviewModal } from '@/components/ui/document-preview-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 function formatDateTime(value: string): string {
   return new Date(value).toLocaleString()
 }
 
-const CHANNEL_LABELS: Record<string, string> = {
-  vigiflow: 'VigiFlow',
-  dhis2: 'DHIS2',
-  portal: 'Regulator Portal',
-  paper_pdf: 'Physical / Courier',
-  email: 'Email',
+const CHANNEL_LABEL_KEYS: Record<string, MessageKey> = {
+  vigiflow: 'regSubmissionPanel.channelVigiflow',
+  dhis2: 'regSubmissionPanel.channelDhis2',
+  portal: 'regSubmissionPanel.channelPortal',
+  paper_pdf: 'regSubmissionPanel.channelPaperPdf',
+  email: 'regSubmissionPanel.channelEmail',
 }
 
 /**
@@ -30,6 +32,7 @@ const CHANNEL_LABELS: Record<string, string> = {
  * the UI for the two actions that gate checks for.
  */
 export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierId: string; onGenerated: () => void }) {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canSubmit = has('regulatory.submit')
 
@@ -44,9 +47,9 @@ export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierI
     setLoading(true)
     listRegSubmissions(dossierId)
       .then(setSubmissions)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load submissions.')))
+      .catch((err) => setError(getErrorMessage(err, t('regSubmissionPanel.couldNotLoad'))))
       .finally(() => setLoading(false))
-  }, [dossierId])
+  }, [dossierId, t])
 
   useEffect(load, [load])
 
@@ -58,7 +61,7 @@ export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierI
       await load()
       onGenerated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not generate a submission package.'))
+      setError(getErrorMessage(err, t('regSubmissionPanel.couldNotGenerate')))
     } finally {
       setGenerating(false)
     }
@@ -72,7 +75,7 @@ export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierI
       await load()
       onGenerated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not attach dispatch evidence.'))
+      setError(getErrorMessage(err, t('regSubmissionPanel.couldNotAttach')))
     } finally {
       setUploadingFor(null)
     }
@@ -87,7 +90,7 @@ export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierI
       await load()
       onGenerated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not remove the attached evidence.'))
+      setError(getErrorMessage(err, t('regSubmissionPanel.couldNotRemove')))
     } finally {
       setUploadingFor(null)
     }
@@ -114,9 +117,9 @@ export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierI
             <Send className="h-5 w-5 text-[var(--primary)]" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-[var(--text)]">Regulatory Submission</h2>
+            <h2 className="text-sm font-semibold text-[var(--text)]">{t('regSubmissionPanel.heading')}</h2>
             <p className="text-xs text-[var(--text-muted)]">
-              Generate a real cover sheet, then confirm dispatch — SafeMeds doesn&apos;t transmit to the regulator directly, a human still sends it.
+              {t('regSubmissionPanel.subheading')}
             </p>
           </div>
         </div>
@@ -127,7 +130,7 @@ export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierI
             className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
           >
             {generating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {submissions.length === 0 ? 'Generate Submission' : 'Generate Resubmission'}
+            {submissions.length === 0 ? t('regSubmissionPanel.generateSubmission') : t('regSubmissionPanel.generateResubmission')}
           </button>
         )}
       </div>
@@ -140,7 +143,7 @@ export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierI
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         ) : submissions.length === 0 ? (
-          <p className="py-8 text-center text-sm text-[var(--text-muted)]">No submission package generated yet.</p>
+          <p className="py-8 text-center text-sm text-[var(--text-muted)]">{t('regSubmissionPanel.noneGeneratedYet')}</p>
         ) : (
           <ul className="divide-y divide-[var(--border)]">
             {submissions.map((s) => (
@@ -151,23 +154,23 @@ export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierI
                   ) : (
                     <Circle className="h-4 w-4 flex-shrink-0 text-muted-foreground/40" />
                   )}
-                  <span className="text-sm font-medium text-[var(--text)]">Submission #{s.submissionNumber}</span>
-                  <span className="text-xs text-[var(--text-muted)]">{CHANNEL_LABELS[s.channel] ?? s.channel} · {formatDateTime(s.generatedAt)}</span>
+                  <span className="text-sm font-medium text-[var(--text)]">{t('regSubmissionPanel.submissionLabel', { number: String(s.submissionNumber) })}</span>
+                  <span className="text-xs text-[var(--text-muted)]">{CHANNEL_LABEL_KEYS[s.channel] ? t(CHANNEL_LABEL_KEYS[s.channel]) : s.channel} · {formatDateTime(s.generatedAt)}</span>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
-                    onClick={() => previewDocument(s.id, s.coverSheetDocumentId, `Submission #${s.submissionNumber} Cover Sheet`)}
+                    onClick={() => previewDocument(s.id, s.coverSheetDocumentId, t('regSubmissionPanel.coverSheetTitle', { number: String(s.submissionNumber) }))}
                     className="flex items-center gap-1 text-xs font-medium text-[var(--primary)] hover:underline"
                   >
-                    <FileText className="h-3.5 w-3.5" /> Cover Sheet
+                    <FileText className="h-3.5 w-3.5" /> {t('regSubmissionPanel.coverSheet')}
                   </button>
                   {s.evidenceDocumentId ? (
                     <>
                       <button
-                        onClick={() => previewDocument(s.id, s.evidenceDocumentId!, `Submission #${s.submissionNumber} Evidence`)}
+                        onClick={() => previewDocument(s.id, s.evidenceDocumentId!, t('regSubmissionPanel.evidenceTitle', { number: String(s.submissionNumber) }))}
                         className="flex items-center gap-1 text-xs font-medium text-[var(--primary)] hover:underline"
                       >
-                        <FileText className="h-3.5 w-3.5" /> Evidence
+                        <FileText className="h-3.5 w-3.5" /> {t('regSubmissionPanel.evidence')}
                       </button>
                       {canSubmit && (
                         <button
@@ -175,7 +178,7 @@ export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierI
                           disabled={uploadingFor !== null}
                           className="text-xs font-medium text-status-error hover:underline disabled:opacity-50"
                         >
-                          {uploadingFor === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Remove'}
+                          {uploadingFor === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t('regSubmissionPanel.remove')}
                         </button>
                       )}
                     </>
@@ -183,7 +186,7 @@ export function RegulatorySubmissionPanel({ dossierId, onGenerated }: { dossierI
                     canSubmit && (
                       <label className="flex cursor-pointer items-center gap-1 text-xs font-medium text-status-warning hover:underline">
                         {uploadingFor === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                        Attach Evidence
+                        {t('regSubmissionPanel.attachEvidence')}
                         <input
                           type="file"
                           className="hidden"

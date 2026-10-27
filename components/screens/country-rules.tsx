@@ -575,6 +575,7 @@ function VersionHistoryPanel<T extends VersionLike>({
     run: (row: T) => Promise<void>
   }
 }) {
+  const { t } = useTranslation()
   const [rows, setRows] = useState<T[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -586,7 +587,7 @@ function VersionHistoryPanel<T extends VersionLike>({
     setError(null)
     load()
       .then((page) => setRows(page.rows))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load version history.')))
+      .catch((err) => setError(getErrorMessage(err, t('countryRulesAdmin.errorLoadHistory'))))
       .finally(() => setLoading(false))
   }
 
@@ -600,7 +601,7 @@ function VersionHistoryPanel<T extends VersionLike>({
       onChanged()
       reload()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not activate this version — it may still be unverified or already retired.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorActivate')))
     } finally {
       setBusyId(null)
     }
@@ -615,7 +616,7 @@ function VersionHistoryPanel<T extends VersionLike>({
       onChanged()
       reload()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not complete this action.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorCompleteAction')))
     } finally {
       setBusyId(null)
     }
@@ -628,11 +629,11 @@ function VersionHistoryPanel<T extends VersionLike>({
 
         {loading ? (
           <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+            <Loader2 className="h-4 w-4 animate-spin" /> {t('countryRulesAdmin.loadingEllipsis')}
           </div>
         ) : (
           <div className="max-h-80 overflow-y-auto rounded-lg border border-border divide-y divide-border">
-            {rows.length === 0 && <p className="p-3 text-xs text-muted-foreground">No versions proposed yet.</p>}
+            {rows.length === 0 && <p className="p-3 text-xs text-muted-foreground">{t('countryRulesAdmin.noVersionsYet')}</p>}
             {rows
               .slice()
               .sort((a, b) => b.version - a.version)
@@ -661,7 +662,7 @@ function VersionHistoryPanel<T extends VersionLike>({
                         disabled={busyId === row.id}
                         className="rounded-lg border border-[var(--border)] px-2.5 py-1 text-xs font-medium hover:bg-[var(--surface-raised)] disabled:opacity-50"
                       >
-                        Activate
+                        {t('countryRulesAdmin.activate')}
                       </button>
                     )}
                   </div>
@@ -681,7 +682,7 @@ function VersionHistoryPanel<T extends VersionLike>({
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-1.5 text-xs font-medium text-safemeds-teal hover:underline"
           >
-            <Plus className="h-3.5 w-3.5" /> Propose new version
+            <Plus className="h-3.5 w-3.5" /> {t('countryRulesAdmin.proposeNewVersion')}
           </button>
         )}
       </div>
@@ -710,9 +711,10 @@ function ReportingRuleVersionPanel({
   onClose: () => void
   onChanged: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <VersionHistoryPanel<ReportingRule>
-      title="Reporting rule versions"
+      title={t('countryRulesAdmin.reportingRuleVersionsTitle')}
       onClose={onClose}
       onChanged={onChanged}
       load={() => listReportingRules({ authorityId, reportTypeId, limit: 100 })}
@@ -720,20 +722,20 @@ function ReportingRuleVersionPanel({
       renderRow={(rule) => (
         <div className="space-y-0.5">
           <div>
-            {formatKey(rule.seriousnessClass)}: {rule.windowDays} {rule.dayType} days, effective {rule.effectiveFrom.slice(0, 10)}
-            {rule.unverified && <span className="ml-1 text-status-warning">(unverified — cannot activate)</span>}
+            {t('countryRulesAdmin.ruleSummary', { class: formatKey(rule.seriousnessClass), days: String(rule.windowDays), dayType: rule.dayType, date: rule.effectiveFrom.slice(0, 10) })}
+            {rule.unverified && <span className="ml-1 text-status-warning">{t('countryRulesAdmin.unverifiedCannotActivate')}</span>}
           </div>
           {rule.submissionDestination !== 'regulator' && (
-            <div className="text-[11px] text-muted-foreground">Routes to: {formatKey(rule.submissionDestination)}</div>
+            <div className="text-[11px] text-muted-foreground">{t('countryRulesAdmin.routesTo', { dest: formatKey(rule.submissionDestination) })}</div>
           )}
-          {rule.sourceReference && <div className="text-[11px] italic text-muted-foreground">Source: {rule.sourceReference}</div>}
+          {rule.sourceReference && <div className="text-[11px] italic text-muted-foreground">{t('countryRulesAdmin.source', { ref: rule.sourceReference })}</div>}
         </div>
       )}
       renderCreateForm={(onCreated) => (
         <CreateReportingRuleForm authorityId={authorityId} reportTypeId={reportTypeId} reportTypeKey={reportTypeKey} onCreated={onCreated} />
       )}
       extraAction={{
-        label: 'Duplicate as verified',
+        label: t('countryRulesAdmin.duplicateAsVerified'),
         isVisible: (rule) => rule.unverified,
         run: (rule) =>
           createReportingRuleVersion({
@@ -765,6 +767,7 @@ function CreateReportingRuleForm({
   reportTypeKey: string
   onCreated: () => void
 }) {
+  const { t } = useTranslation()
   // testing-todo 18.3 — `line_listing` rows don't carry a real seriousness
   // tier at all (`LineListingService.generate()`'s own lookup never filters
   // on this column); the seed data's own sentinel value for this case is
@@ -814,7 +817,7 @@ function CreateReportingRuleForm({
       })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this rule version.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorCreateRuleVersion')))
     } finally {
       setBusy(false)
     }
@@ -824,93 +827,84 @@ function CreateReportingRuleForm({
     <div className="space-y-3 rounded-lg border border-border p-3">
       {error && <p className="text-xs text-status-error">{error}</p>}
       <div className="space-y-1">
-        <FieldLabel>Seriousness class</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.seriousnessClass')}</FieldLabel>
         <select value={seriousnessClass} onChange={(e) => setSeriousnessClass(e.target.value)} className={inputClass}>
           {isLineListing ? (
-            <option value="periodic">Periodic (not seriousness-based)</option>
+            <option value="periodic">{t('countryRulesAdmin.periodicOption')}</option>
           ) : (
             <>
-              <option value="serious">Serious</option>
-              <option value="non_serious">Non-serious</option>
-              <option value="fatal">Fatal</option>
+              <option value="serious">{t('countryRulesAdmin.seriousOption')}</option>
+              <option value="non_serious">{t('countryRulesAdmin.nonSeriousOption')}</option>
+              <option value="fatal">{t('countryRulesAdmin.fatalOption')}</option>
             </>
           )}
         </select>
-        {isLineListing && (
-          <p className="text-[11px] text-muted-foreground">
-            A line listing isn&apos;t triggered by an individual case&apos;s seriousness — this cadence applies uniformly. Set the actual
-            recurrence below, under &quot;Periodic reporting cadence&quot;.
-          </p>
-        )}
+        {isLineListing && <p className="text-[11px] text-muted-foreground">{t('countryRulesAdmin.lineListingNote')}</p>}
       </div>
       <div className="space-y-1">
-        <FieldLabel>{isLineListing ? 'Deadline after period end (days)' : 'Window (days)'}</FieldLabel>
+        <FieldLabel>{isLineListing ? t('countryRulesAdmin.deadlineAfterPeriodEnd') : t('countryRulesAdmin.windowDays')}</FieldLabel>
         <input type="number" min={1} value={windowDays} onChange={(e) => setWindowDays(Number(e.target.value))} className={inputClass} />
       </div>
       <div className="space-y-1">
-        <FieldLabel>Effective from</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.effectiveFrom')}</FieldLabel>
         <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className={inputClass} />
       </div>
       <div className="space-y-1">
-        <FieldLabel>Source reference (recommended)</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.sourceReferenceRecommended')}</FieldLabel>
         <input
           value={sourceReference}
           onChange={(e) => setSourceReference(e.target.value)}
-          placeholder="e.g. GUD/022 §6.1"
+          placeholder={t('countryRulesAdmin.sourceReferencePlaceholder')}
           className={inputClass}
         />
-        <p className="text-[11px] text-muted-foreground">Where this exact number comes from — shown next to the rule everywhere it's displayed.</p>
+        <p className="text-[11px] text-muted-foreground">{t('countryRulesAdmin.sourceReferenceHelp')}</p>
       </div>
       <label className="flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning/5 p-2.5">
         <input type="checkbox" checked={unverified} onChange={(e) => setUnverified(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-input" />
         <span className="text-xs text-foreground">
-          <span className="font-medium">Mark unverified</span> — cannot be activated until a field expert confirms this number against an
-          authoritative source. Uncheck only once you're certain.
+          <span className="font-medium">{t('countryRulesAdmin.markUnverified')}</span> {t('countryRulesAdmin.markUnverifiedHelpRule')}
         </span>
       </label>
 
       <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="text-xs font-medium text-safemeds-teal hover:underline">
-        {showAdvanced ? 'Hide' : 'Show'} advanced options
+        {showAdvanced ? t('countryRulesAdmin.hideAdvancedOptions') : t('countryRulesAdmin.showAdvancedOptions')}
       </button>
       {showAdvanced && (
         <div className="space-y-3 rounded-lg bg-muted/30 p-2.5">
           <div className="space-y-1">
-            <FieldLabel>Day type</FieldLabel>
+            <FieldLabel>{t('countryRulesAdmin.dayType')}</FieldLabel>
             <select value={dayType} onChange={(e) => setDayType(e.target.value as 'calendar' | 'business')} className={inputClass}>
-              <option value="calendar">Calendar days</option>
-              <option value="business">Business days</option>
+              <option value="calendar">{t('countryRulesAdmin.calendarDays')}</option>
+              <option value="business">{t('countryRulesAdmin.businessDays')}</option>
             </select>
           </div>
           <div className="space-y-1">
-            <FieldLabel>Clock start</FieldLabel>
+            <FieldLabel>{t('countryRulesAdmin.clockStart')}</FieldLabel>
             <input value={clockStart} onChange={(e) => setClockStart(e.target.value)} className={inputClass} />
           </div>
           <div className="space-y-1">
-            <FieldLabel>Submission destination</FieldLabel>
+            <FieldLabel>{t('countryRulesAdmin.submissionDestination')}</FieldLabel>
             <select
               value={submissionDestination}
               onChange={(e) => setSubmissionDestination(e.target.value as typeof submissionDestination)}
               className={inputClass}
             >
-              <option value="regulator">Regulator (default)</option>
-              <option value="ethics_committee_and_trial_portal">Ethics committee / trial portal</option>
+              <option value="regulator">{t('countryRulesAdmin.regulatorDefault')}</option>
+              <option value="ethics_committee_and_trial_portal">{t('countryRulesAdmin.ethicsCommitteeTrialPortal')}</option>
             </select>
           </div>
           <div className="space-y-1">
-            <FieldLabel>{isLineListing ? 'Periodic reporting cadence (days)' : 'Periodic reporting cadence (days, optional)'}</FieldLabel>
+            <FieldLabel>{isLineListing ? t('countryRulesAdmin.periodicCadenceDaysRequired') : t('countryRulesAdmin.periodicCadenceDaysOptional')}</FieldLabel>
             <input
               type="number"
               min={1}
               value={reportingPeriodDays}
               onChange={(e) => setReportingPeriodDays(e.target.value)}
-              placeholder="e.g. 180 for a 6-monthly PSUR"
+              placeholder={t('countryRulesAdmin.cadencePlaceholder')}
               className={inputClass}
             />
             {isLineListing && !reportingPeriodDays && (
-              <p className="text-[11px] text-status-warning">
-                Required for a line listing — without it, generating a line listing on this country&apos;s cadence will fail with
-                &quot;no cadence configured&quot; even once this rule is active.
-              </p>
+              <p className="text-[11px] text-status-warning">{t('countryRulesAdmin.lineListingCadenceRequired')}</p>
             )}
           </div>
         </div>
@@ -921,7 +915,7 @@ function CreateReportingRuleForm({
         disabled={busy}
         className="w-full h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium"
       >
-        Create draft version
+        {t('countryRulesAdmin.createDraftVersion')}
       </button>
     </div>
   )
@@ -938,9 +932,10 @@ function SeriousnessDefinitionVersionPanel({
   onClose: () => void
   onChanged: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <VersionHistoryPanel<SeriousnessDefinition>
-      title="Seriousness criteria versions"
+      title={t('countryRulesAdmin.seriousnessVersionsTitle')}
       onClose={onClose}
       onChanged={onChanged}
       load={() => listSeriousnessDefinitions({ authorityId, limit: 100 })}
@@ -956,6 +951,7 @@ function SeriousnessDefinitionVersionPanel({
 }
 
 function CreateSeriousnessDefinitionForm({ authorityId, onCreated }: { authorityId: string; onCreated: () => void }) {
+  const { t } = useTranslation()
   const [criterionKey, setCriterionKey] = useState('')
   const [label, setLabel] = useState('')
   const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().slice(0, 10))
@@ -964,7 +960,7 @@ function CreateSeriousnessDefinitionForm({ authorityId, onCreated }: { authority
 
   const handleCreate = async () => {
     if (!criterionKey || !label) {
-      setError('Criterion key and label are both required.')
+      setError(t('countryRulesAdmin.errorRequiredCriterion'))
       return
     }
     setBusy(true)
@@ -973,7 +969,7 @@ function CreateSeriousnessDefinitionForm({ authorityId, onCreated }: { authority
       await createSeriousnessDefinitionVersion({ authorityId, criterionKey, label, effectiveFrom })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this seriousness definition version.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorCreateSeriousnessVersion')))
     } finally {
       setBusy(false)
     }
@@ -983,25 +979,25 @@ function CreateSeriousnessDefinitionForm({ authorityId, onCreated }: { authority
     <div className="space-y-3 rounded-lg border border-border p-3">
       {error && <p className="text-xs text-status-error">{error}</p>}
       <div className="space-y-1">
-        <FieldLabel>Criterion key</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.criterionKey')}</FieldLabel>
         <input
           value={criterionKey}
           onChange={(e) => setCriterionKey(e.target.value)}
-          placeholder="e.g. hospitalisation"
+          placeholder={t('countryRulesAdmin.criterionKeyPlaceholder')}
           className={inputClass}
         />
       </div>
       <div className="space-y-1">
-        <FieldLabel>Label</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.label')}</FieldLabel>
         <input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder="e.g. Hospitalisation or prolongation"
+          placeholder={t('countryRulesAdmin.labelPlaceholderSeriousness')}
           className={inputClass}
         />
       </div>
       <div className="space-y-1">
-        <FieldLabel>Effective from</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.effectiveFrom')}</FieldLabel>
         <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className={inputClass} />
       </div>
       <button
@@ -1009,7 +1005,7 @@ function CreateSeriousnessDefinitionForm({ authorityId, onCreated }: { authority
         disabled={busy}
         className="w-full h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium"
       >
-        Create draft version
+        {t('countryRulesAdmin.createDraftVersion')}
       </button>
     </div>
   )
@@ -1028,17 +1024,18 @@ function FormSchemaVersionPanel({
   onClose: () => void
   onChanged: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <VersionHistoryPanel<FormSchema>
-      title="Form schema versions"
+      title={t('countryRulesAdmin.formSchemaVersionsTitle')}
       onClose={onClose}
       onChanged={onChanged}
       load={() => listFormSchemas({ countryId: countryId ?? undefined, reportTypeId, limit: 100 })}
       activate={activateFormSchema}
       renderRow={(schema) => (
         <>
-          {schema.officialFormCode ?? 'Untitled form'} — {schema.jsonSchema.sections.length} section
-          {schema.jsonSchema.sections.length === 1 ? '' : 's'}
+          {schema.officialFormCode ?? t('countryRulesAdmin.untitledForm')} —{' '}
+          {t('countryRulesAdmin.sectionCount', { count: String(schema.jsonSchema.sections.length), plural: schema.jsonSchema.sections.length === 1 ? '' : 's' })}
         </>
       )}
       renderCreateForm={(onCreated) => (
@@ -1057,6 +1054,7 @@ function CreateFormSchemaForm({
   reportTypeId: string
   onCreated: () => void
 }) {
+  const { t } = useTranslation()
   const [officialFormCode, setOfficialFormCode] = useState('')
   const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().slice(0, 10))
   const [sectionsJson, setSectionsJson] = useState(
@@ -1070,7 +1068,7 @@ function CreateFormSchemaForm({
     try {
       sections = JSON.parse(sectionsJson) as FormSchemaSection[]
     } catch {
-      setError('Sections must be valid JSON — see the placeholder for the expected shape.')
+      setError(t('countryRulesAdmin.errorInvalidJson'))
       return
     }
     setBusy(true)
@@ -1085,7 +1083,7 @@ function CreateFormSchemaForm({
       })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this form schema version.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorCreateSchemaVersion')))
     } finally {
       setBusy(false)
     }
@@ -1095,11 +1093,11 @@ function CreateFormSchemaForm({
     <div className="space-y-3 rounded-lg border border-border p-3">
       {error && <p className="text-xs text-status-error">{error}</p>}
       <div className="space-y-1">
-        <FieldLabel>Official form code (optional)</FieldLabel>
-        <input value={officialFormCode} onChange={(e) => setOfficialFormCode(e.target.value)} placeholder="e.g. F1 (yellow)" className={inputClass} />
+        <FieldLabel>{t('countryRulesAdmin.officialFormCodeOptional')}</FieldLabel>
+        <input value={officialFormCode} onChange={(e) => setOfficialFormCode(e.target.value)} placeholder={t('countryRulesAdmin.officialFormCodePlaceholder')} className={inputClass} />
       </div>
       <div className="space-y-1">
-        <FieldLabel>Sections (JSON)</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.sectionsJson')}</FieldLabel>
         <textarea
           value={sectionsJson}
           onChange={(e) => setSectionsJson(e.target.value)}
@@ -1108,7 +1106,7 @@ function CreateFormSchemaForm({
         />
       </div>
       <div className="space-y-1">
-        <FieldLabel>Effective from</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.effectiveFrom')}</FieldLabel>
         <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className={inputClass} />
       </div>
       <button
@@ -1116,7 +1114,7 @@ function CreateFormSchemaForm({
         disabled={busy}
         className="w-full h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium"
       >
-        Create draft version
+        {t('countryRulesAdmin.createDraftVersion')}
       </button>
     </div>
   )
@@ -1135,18 +1133,15 @@ function SubmissionFormatVersionPanel({
   onClose: () => void
   onChanged: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <VersionHistoryPanel<SubmissionFormat>
-      title="Submission format versions"
+      title={t('countryRulesAdmin.submissionFormatVersionsTitle')}
       onClose={onClose}
       onChanged={onChanged}
       load={() => listSubmissionFormats({ authorityId, reportTypeId, limit: 100 })}
       activate={activateSubmissionFormat}
-      renderRow={(format) => (
-        <>
-          {format.templateRef} via {CHANNEL_LABELS[format.channel] ?? format.channel}
-        </>
-      )}
+      renderRow={(format) => <>{t('countryRulesAdmin.via', { ref: format.templateRef, channel: CHANNEL_LABELS[format.channel] ?? format.channel })}</>}
       renderCreateForm={(onCreated) => (
         <CreateSubmissionFormatForm authorityId={authorityId} reportTypeId={reportTypeId} onCreated={onCreated} />
       )}
@@ -1163,6 +1158,7 @@ function CreateSubmissionFormatForm({
   reportTypeId: string
   onCreated: () => void
 }) {
+  const { t } = useTranslation()
   const [templateRef, setTemplateRef] = useState('')
   const [channel, setChannel] = useState<SubmissionFormat['channel']>('vigiflow')
   const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().slice(0, 10))
@@ -1171,7 +1167,7 @@ function CreateSubmissionFormatForm({
 
   const handleCreate = async () => {
     if (!templateRef) {
-      setError('Template reference is required.')
+      setError(t('countryRulesAdmin.errorTemplateRequired'))
       return
     }
     setBusy(true)
@@ -1180,7 +1176,7 @@ function CreateSubmissionFormatForm({
       await createSubmissionFormatVersion({ authorityId, reportTypeId, templateRef, channel, effectiveFrom })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this submission format version.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorCreateFormatVersion')))
     } finally {
       setBusy(false)
     }
@@ -1190,11 +1186,11 @@ function CreateSubmissionFormatForm({
     <div className="space-y-3 rounded-lg border border-border p-3">
       {error && <p className="text-xs text-status-error">{error}</p>}
       <div className="space-y-1">
-        <FieldLabel>Template reference</FieldLabel>
-        <input value={templateRef} onChange={(e) => setTemplateRef(e.target.value)} placeholder="e.g. E2B(R2)" className={inputClass} />
+        <FieldLabel>{t('countryRulesAdmin.templateReference')}</FieldLabel>
+        <input value={templateRef} onChange={(e) => setTemplateRef(e.target.value)} placeholder={t('countryRulesAdmin.templateReferencePlaceholder')} className={inputClass} />
       </div>
       <div className="space-y-1">
-        <FieldLabel>Channel</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.channel')}</FieldLabel>
         <select value={channel} onChange={(e) => setChannel(e.target.value as SubmissionFormat['channel'])} className={inputClass}>
           {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
@@ -1204,7 +1200,7 @@ function CreateSubmissionFormatForm({
         </select>
       </div>
       <div className="space-y-1">
-        <FieldLabel>Effective from</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.effectiveFrom')}</FieldLabel>
         <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className={inputClass} />
       </div>
       <button
@@ -1212,7 +1208,7 @@ function CreateSubmissionFormatForm({
         disabled={busy}
         className="w-full h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium"
       >
-        Create draft version
+        {t('countryRulesAdmin.createDraftVersion')}
       </button>
     </div>
   )
@@ -1236,6 +1232,7 @@ function RegCloudRuleGraphSection({
   countryId: string
   onOpenPanel: (panel: VersionPanelKind) => void
 }) {
+  const { t } = useTranslation()
   const [authorityId, setAuthorityId] = useState(authorities[0]?.id ?? '')
   const [productClass, setProductClass] = useState('')
   const [managingClasses, setManagingClasses] = useState(false)
@@ -1249,17 +1246,14 @@ function RegCloudRuleGraphSection({
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
       <div className="p-4 border-b border-border">
-        <h2 className="font-semibold text-foreground">RegCloud — Country Rule-Set Graph</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          The document checklist, fee schedule, and renewal cadence a tenant&apos;s registration workflow resolves against for
-          a given authority and product class. Every row starts unverified until a field expert confirms it.
-        </p>
+        <h2 className="font-semibold text-foreground">{t('countryRulesAdmin.regcloudGraphTitle')}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">{t('countryRulesAdmin.regcloudGraphDescription')}</p>
       </div>
       <div className="grid gap-3 p-4 sm:grid-cols-2">
         <div className="space-y-1">
-          <FieldLabel>Authority</FieldLabel>
+          <FieldLabel>{t('countryRulesAdmin.authority')}</FieldLabel>
           <select value={authorityId} onChange={(e) => setAuthorityId(e.target.value)} className={inputClass}>
-            {authorities.length === 0 && <option value="">No authority for this country yet</option>}
+            {authorities.length === 0 && <option value="">{t('countryRulesAdmin.noAuthorityForCountry')}</option>}
             {authorities.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name} ({a.code})
@@ -1269,9 +1263,9 @@ function RegCloudRuleGraphSection({
         </div>
         <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <FieldLabel>Product class</FieldLabel>
+            <FieldLabel>{t('countryRulesAdmin.productClass')}</FieldLabel>
             <button type="button" onClick={() => setManagingClasses(true)} className="text-[11px] text-primary hover:underline">
-              Manage classes…
+              {t('countryRulesAdmin.manageClasses')}
             </button>
           </div>
           <ProductClassPicker key={authorityId} authorityId={authorityId || undefined} value={productClass} onChange={setProductClass} className={inputClass} />
@@ -1283,21 +1277,21 @@ function RegCloudRuleGraphSection({
           onClick={() => onOpenPanel({ kind: 'reg-requirement', countryId, authorityId, productClass })}
           className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
         >
-          <FileText className="h-3.5 w-3.5" /> Document Requirements
+          <FileText className="h-3.5 w-3.5" /> {t('countryRulesAdmin.documentRequirements')}
         </button>
         <button
           disabled={!authorityId || !productClass}
           onClick={() => onOpenPanel({ kind: 'reg-fee-schedule', countryId, authorityId, productClass })}
           className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
         >
-          <Landmark className="h-3.5 w-3.5" /> Fee Schedule
+          <Landmark className="h-3.5 w-3.5" /> {t('countryRulesAdmin.feeSchedule')}
         </button>
         <button
           disabled={!authorityId || !productClass}
           onClick={() => onOpenPanel({ kind: 'reg-deadline-rule', countryId, authorityId, productClass })}
           className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
         >
-          <History className="h-3.5 w-3.5" /> Renewal / Deadline Rules
+          <History className="h-3.5 w-3.5" /> {t('countryRulesAdmin.renewalDeadlineRules')}
         </button>
       </div>
 
@@ -1317,6 +1311,7 @@ function RegCloudRuleGraphSection({
 // rather than fragmenting into a second, disconnected surface.
 
 function ProductClassManagerModal({ authorityId, authorityName, onClose }: { authorityId: string; authorityName: string; onClose: () => void }) {
+  const { t } = useTranslation()
   const [classes, setClasses] = useState<ProductClass[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -1328,7 +1323,7 @@ function ProductClassManagerModal({ authorityId, authorityName, onClose }: { aut
     setError(null)
     listProductClasses({ authorityId, includeInactive: true })
       .then(setClasses)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load product classes.')))
+      .catch((err) => setError(getErrorMessage(err, t('countryRulesAdmin.errorLoadProductClasses'))))
       .finally(() => setLoading(false))
   }
 
@@ -1338,19 +1333,15 @@ function ProductClassManagerModal({ authorityId, authorityName, onClose }: { aut
   }, [authorityId])
 
   return (
-    <Modal title={`Product Classes — ${authorityName}`} onClose={onClose} maxWidth="max-w-2xl">
+    <Modal title={t('countryRulesAdmin.productClassesTitle', { authority: authorityName })} onClose={onClose} maxWidth="max-w-2xl">
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            The curated pick-list every dossier/reliance/registration screen offers for this authority — a class doesn&apos;t have to be
-            listed here to be used (every picker still allows a custom, free-typed class), this just saves everyone from retyping the same
-            names.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('countryRulesAdmin.productClassesDescription')}</p>
           <button
             onClick={() => setShowCreate(true)}
             className="ml-3 flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--primary-hover)]"
           >
-            <Plus className="h-3.5 w-3.5" /> Add
+            <Plus className="h-3.5 w-3.5" /> {t('countryRulesAdmin.add')}
           </button>
         </div>
 
@@ -1362,16 +1353,16 @@ function ProductClassManagerModal({ authorityId, authorityName, onClose }: { aut
           </div>
         ) : classes.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-            No product classes configured for this authority yet.
+            {t('countryRulesAdmin.noProductClassesYet')}
           </p>
         ) : (
           <div className="max-h-96 overflow-y-auto rounded-lg border border-border">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  <th className="p-2.5">Key</th>
-                  <th className="p-2.5">Label</th>
-                  <th className="p-2.5">Active</th>
+                  <th className="p-2.5">{t('countryRulesAdmin.columnKey')}</th>
+                  <th className="p-2.5">{t('countryRulesAdmin.columnLabel')}</th>
+                  <th className="p-2.5">{t('countryRulesAdmin.columnActive')}</th>
                   <th className="p-2.5" />
                 </tr>
               </thead>
@@ -1380,10 +1371,10 @@ function ProductClassManagerModal({ authorityId, authorityName, onClose }: { aut
                   <tr key={c.id} className={`border-b border-border last:border-0 ${!c.active ? 'opacity-50' : ''}`}>
                     <td className="p-2.5 font-mono text-xs text-muted-foreground">{c.classKey}</td>
                     <td className="p-2.5 font-medium text-foreground">{c.label}</td>
-                    <td className="p-2.5 text-foreground">{c.active ? 'Active' : 'Inactive'}</td>
+                    <td className="p-2.5 text-foreground">{c.active ? t('countryRulesAdmin.active') : t('countryRulesAdmin.inactive')}</td>
                     <td className="p-2.5 text-right">
                       <button onClick={() => setEditing(c)} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-                        <Pencil className="h-3 w-3" /> Edit
+                        <Pencil className="h-3 w-3" /> {t('countryRulesAdmin.edit')}
                       </button>
                     </td>
                   </tr>
@@ -1420,6 +1411,7 @@ function ProductClassManagerModal({ authorityId, authorityName, onClose }: { aut
 }
 
 function ProductClassEditModal({ productClass, onClose, onSaved }: { productClass: ProductClass; onClose: () => void; onSaved: () => void }) {
+  const { t } = useTranslation()
   const [label, setLabel] = useState(productClass.label)
   const [description, setDescription] = useState(productClass.description ?? '')
   const [sourceReference, setSourceReference] = useState(productClass.sourceReference ?? '')
@@ -1439,41 +1431,40 @@ function ProductClassEditModal({ productClass, onClose, onSaved }: { productClas
       })
       onSaved()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save this product class.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorSaveProductClass')))
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="Edit Product Class" onClose={onClose}>
+    <Modal title={t('countryRulesAdmin.editProductClassTitle')} onClose={onClose}>
       <div className="space-y-3">
         {error && <p className="text-xs text-status-error">{error}</p>}
 
         <div className="rounded-lg bg-muted/40 p-2.5 text-xs text-muted-foreground">
-          <span className="font-mono">{productClass.classKey}</span> — never editable here; every existing dossier/rule keyed against this
-          string is unaffected regardless of what you change below.
+          <span className="font-mono">{productClass.classKey}</span> {t('countryRulesAdmin.neverEditableHereNote')}
         </div>
 
         <div>
-          <FieldLabel>Label</FieldLabel>
+          <FieldLabel>{t('countryRulesAdmin.label')}</FieldLabel>
           <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <FieldLabel>Description (optional)</FieldLabel>
+          <FieldLabel>{t('countryRulesAdmin.descriptionOptional')}</FieldLabel>
           <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <FieldLabel>Source reference (optional)</FieldLabel>
-          <input value={sourceReference} onChange={(e) => setSourceReference(e.target.value)} className={inputClass} placeholder="e.g. a named guideline or field-expert confirmation" />
+          <FieldLabel>{t('countryRulesAdmin.sourceReferenceOptional')}</FieldLabel>
+          <input value={sourceReference} onChange={(e) => setSourceReference(e.target.value)} className={inputClass} placeholder={t('countryRulesAdmin.sourceReferenceOptionalPlaceholder')} />
         </div>
         <label className="flex items-center gap-2 text-sm text-foreground">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4 rounded border-input" />
-          Active
+          {t('countryRulesAdmin.active')}
         </label>
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSave}
@@ -1481,7 +1472,7 @@ function ProductClassEditModal({ productClass, onClose, onSaved }: { productClas
             className="flex items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--primary-hover)] disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save changes
+            {t('countryRulesAdmin.saveChanges')}
           </button>
         </div>
       </div>
@@ -1490,6 +1481,7 @@ function ProductClassEditModal({ productClass, onClose, onSaved }: { productClas
 }
 
 function ProductClassCreateModal({ authorityId, onClose, onCreated }: { authorityId: string; onClose: () => void; onCreated: () => void }) {
+  const { t } = useTranslation()
   const [classKey, setClassKey] = useState('')
   const [label, setLabel] = useState('')
   const [description, setDescription] = useState('')
@@ -1513,37 +1505,37 @@ function ProductClassCreateModal({ authorityId, onClose, onCreated }: { authorit
       })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this product class.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorCreateProductClass')))
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="Add a Product Class" onClose={onClose}>
+    <Modal title={t('countryRulesAdmin.addProductClassModalTitle')} onClose={onClose}>
       <div className="space-y-3">
         {error && <p className="text-xs text-status-error">{error}</p>}
 
         <div>
-          <FieldLabel>Key</FieldLabel>
-          <input value={classKey} onChange={(e) => setClassKey(e.target.value)} placeholder="e.g. medicines" className={inputClass} />
-          <p className="mt-1 text-[11px] text-muted-foreground">The exact string stored on every dossier/rule that picks this class — stable, never renamed later.</p>
+          <FieldLabel>{t('countryRulesAdmin.key')}</FieldLabel>
+          <input value={classKey} onChange={(e) => setClassKey(e.target.value)} placeholder={t('countryRulesAdmin.keyPlaceholderProductClass')} className={inputClass} />
+          <p className="mt-1 text-[11px] text-muted-foreground">{t('countryRulesAdmin.keyHelpProductClass')}</p>
         </div>
         <div>
-          <FieldLabel>Label</FieldLabel>
-          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Medicines" className={inputClass} />
+          <FieldLabel>{t('countryRulesAdmin.label')}</FieldLabel>
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('countryRulesAdmin.labelPlaceholderProductClass')} className={inputClass} />
         </div>
         <div>
-          <FieldLabel>Description (optional)</FieldLabel>
+          <FieldLabel>{t('countryRulesAdmin.descriptionOptional')}</FieldLabel>
           <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <FieldLabel>Source reference (optional)</FieldLabel>
-          <input value={sourceReference} onChange={(e) => setSourceReference(e.target.value)} className={inputClass} placeholder="e.g. a named guideline or field-expert confirmation" />
+          <FieldLabel>{t('countryRulesAdmin.sourceReferenceOptional')}</FieldLabel>
+          <input value={sourceReference} onChange={(e) => setSourceReference(e.target.value)} className={inputClass} placeholder={t('countryRulesAdmin.sourceReferenceOptionalPlaceholder')} />
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleCreate}
@@ -1551,7 +1543,7 @@ function ProductClassCreateModal({ authorityId, onClose, onCreated }: { authorit
             className="flex items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--primary-hover)] disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create product class
+            {t('countryRulesAdmin.createProductClass')}
           </button>
         </div>
       </div>
@@ -1572,9 +1564,10 @@ function RegulatoryRequirementVersionPanel({
   onClose: () => void
   onChanged: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <VersionHistoryPanel<RegulatoryRequirement>
-      title={`Document requirements — ${productClass}`}
+      title={t('countryRulesAdmin.documentRequirementsTitle', { productClass })}
       onClose={onClose}
       onChanged={onChanged}
       load={() => listRegulatoryRequirements({ countryId, authorityId, productClass, limit: 100 })}
@@ -1582,9 +1575,9 @@ function RegulatoryRequirementVersionPanel({
       renderRow={(row) => (
         <div className="space-y-0.5">
           <div>
-            Route: {row.route === '*' ? 'All routes' : row.route}
-            {row.standardTimelineDays != null && <> · Standard timeline: {row.standardTimelineDays}d</>}
-            {row.unverified && <span className="ml-1 text-status-warning">(unverified — cannot activate)</span>}
+            {t('countryRulesAdmin.routeLabel', { route: row.route === '*' ? t('countryRulesAdmin.allRoutes') : row.route })}
+            {row.standardTimelineDays != null && <> {t('countryRulesAdmin.standardTimeline', { days: String(row.standardTimelineDays) })}</>}
+            {row.unverified && <span className="ml-1 text-status-warning">{t('countryRulesAdmin.unverifiedCannotActivate')}</span>}
           </div>
           {row.documentDefinitions.length > 0 && (
             <ul className="ml-3 list-disc">
@@ -1592,19 +1585,19 @@ function RegulatoryRequirementVersionPanel({
                 <li key={d.id}>
                   {d.name}
                   {d.ctdModule && <span className="text-[11px]"> — {d.ctdModule}</span>}
-                  {!d.isMandatory && <span className="text-[11px]"> (optional)</span>}
+                  {!d.isMandatory && <span className="text-[11px]"> {t('countryRulesAdmin.optionalTag')}</span>}
                 </li>
               ))}
             </ul>
           )}
-          {row.sourceReference && <div className="text-[11px] italic text-muted-foreground">Source: {row.sourceReference}</div>}
+          {row.sourceReference && <div className="text-[11px] italic text-muted-foreground">{t('countryRulesAdmin.source', { ref: row.sourceReference })}</div>}
         </div>
       )}
       renderCreateForm={(onCreated) => (
         <CreateRegulatoryRequirementForm countryId={countryId} authorityId={authorityId} productClass={productClass} onCreated={onCreated} />
       )}
       extraAction={{
-        label: 'Duplicate as verified',
+        label: t('countryRulesAdmin.duplicateAsVerified'),
         isVisible: (row) => row.unverified,
         run: (row) =>
           createRegulatoryRequirementVersion({
@@ -1642,6 +1635,7 @@ function CreateRegulatoryRequirementForm({
   productClass: string
   onCreated: () => void
 }) {
+  const { t } = useTranslation()
   const [route, setRoute] = useState('*')
   const [standardTimelineDays, setStandardTimelineDays] = useState('')
   const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().slice(0, 10))
@@ -1675,7 +1669,7 @@ function CreateRegulatoryRequirementForm({
       })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this requirement version.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorCreateRequirementVersion')))
     } finally {
       setBusy(false)
     }
@@ -1685,35 +1679,35 @@ function CreateRegulatoryRequirementForm({
     <div className="space-y-3 rounded-lg border border-border p-3">
       {error && <p className="text-xs text-status-error">{error}</p>}
       <div className="space-y-1">
-        <FieldLabel>Route (&quot;*&quot; = all routes)</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.routeAllRoutesLabel')}</FieldLabel>
         <input value={route} onChange={(e) => setRoute(e.target.value)} className={inputClass} />
       </div>
       <div className="space-y-1">
-        <FieldLabel>Standard review timeline (days, optional)</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.standardReviewTimeline')}</FieldLabel>
         <input type="number" min={0} value={standardTimelineDays} onChange={(e) => setStandardTimelineDays(e.target.value)} className={inputClass} />
       </div>
       <div className="space-y-1">
-        <FieldLabel>Effective from</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.effectiveFrom')}</FieldLabel>
         <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className={inputClass} />
       </div>
 
       <div className="space-y-2">
-        <FieldLabel>Required documents</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.requiredDocuments')}</FieldLabel>
         {docs.map((d, i) => (
           <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto] gap-1.5">
             <input
               value={d.name}
               onChange={(e) => updateDoc(i, { name: e.target.value, documentKey: d.documentKey || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_') })}
-              placeholder="Document name"
+              placeholder={t('countryRulesAdmin.documentNamePlaceholder')}
               className={inputClass}
             />
-            <input value={d.ctdModule} onChange={(e) => updateDoc(i, { ctdModule: e.target.value })} placeholder="CTD module (optional)" className={inputClass} />
+            <input value={d.ctdModule} onChange={(e) => updateDoc(i, { ctdModule: e.target.value })} placeholder={t('countryRulesAdmin.ctdModuleOptionalPlaceholder')} className={inputClass} />
             <button
               type="button"
               onClick={() => setDocs((rows) => rows.filter((_, idx) => idx !== i))}
               className="rounded-lg border border-border px-2 text-xs text-status-error hover:bg-status-error/10"
             >
-              Remove
+              {t('countryRulesAdmin.remove')}
             </button>
           </div>
         ))}
@@ -1722,19 +1716,18 @@ function CreateRegulatoryRequirementForm({
           onClick={() => setDocs((rows) => [...rows, { documentKey: '', name: '', ctdModule: '' }])}
           className="flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline"
         >
-          <Plus className="h-3 w-3" /> Add document
+          <Plus className="h-3 w-3" /> {t('countryRulesAdmin.addDocument')}
         </button>
       </div>
 
       <div className="space-y-1">
-        <FieldLabel>Source reference (recommended)</FieldLabel>
-        <input value={sourceReference} onChange={(e) => setSourceReference(e.target.value)} placeholder="e.g. field-expert confirmation, 2026" className={inputClass} />
+        <FieldLabel>{t('countryRulesAdmin.sourceReferenceRecommended')}</FieldLabel>
+        <input value={sourceReference} onChange={(e) => setSourceReference(e.target.value)} placeholder={t('countryRulesAdmin.sourceReferencePlaceholderExpert')} className={inputClass} />
       </div>
       <label className="flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning/5 p-2.5">
         <input type="checkbox" checked={unverified} onChange={(e) => setUnverified(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-input" />
         <span className="text-xs text-foreground">
-          <span className="font-medium">Mark unverified</span> — cannot be activated until a field expert confirms this checklist. Uncheck only once
-          you&apos;re certain.
+          <span className="font-medium">{t('countryRulesAdmin.markUnverified')}</span> {t('countryRulesAdmin.markUnverifiedHelpChecklist')}
         </span>
       </label>
       <button
@@ -1742,7 +1735,7 @@ function CreateRegulatoryRequirementForm({
         disabled={busy}
         className="w-full h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium"
       >
-        Create draft version
+        {t('countryRulesAdmin.createDraftVersion')}
       </button>
     </div>
   )
@@ -1761,9 +1754,10 @@ function RegulatoryFeeScheduleVersionPanel({
   onClose: () => void
   onChanged: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <VersionHistoryPanel<RegulatoryFeeSchedule>
-      title={`Fee schedule — ${productClass}`}
+      title={t('countryRulesAdmin.feeScheduleTitle', { productClass })}
       onClose={onClose}
       onChanged={onChanged}
       load={() => listRegulatoryFeeSchedules({ countryId, authorityId, productClass, limit: 100 })}
@@ -1771,10 +1765,10 @@ function RegulatoryFeeScheduleVersionPanel({
       renderRow={(row) => (
         <div className="space-y-0.5">
           <div>
-            {formatKey(row.feeType)}: {row.currency} {row.amount} ({row.route === '*' ? 'all routes' : row.route})
-            {row.unverified && <span className="ml-1 text-status-warning">(unverified — cannot activate)</span>}
+            {t('countryRulesAdmin.feeAmountLine', { feeType: formatKey(row.feeType), currency: row.currency, amount: String(row.amount), route: row.route === '*' ? t('countryRulesAdmin.allRoutesLower') : row.route })}
+            {row.unverified && <span className="ml-1 text-status-warning">{t('countryRulesAdmin.unverifiedCannotActivate')}</span>}
           </div>
-          {row.sourceReference && <div className="text-[11px] italic text-muted-foreground">Source: {row.sourceReference}</div>}
+          {row.sourceReference && <div className="text-[11px] italic text-muted-foreground">{t('countryRulesAdmin.source', { ref: row.sourceReference })}</div>}
         </div>
       )}
       renderCreateForm={(onCreated) => (
@@ -1795,6 +1789,7 @@ function CreateRegulatoryFeeScheduleForm({
   productClass: string
   onCreated: () => void
 }) {
+  const { t } = useTranslation()
   const [route, setRoute] = useState('*')
   const [feeType, setFeeType] = useState<'application' | 'variation' | 'renewal' | 'annual'>('application')
   const [amount, setAmount] = useState('')
@@ -1807,7 +1802,7 @@ function CreateRegulatoryFeeScheduleForm({
 
   const handleCreate = async () => {
     if (!amount) {
-      setError('Amount is required.')
+      setError(t('countryRulesAdmin.errorAmountRequired'))
       return
     }
     setBusy(true)
@@ -1827,7 +1822,7 @@ function CreateRegulatoryFeeScheduleForm({
       })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this fee schedule version.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorCreateFeeVersion')))
     } finally {
       setBusy(false)
     }
@@ -1837,41 +1832,40 @@ function CreateRegulatoryFeeScheduleForm({
     <div className="space-y-3 rounded-lg border border-border p-3">
       {error && <p className="text-xs text-status-error">{error}</p>}
       <div className="space-y-1">
-        <FieldLabel>Fee type</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.feeType')}</FieldLabel>
         <select value={feeType} onChange={(e) => setFeeType(e.target.value as typeof feeType)} className={inputClass}>
-          <option value="application">Application</option>
-          <option value="variation">Variation</option>
-          <option value="renewal">Renewal</option>
-          <option value="annual">Annual</option>
+          <option value="application">{t('countryRulesAdmin.applicationOption')}</option>
+          <option value="variation">{t('countryRulesAdmin.variationOption')}</option>
+          <option value="renewal">{t('countryRulesAdmin.renewalOption')}</option>
+          <option value="annual">{t('countryRulesAdmin.annualOption')}</option>
         </select>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <FieldLabel>Amount</FieldLabel>
+          <FieldLabel>{t('countryRulesAdmin.amount')}</FieldLabel>
           <input type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputClass} />
         </div>
         <div className="space-y-1">
-          <FieldLabel>Currency</FieldLabel>
+          <FieldLabel>{t('countryRulesAdmin.currency')}</FieldLabel>
           <input value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} className={inputClass} />
         </div>
       </div>
       <div className="space-y-1">
-        <FieldLabel>Route (&quot;*&quot; = all routes)</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.routeAllRoutesLabel')}</FieldLabel>
         <input value={route} onChange={(e) => setRoute(e.target.value)} className={inputClass} />
       </div>
       <div className="space-y-1">
-        <FieldLabel>Effective from</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.effectiveFrom')}</FieldLabel>
         <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className={inputClass} />
       </div>
       <div className="space-y-1">
-        <FieldLabel>Source reference (recommended)</FieldLabel>
-        <input value={sourceReference} onChange={(e) => setSourceReference(e.target.value)} placeholder="e.g. PPB fee schedule 2026" className={inputClass} />
+        <FieldLabel>{t('countryRulesAdmin.sourceReferenceRecommended')}</FieldLabel>
+        <input value={sourceReference} onChange={(e) => setSourceReference(e.target.value)} placeholder={t('countryRulesAdmin.feeSourcePlaceholder')} className={inputClass} />
       </div>
       <label className="flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning/5 p-2.5">
         <input type="checkbox" checked={unverified} onChange={(e) => setUnverified(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-input" />
         <span className="text-xs text-foreground">
-          <span className="font-medium">Mark unverified</span> — cannot be activated until a field expert confirms this amount. Uncheck only once
-          you&apos;re certain.
+          <span className="font-medium">{t('countryRulesAdmin.markUnverified')}</span> {t('countryRulesAdmin.markUnverifiedHelpAmount')}
         </span>
       </label>
       <button
@@ -1879,7 +1873,7 @@ function CreateRegulatoryFeeScheduleForm({
         disabled={busy}
         className="w-full h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium"
       >
-        Create draft version
+        {t('countryRulesAdmin.createDraftVersion')}
       </button>
     </div>
   )
@@ -1898,9 +1892,10 @@ function RegDeadlineRuleVersionPanel({
   onClose: () => void
   onChanged: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <VersionHistoryPanel<RegDeadlineRule>
-      title={`Renewal / deadline rules — ${productClass}`}
+      title={t('countryRulesAdmin.deadlineRulesTitle', { productClass })}
       onClose={onClose}
       onChanged={onChanged}
       load={() => listRegDeadlineRules({ countryId, authorityId, productClass, limit: 100 })}
@@ -1908,11 +1903,11 @@ function RegDeadlineRuleVersionPanel({
       renderRow={(row) => (
         <div className="space-y-0.5">
           <div>
-            {formatKey(row.obligationType)}: every {row.intervalValue} {row.intervalUnit}, from {formatKey(row.clockStart)}
-            {row.productClass === '*' && <span className="ml-1 text-[11px] text-muted-foreground">(applies to every product class)</span>}
-            {row.unverified && <span className="ml-1 text-status-warning">(unverified — cannot activate)</span>}
+            {t('countryRulesAdmin.everyIntervalFrom', { obligation: formatKey(row.obligationType), value: String(row.intervalValue), unit: row.intervalUnit, clockStart: formatKey(row.clockStart) })}
+            {row.productClass === '*' && <span className="ml-1 text-[11px] text-muted-foreground">{t('countryRulesAdmin.appliesAllClasses')}</span>}
+            {row.unverified && <span className="ml-1 text-status-warning">{t('countryRulesAdmin.unverifiedCannotActivate')}</span>}
           </div>
-          {row.sourceReference && <div className="text-[11px] italic text-muted-foreground">Source: {row.sourceReference}</div>}
+          {row.sourceReference && <div className="text-[11px] italic text-muted-foreground">{t('countryRulesAdmin.source', { ref: row.sourceReference })}</div>}
         </div>
       )}
       renderCreateForm={(onCreated) => (
@@ -1933,6 +1928,7 @@ function CreateRegDeadlineRuleForm({
   productClass: string
   onCreated: () => void
 }) {
+  const { t } = useTranslation()
   const [applyToAllClasses, setApplyToAllClasses] = useState(true)
   const [obligationType, setObligationType] = useState<'renewal' | 'variation_response' | 'annual_report'>('renewal')
   const [intervalValue, setIntervalValue] = useState(5)
@@ -1962,7 +1958,7 @@ function CreateRegDeadlineRuleForm({
       })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this deadline rule version.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorCreateDeadlineVersion')))
     } finally {
       setBusy(false)
     }
@@ -1972,48 +1968,47 @@ function CreateRegDeadlineRuleForm({
     <div className="space-y-3 rounded-lg border border-border p-3">
       {error && <p className="text-xs text-status-error">{error}</p>}
       <div className="space-y-1">
-        <FieldLabel>Obligation type</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.obligationType')}</FieldLabel>
         <select value={obligationType} onChange={(e) => setObligationType(e.target.value as typeof obligationType)} className={inputClass}>
-          <option value="renewal">Renewal</option>
-          <option value="variation_response">Variation response window</option>
-          <option value="annual_report">Annual report</option>
+          <option value="renewal">{t('countryRulesAdmin.renewalObligationOption')}</option>
+          <option value="variation_response">{t('countryRulesAdmin.variationResponseOption')}</option>
+          <option value="annual_report">{t('countryRulesAdmin.annualReportOption')}</option>
         </select>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <FieldLabel>Interval</FieldLabel>
+          <FieldLabel>{t('countryRulesAdmin.interval')}</FieldLabel>
           <input type="number" min={1} value={intervalValue} onChange={(e) => setIntervalValue(Number(e.target.value))} className={inputClass} />
         </div>
         <div className="space-y-1">
-          <FieldLabel>Unit</FieldLabel>
+          <FieldLabel>{t('countryRulesAdmin.unit')}</FieldLabel>
           <select value={intervalUnit} onChange={(e) => setIntervalUnit(e.target.value as typeof intervalUnit)} className={inputClass}>
-            <option value="days">Days</option>
-            <option value="months">Months</option>
-            <option value="years">Years</option>
+            <option value="days">{t('countryRulesAdmin.daysOption')}</option>
+            <option value="months">{t('countryRulesAdmin.monthsOption')}</option>
+            <option value="years">{t('countryRulesAdmin.yearsOption')}</option>
           </select>
         </div>
       </div>
       <div className="space-y-1">
-        <FieldLabel>Clock start</FieldLabel>
-        <input value={clockStart} onChange={(e) => setClockStart(e.target.value)} className={inputClass} placeholder="issued_on" />
+        <FieldLabel>{t('countryRulesAdmin.clockStart')}</FieldLabel>
+        <input value={clockStart} onChange={(e) => setClockStart(e.target.value)} className={inputClass} placeholder={t('countryRulesAdmin.clockStartPlaceholder')} />
       </div>
       <label className="flex items-center gap-2">
         <input type="checkbox" checked={applyToAllClasses} onChange={(e) => setApplyToAllClasses(e.target.checked)} className="h-4 w-4 rounded border-input" />
-        <span className="text-xs text-foreground">Apply to every product class (not just &quot;{productClass}&quot;)</span>
+        <span className="text-xs text-foreground">{t('countryRulesAdmin.applyToAllClasses', { productClass })}</span>
       </label>
       <div className="space-y-1">
-        <FieldLabel>Effective from</FieldLabel>
+        <FieldLabel>{t('countryRulesAdmin.effectiveFrom')}</FieldLabel>
         <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className={inputClass} />
       </div>
       <div className="space-y-1">
-        <FieldLabel>Source reference (recommended)</FieldLabel>
-        <input value={sourceReference} onChange={(e) => setSourceReference(e.target.value)} placeholder="e.g. field-expert confirmation, 2026" className={inputClass} />
+        <FieldLabel>{t('countryRulesAdmin.sourceReferenceRecommended')}</FieldLabel>
+        <input value={sourceReference} onChange={(e) => setSourceReference(e.target.value)} placeholder={t('countryRulesAdmin.deadlineSourcePlaceholder')} className={inputClass} />
       </div>
       <label className="flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning/5 p-2.5">
         <input type="checkbox" checked={unverified} onChange={(e) => setUnverified(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-input" />
         <span className="text-xs text-foreground">
-          <span className="font-medium">Mark unverified</span> — cannot be activated until a field expert confirms this cadence. Uncheck only once
-          you&apos;re certain.
+          <span className="font-medium">{t('countryRulesAdmin.markUnverified')}</span> {t('countryRulesAdmin.markUnverifiedHelpCadence')}
         </span>
       </label>
       <button
@@ -2021,7 +2016,7 @@ function CreateRegDeadlineRuleForm({
         disabled={busy}
         className="w-full h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium"
       >
-        Create draft version
+        {t('countryRulesAdmin.createDraftVersion')}
       </button>
     </div>
   )
@@ -2042,6 +2037,7 @@ function RegulatoryAuthorityModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  const { t } = useTranslation()
   const [code, setCode] = useState(authority?.code ?? '')
   const [name, setName] = useState(authority?.name ?? '')
   const [formCode, setFormCode] = useState(authority?.formCode ?? '')
@@ -2064,7 +2060,7 @@ function RegulatoryAuthorityModal({
 
   const handleSave = async () => {
     if (!code.trim() || !name.trim()) {
-      setError('Code and name are both required.')
+      setError(t('countryRulesAdmin.errorCodeNameRequired'))
       return
     }
     setBusy(true)
@@ -2088,7 +2084,7 @@ function RegulatoryAuthorityModal({
       }
       onSaved()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save this authority.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorSaveAuthority')))
     } finally {
       setBusy(false)
     }
@@ -2103,7 +2099,7 @@ function RegulatoryAuthorityModal({
       setEmblemObjectKey(updated.emblemObjectKey)
       onSaved()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not upload this emblem image.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorUploadEmblem')))
     } finally {
       setUploadingEmblem(false)
     }
@@ -2118,66 +2114,64 @@ function RegulatoryAuthorityModal({
       setEmblemObjectKey(updated.emblemObjectKey)
       onSaved()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not remove this emblem image.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorRemoveEmblem')))
     } finally {
       setUploadingEmblem(false)
     }
   }
 
   return (
-    <Modal title={mode === 'create' ? 'Add Regulatory Authority' : `Edit ${authority?.name}`} onClose={onClose}>
+    <Modal title={mode === 'create' ? t('countryRulesAdmin.addAuthorityTitle') : t('countryRulesAdmin.editAuthorityTitle', { name: authority?.name ?? '' })} onClose={onClose}>
       <div className="space-y-3">
         {error && <p className="text-xs text-status-error">{error}</p>}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <FieldLabel>Code</FieldLabel>
-            <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. NDA" className={inputClass} />
+            <FieldLabel>{t('countryRulesAdmin.code')}</FieldLabel>
+            <input value={code} onChange={(e) => setCode(e.target.value)} placeholder={t('countryRulesAdmin.codePlaceholder')} className={inputClass} />
           </div>
           <div className="space-y-1">
-            <FieldLabel>Name</FieldLabel>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. National Drug Authority" className={inputClass} />
+            <FieldLabel>{t('countryRulesAdmin.name')}</FieldLabel>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('countryRulesAdmin.namePlaceholderAuthority')} className={inputClass} />
           </div>
         </div>
 
-        <p className="pt-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Letterhead (used on generated submission PDFs — leave blank for an honest text-only letterhead)
-        </p>
+        <p className="pt-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('countryRulesAdmin.letterheadLabel')}</p>
         <div className="space-y-1">
-          <FieldLabel>Form code</FieldLabel>
-          <input value={formCode} onChange={(e) => setFormCode(e.target.value)} placeholder="e.g. (FOM001/HPT/VMS/SOP/001)" className={inputClass} />
+          <FieldLabel>{t('countryRulesAdmin.formCode')}</FieldLabel>
+          <input value={formCode} onChange={(e) => setFormCode(e.target.value)} placeholder={t('countryRulesAdmin.formCodePlaceholder')} className={inputClass} />
         </div>
         <div className="space-y-1">
-          <FieldLabel>Ministry name</FieldLabel>
-          <input value={ministryName} onChange={(e) => setMinistryName(e.target.value)} placeholder="e.g. MINISTRY OF HEALTH" className={inputClass} />
+          <FieldLabel>{t('countryRulesAdmin.ministryName')}</FieldLabel>
+          <input value={ministryName} onChange={(e) => setMinistryName(e.target.value)} placeholder={t('countryRulesAdmin.ministryNamePlaceholder')} className={inputClass} />
         </div>
         <div className="space-y-1">
-          <FieldLabel>P.O. Box address</FieldLabel>
+          <FieldLabel>{t('countryRulesAdmin.poBoxAddress')}</FieldLabel>
           <input value={poBoxAddress} onChange={(e) => setPoBoxAddress(e.target.value)} className={inputClass} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <FieldLabel>Phone</FieldLabel>
+            <FieldLabel>{t('countryRulesAdmin.phone')}</FieldLabel>
             <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
           </div>
           <div className="space-y-1">
-            <FieldLabel>Contact email</FieldLabel>
+            <FieldLabel>{t('countryRulesAdmin.contactEmail')}</FieldLabel>
             <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} className={inputClass} />
           </div>
         </div>
         <div className="space-y-1">
-          <FieldLabel>Emblem</FieldLabel>
+          <FieldLabel>{t('countryRulesAdmin.emblem')}</FieldLabel>
           {authority ? (
             <div className="space-y-2">
               {emblemObjectKey ? (
                 <div className="flex items-center justify-between rounded-lg border border-status-success/30 bg-status-success/5 px-3 py-2 text-xs text-foreground">
-                  <span>A real emblem image is uploaded and in use on generated PDFs.</span>
+                  <span>{t('countryRulesAdmin.emblemUploaded')}</span>
                   <button onClick={handleRemoveEmblem} disabled={uploadingEmblem} className="font-medium text-status-error hover:underline disabled:opacity-50">
-                    Remove
+                    {t('countryRulesAdmin.remove')}
                   </button>
                 </div>
               ) : (
                 <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-input bg-background px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50">
-                  {uploadingEmblem ? 'Uploading…' : 'Upload an emblem image (PNG or JPEG, up to 2MB)…'}
+                  {uploadingEmblem ? t('countryRulesAdmin.uploading') : t('countryRulesAdmin.uploadEmblemPrompt')}
                   <input
                     type="file"
                     accept="image/png,image/jpeg"
@@ -2190,24 +2184,20 @@ function RegulatoryAuthorityModal({
                   />
                 </label>
               )}
-              <p className="text-[11px] text-muted-foreground">
-                An uploaded image always takes priority over the bundled fallback below — no engineer needed.
-              </p>
+              <p className="text-[11px] text-muted-foreground">{t('countryRulesAdmin.emblemPriorityNote')}</p>
             </div>
           ) : (
-            <p className="text-[11px] text-muted-foreground">Save this authority first, then upload its real emblem image.</p>
+            <p className="text-[11px] text-muted-foreground">{t('countryRulesAdmin.saveAuthorityFirstNote')}</p>
           )}
           <select value={emblemAssetKey} onChange={(e) => setEmblemAssetKey(e.target.value)} className={`${inputClass} mt-2`}>
-            <option value="">None — bundled fallback: text-only letterhead</option>
+            <option value="">{t('countryRulesAdmin.noneBundledFallback')}</option>
             {availableEmblems.map((key) => (
               <option key={key} value={key}>
                 {key}
               </option>
             ))}
           </select>
-          <p className="text-[11px] text-muted-foreground">
-            Bundled fallback, only used when no image is uploaded above — a small set of emblems already vetted and shipped with the app.
-          </p>
+          <p className="text-[11px] text-muted-foreground">{t('countryRulesAdmin.bundledFallbackNote')}</p>
         </div>
 
         <button
@@ -2215,7 +2205,7 @@ function RegulatoryAuthorityModal({
           disabled={busy}
           className="w-full h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium"
         >
-          {mode === 'create' ? 'Create authority' : 'Save changes'}
+          {mode === 'create' ? t('countryRulesAdmin.createAuthority') : t('countryRulesAdmin.saveChanges')}
         </button>
       </div>
     </Modal>
@@ -2223,6 +2213,7 @@ function RegulatoryAuthorityModal({
 }
 
 function NewCountryAuthorityModal({ onClose, onCreated }: { onClose: () => void; onCreated: (countryId: string) => void }) {
+  const { t } = useTranslation()
   const [allCountries, setAllCountries] = useState<Country[]>([])
   const [countryId, setCountryId] = useState('')
   const [code, setCode] = useState('')
@@ -2241,7 +2232,7 @@ function NewCountryAuthorityModal({ onClose, onCreated }: { onClose: () => void;
 
   const handleCreate = async () => {
     if (!countryId || !code.trim() || !name.trim()) {
-      setError('Country, code, and name are all required.')
+      setError(t('countryRulesAdmin.errorAllFieldsRequired'))
       return
     }
     setBusy(true)
@@ -2250,24 +2241,19 @@ function NewCountryAuthorityModal({ onClose, onCreated }: { onClose: () => void;
       await createRegulatoryAuthority({ countryId, code: code.trim(), name: name.trim() })
       onCreated(countryId)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this authority.'))
+      setError(getErrorMessage(err, t('countryRulesAdmin.errorCreateAuthority')))
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="Bring a New Country Online" onClose={onClose}>
+    <Modal title={t('countryRulesAdmin.bringNewCountryOnlineTitle')} onClose={onClose}>
       <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          A country becomes &quot;configured&quot; the moment it has at least one regulatory authority — creating one here is the entire
-          mechanism. This same screen immediately switches to the new country afterward, where you can add reporting rules,
-          seriousness criteria, forms, and — for RegCloud — the country&apos;s own document/fee/renewal rule-set graph and product
-          classes, all without leaving this page.
-        </p>
+        <p className="text-xs text-muted-foreground">{t('countryRulesAdmin.bringNewCountryBody')}</p>
         {error && <p className="text-xs text-status-error">{error}</p>}
         <div className="space-y-1">
-          <FieldLabel>Country</FieldLabel>
+          <FieldLabel>{t('countryRulesAdmin.country')}</FieldLabel>
           <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className={inputClass}>
             {allCountries.map((c) => (
               <option key={c.id} value={c.id}>
@@ -2277,19 +2263,19 @@ function NewCountryAuthorityModal({ onClose, onCreated }: { onClose: () => void;
           </select>
         </div>
         <div className="space-y-1">
-          <FieldLabel>Authority code</FieldLabel>
-          <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. RFDA" className={inputClass} />
+          <FieldLabel>{t('countryRulesAdmin.authorityCode')}</FieldLabel>
+          <input value={code} onChange={(e) => setCode(e.target.value)} placeholder={t('countryRulesAdmin.authorityCodePlaceholder')} className={inputClass} />
         </div>
         <div className="space-y-1">
-          <FieldLabel>Authority name</FieldLabel>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rwanda FDA" className={inputClass} />
+          <FieldLabel>{t('countryRulesAdmin.authorityName')}</FieldLabel>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('countryRulesAdmin.authorityNamePlaceholder')} className={inputClass} />
         </div>
         <button
           onClick={handleCreate}
           disabled={busy}
           className="w-full h-9 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-white text-sm font-medium"
         >
-          Create authority
+          {t('countryRulesAdmin.createAuthority')}
         </button>
       </div>
     </Modal>

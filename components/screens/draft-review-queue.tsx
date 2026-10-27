@@ -9,6 +9,7 @@ import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useAuthStore } from '@/lib/store/auth-store'
 import { DataTableV2, type DataTableColumn } from '@/components/ui/data-table-v2'
 import { Modal } from '@/components/ui/modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString()
@@ -31,6 +32,7 @@ function formatDate(value: string): string {
  */
 export function DraftReviewQueue() {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canTriage = has('pv.triage_case')
   const canOverrideRelease = has('pv.view_all')
@@ -61,7 +63,7 @@ export function DraftReviewQueue() {
         setTotal(meta.total)
       })
       .catch((err) => {
-        if (!cancelled) setError(getErrorMessage(err, 'Could not load the draft-review queue.'))
+        if (!cancelled) setError(getErrorMessage(err, t('draftReviewQueue.errorLoadQueue')))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -84,7 +86,7 @@ export function DraftReviewQueue() {
     try {
       replaceCase(await claimDraftCase(id))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not claim this case — someone else may have just claimed it.'))
+      setError(getErrorMessage(err, t('draftReviewQueue.errorClaim')))
     } finally {
       setActingOnId(null)
     }
@@ -96,7 +98,7 @@ export function DraftReviewQueue() {
     try {
       replaceCase(await releaseDraftCase(id))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not release this case.'))
+      setError(getErrorMessage(err, t('draftReviewQueue.errorRelease')))
     } finally {
       setActingOnId(null)
     }
@@ -110,7 +112,7 @@ export function DraftReviewQueue() {
       setCases((prev) => prev.filter((c) => c.id !== id))
       setTotal((prev) => Math.max(0, prev - 1))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not confirm this case — claim it first if you have not already.'))
+      setError(getErrorMessage(err, t('draftReviewQueue.errorConfirm')))
     } finally {
       setActingOnId(null)
     }
@@ -127,7 +129,7 @@ export function DraftReviewQueue() {
       setRejecting(null)
       setRejectReason('')
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not reject this case — claim it first if you have not already.'))
+      setError(getErrorMessage(err, t('draftReviewQueue.errorReject')))
     } finally {
       setActingOnId(null)
     }
@@ -136,39 +138,39 @@ export function DraftReviewQueue() {
   if (!canTriage) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Draft Review Queue</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('draftReviewQueue.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to triage draft cases. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('draftReviewQueue.noPermission')}</p>
         </div>
       </div>
     )
   }
 
   const columns: DataTableColumn<PvCase>[] = [
-    { key: 'referenceNumber', label: 'Reference', render: (v) => <span className="font-medium text-foreground font-mono text-sm">{v as string}</span> },
+    { key: 'referenceNumber', label: t('draftReviewQueue.columnReference'), render: (v) => <span className="font-medium text-foreground font-mono text-sm">{v as string}</span> },
     {
       key: 'channel',
-      label: 'Source',
+      label: t('draftReviewQueue.columnSource'),
       render: (v) => <span className="rounded-full bg-status-info/10 px-2 py-0.5 text-xs font-medium text-status-info">{CASE_CHANNEL_LABELS[v as keyof typeof CASE_CHANNEL_LABELS] ?? (v as string)}</span>,
     },
-    { key: 'sourceChannelReference', label: 'Reference (email/WhatsApp)', render: (v) => (v as string | null) || '—' },
-    { key: 'createdAt', label: 'Received', render: (v) => formatDate(v as string) },
+    { key: 'sourceChannelReference', label: t('draftReviewQueue.columnReferenceEmailWhatsapp'), render: (v) => (v as string | null) || '—' },
+    { key: 'createdAt', label: t('draftReviewQueue.columnReceived'), render: (v) => formatDate(v as string) },
     {
       key: 'draftClaimedBy',
-      label: 'Claim',
+      label: t('draftReviewQueue.columnClaim'),
       render: (_v, row) =>
         !row.draftClaimedBy ? (
-          <span className="text-xs text-muted-foreground">Unclaimed</span>
+          <span className="text-xs text-muted-foreground">{t('draftReviewQueue.unclaimed')}</span>
         ) : row.draftClaimedBy === currentUserId ? (
-          <span className="rounded-full bg-status-success/10 px-2 py-0.5 text-xs font-medium text-status-success">Claimed by you</span>
+          <span className="rounded-full bg-status-success/10 px-2 py-0.5 text-xs font-medium text-status-success">{t('draftReviewQueue.claimedByYou')}</span>
         ) : (
-          <span className="rounded-full bg-status-warning/10 px-2 py-0.5 text-xs font-medium text-status-warning">Claimed by another reviewer</span>
+          <span className="rounded-full bg-status-warning/10 px-2 py-0.5 text-xs font-medium text-status-warning">{t('draftReviewQueue.claimedByAnother')}</span>
         ),
     },
     {
       key: 'id',
-      label: 'Actions',
+      label: t('common.actions'),
       render: (_v, row) => {
         const busy = actingOnId === row.id
         const claimedByMe = row.draftClaimedBy === currentUserId
@@ -183,7 +185,7 @@ export function DraftReviewQueue() {
                 className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
-                Claim
+                {t('draftReviewQueue.claim')}
               </button>
             )}
             {(claimedByMe || (claimedByOther && canOverrideRelease)) && (
@@ -193,26 +195,26 @@ export function DraftReviewQueue() {
                 className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlock className="h-3.5 w-3.5" />}
-                Release
+                {t('draftReviewQueue.release')}
               </button>
             )}
             <button
               onClick={() => handleConfirm(row.id)}
               disabled={busy || !claimedByMe}
-              title={!claimedByMe ? 'Claim this case first' : undefined}
+              title={!claimedByMe ? t('draftReviewQueue.claimFirst') : undefined}
               className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-              Confirm
+              {t('draftReviewQueue.confirm')}
             </button>
             <button
               onClick={() => setRejecting(row)}
               disabled={busy || !claimedByMe}
-              title={!claimedByMe ? 'Claim this case first' : undefined}
+              title={!claimedByMe ? t('draftReviewQueue.claimFirst') : undefined}
               className="flex items-center gap-1.5 rounded-lg border border-status-error/30 px-3 py-1.5 text-xs font-medium text-status-error hover:bg-status-error/10 disabled:opacity-50"
             >
               <XCircle className="h-3.5 w-3.5" />
-              Reject
+              {t('draftReviewQueue.reject')}
             </button>
           </div>
         )
@@ -223,11 +225,12 @@ export function DraftReviewQueue() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Draft Review Queue</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('draftReviewQueue.title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {total} unconfirmed {total === 1 ? 'case' : 'cases'} captured via public URL, email, or WhatsApp — claim one to start reviewing it, then confirm
-          it as a real case or reject it with a reason. Release it if you can&apos;t finish so someone else can pick it up. A reviewer is reminded every 24
-          hours until a case is confirmed or rejected.
+          {t('draftReviewQueue.subtitle', {
+            total: String(total),
+            caseWord: total === 1 ? t('draftReviewQueue.caseSingular') : t('draftReviewQueue.casePlural'),
+          })}
         </p>
       </div>
 
@@ -251,29 +254,27 @@ export function DraftReviewQueue() {
       {!loading && cases.length === 0 && (
         <div className="rounded-lg border border-dashed border-border p-12 text-center">
           <CheckCircle2 className="mx-auto h-10 w-10 text-status-success/40 mb-3" />
-          <p className="text-sm text-muted-foreground">Nothing waiting for review — every system-sourced case has been confirmed.</p>
+          <p className="text-sm text-muted-foreground">{t('draftReviewQueue.nothingWaiting')}</p>
         </div>
       )}
 
       {rejecting && (
         <Modal
-          title={`Reject draft ${rejecting.referenceNumber}`}
+          title={t('draftReviewQueue.rejectDraftTitle', { ref: rejecting.referenceNumber })}
           onClose={() => {
             setRejecting(null)
             setRejectReason('')
           }}
         >
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              This case will leave the draft-review queue without becoming a real PV case. The row is kept, never deleted, with this reason attached.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('draftReviewQueue.rejectBody')}</p>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Reason *</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('draftReviewQueue.reasonRequired')}</label>
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 rows={3}
-                placeholder="e.g. Duplicate submission of an already-confirmed report"
+                placeholder={t('draftReviewQueue.reasonPlaceholder')}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
               />
             </div>
@@ -286,7 +287,7 @@ export function DraftReviewQueue() {
                 }}
                 className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleReject}
@@ -294,7 +295,7 @@ export function DraftReviewQueue() {
                 className="flex items-center gap-2 rounded-lg bg-status-error px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
                 {actingOnId === rejecting.id && <Loader2 className="h-4 w-4 animate-spin" />}
-                Reject Case
+                {t('draftReviewQueue.rejectCase')}
               </button>
             </div>
           </div>

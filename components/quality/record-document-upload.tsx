@@ -5,6 +5,7 @@ import { Loader2, Paperclip } from 'lucide-react'
 import { listDocuments, DocumentWithVersions } from '@/lib/api/documents'
 import { uploadRecordFile } from '@/lib/api/capa-allocation'
 import { getErrorMessage } from '@/lib/api/client'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   /** Heading for the section, e.g. "Investigation report". */
@@ -28,6 +29,7 @@ interface Props {
  * writes its own audit entry; the list is the existing per-record documents read.
  */
 export function RecordDocumentUpload({ title, description, uploadPath, listRecordType, recordId, onUploaded, canUpload }: Props) {
+  const { t } = useTranslation()
   const [documents, setDocuments] = useState<DocumentWithVersions[] | null>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -55,7 +57,7 @@ export function RecordDocumentUpload({ title, description, uploadPath, listRecor
       await load()
       onUploaded?.()
     } catch (err) {
-      setError(getErrorMessage(err, 'The file could not be attached. Check its size and try again.'))
+      setError(getErrorMessage(err, t('recordDocumentUpload.errorUpload')))
     } finally {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ''
@@ -70,9 +72,9 @@ export function RecordDocumentUpload({ title, description, uploadPath, listRecor
       </div>
 
       {documents === null ? (
-        <p className="text-xs text-muted-foreground">Loading attached documents…</p>
+        <p className="text-xs text-muted-foreground">{t('recordDocumentUpload.loadingAttached')}</p>
       ) : documents.length === 0 ? (
-        <p className="text-xs text-status-warning">No document attached yet.</p>
+        <p className="text-xs text-status-warning">{t('recordDocumentUpload.noDocumentYet')}</p>
       ) : (
         <ul className="space-y-1">
           {documents.map((d) => (

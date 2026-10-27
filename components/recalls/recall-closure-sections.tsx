@@ -19,6 +19,7 @@ import {
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const btnPrimary = 'flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-2 text-xs font-medium text-white disabled:opacity-50'
@@ -29,6 +30,7 @@ function formatDate(v: string | null): string {
 
 /** 10.6 — the real 8-gate closure check, plus opening the recall-investigation CAPA it looks for (Gate 6). */
 export function RecallClosureReadinessSection({ recallId, onChanged }: { recallId: string; onChanged?: () => void }) {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canOpenCapa = has('quality.manage_capa')
   const [result, setResult] = useState<RecallClosureGateResult | null>(null)
@@ -46,11 +48,11 @@ export function RecallClosureReadinessSection({ recallId, onChanged }: { recallI
     try {
       setResult(await checkRecallClosureReadiness(recallId))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not check closure readiness.'))
+      setError(getErrorMessage(err, t('recallClosure.errorCheckReadiness')))
     } finally {
       setLoading(false)
     }
-  }, [recallId])
+  }, [recallId, t])
 
   useEffect(() => {
     void load()
@@ -61,14 +63,14 @@ export function RecallClosureReadinessSection({ recallId, onChanged }: { recallI
     setBusy(true)
     try {
       await openRecallInvestigationCapa(recallId, { title: capaTitle.trim(), correctiveAction: capaAction.trim() })
-      setNotice('Root-cause CAPA opened and linked.')
+      setNotice(t('recallClosure.capaOpenedNotice'))
       setShowCapaForm(false)
       setCapaTitle('')
       setCapaAction('')
       await load()
       onChanged?.()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not open the CAPA.'))
+      setError(getErrorMessage(err, t('recallClosure.errorOpenCapa')))
     } finally {
       setBusy(false)
     }
@@ -76,12 +78,12 @@ export function RecallClosureReadinessSection({ recallId, onChanged }: { recallI
 
   return (
     <CollapsibleSection
-      title="Closure Readiness"
+      title={t('recallClosure.closureReadinessTitle')}
       icon={<ClipboardCheck className="h-4 w-4 text-safemeds-teal" />}
       badge={
         result ? (
           <span className={`rounded-full px-2 py-0.5 text-xs ${result.allClear ? 'bg-status-success/10 text-status-success' : 'bg-status-warning/10 text-status-warning'}`}>
-            {result.allClear ? 'Ready to close' : `${result.gates.filter((g) => !g.passed).length} gate(s) open`}
+            {result.allClear ? t('recallClosure.readyToClose') : t('recallClosure.gatesOpen', { count: String(result.gates.filter((g) => !g.passed).length) })}
           </span>
         ) : undefined
       }
@@ -102,7 +104,7 @@ export function RecallClosureReadinessSection({ recallId, onChanged }: { recallI
               )}
               <div>
                 <span className="text-foreground">
-                  Gate {g.gate}: {g.name}
+                  {t('recallClosure.gateLabel', { number: String(g.gate), name: g.name })}
                 </span>
                 {!g.passed && g.reason && <p className="text-xs text-muted-foreground">{g.reason}</p>}
               </div>
@@ -115,18 +117,18 @@ export function RecallClosureReadinessSection({ recallId, onChanged }: { recallI
         <div className="mt-4 border-t border-border pt-4">
           {!showCapaForm ? (
             <button onClick={() => setShowCapaForm(true)} className={btnPrimary}>
-              <Plus className="h-3.5 w-3.5" /> Open root-cause CAPA
+              <Plus className="h-3.5 w-3.5" /> {t('recallClosure.openRootCauseCapa')}
             </button>
           ) : (
             <div className="space-y-2">
-              <input value={capaTitle} onChange={(e) => setCapaTitle(e.target.value)} placeholder="CAPA title" className={inputClass} />
-              <textarea value={capaAction} onChange={(e) => setCapaAction(e.target.value)} placeholder="Corrective action" rows={2} className={inputClass} />
+              <input value={capaTitle} onChange={(e) => setCapaTitle(e.target.value)} placeholder={t('recallClosure.capaTitlePlaceholder')} className={inputClass} />
+              <textarea value={capaAction} onChange={(e) => setCapaAction(e.target.value)} placeholder={t('recallClosure.correctiveActionPlaceholder')} rows={2} className={inputClass} />
               <div className="flex gap-2">
                 <button onClick={openCapa} disabled={busy} className={btnPrimary}>
-                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Open CAPA
+                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} {t('recallClosure.openCapa')}
                 </button>
                 <button onClick={() => setShowCapaForm(false)} className="rounded-lg border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-muted">
-                  Cancel
+                  {t('recallClosure.cancel')}
                 </button>
               </div>
             </div>
@@ -139,6 +141,7 @@ export function RecallClosureReadinessSection({ recallId, onChanged }: { recallI
 
 /** 10.6 — the compliance pack (21-section PDF) and the evidence register. */
 export function RecallCompliancePackSection({ recallId }: { recallId: string }) {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('quality.manage_recalls')
   const [packs, setPacks] = useState<RecallCompliancePack[]>([])
@@ -155,11 +158,11 @@ export function RecallCompliancePackSection({ recallId }: { recallId: string }) 
       setPacks(packsResult)
       setEvidence(evidenceResult)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load the compliance pack / evidence register.'))
+      setError(getErrorMessage(err, t('recallClosure.errorLoadCompliancePack')))
     } finally {
       setLoading(false)
     }
-  }, [recallId])
+  }, [recallId, t])
 
   useEffect(() => {
     void load()
@@ -169,17 +172,17 @@ export function RecallCompliancePackSection({ recallId }: { recallId: string }) 
     setGenerating(true)
     try {
       await generateRecallCompliancePack(recallId)
-      setNotice('Compliance pack generated — a new, permanently archived snapshot.')
+      setNotice(t('recallClosure.compliancePackGeneratedNotice'))
       await load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not generate the compliance pack.'))
+      setError(getErrorMessage(err, t('recallClosure.errorGenerateCompliancePack')))
     } finally {
       setGenerating(false)
     }
   }
 
   return (
-    <CollapsibleSection title="Compliance Pack & Evidence" icon={<FileArchive className="h-4 w-4 text-safemeds-teal" />}>
+    <CollapsibleSection title={t('recallClosure.compliancePackTitle')} icon={<FileArchive className="h-4 w-4 text-safemeds-teal" />}>
       {error && <p className="mb-2 text-sm text-status-error">{error}</p>}
       {notice && <p className="mb-2 text-sm text-status-success">{notice}</p>}
       {loading ? (
@@ -188,16 +191,16 @@ export function RecallCompliancePackSection({ recallId }: { recallId: string }) 
         <>
           <div className="mb-4 flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
-              A real 21-section document assembled from every part of this recall — a point-in-time snapshot, never overwritten.
+              {t('recallClosure.compliancePackIntro')}
             </p>
             {canManage && (
               <button onClick={generate} disabled={generating} className={btnPrimary}>
-                {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Generate
+                {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} {t('recallClosure.generate')}
               </button>
             )}
           </div>
           {packs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No compliance pack generated yet.</p>
+            <p className="text-sm text-muted-foreground">{t('recallClosure.noCompliancePackYet')}</p>
           ) : (
             <ul className="mb-4 divide-y divide-border">
               {packs.map((p) => (
@@ -209,16 +212,16 @@ export function RecallCompliancePackSection({ recallId }: { recallId: string }) 
             </ul>
           )}
 
-          <h3 className="mb-2 text-xs font-semibold text-foreground">Evidence Register ({evidence.length})</h3>
+          <h3 className="mb-2 text-xs font-semibold text-foreground">{t('recallClosure.evidenceRegister', { count: String(evidence.length) })}</h3>
           {evidence.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No evidence documents on record yet.</p>
+            <p className="text-sm text-muted-foreground">{t('recallClosure.noEvidenceYet')}</p>
           ) : (
             <table className="w-full text-xs">
               <thead className="text-muted-foreground">
                 <tr>
-                  <th className="text-left font-medium">Document</th>
-                  <th className="text-left font-medium">Linked to</th>
-                  <th className="text-left font-medium">SHA-256</th>
+                  <th className="text-left font-medium">{t('recallClosure.columnDocument')}</th>
+                  <th className="text-left font-medium">{t('recallClosure.columnLinkedTo')}</th>
+                  <th className="text-left font-medium">{t('recallClosure.columnSha256')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -242,6 +245,7 @@ export function RecallCompliancePackSection({ recallId }: { recallId: string }) 
 
 /** 10.7 — mock-recall readiness scoring, shown only on a drill (mode: mock). */
 export function MockRecallReadinessSection({ recallId }: { recallId: string }) {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('quality.manage_recalls')
   const [result, setResult] = useState<MockRecallReadiness | null>(null)
@@ -255,11 +259,11 @@ export function MockRecallReadinessSection({ recallId }: { recallId: string }) {
     try {
       setResult(await computeMockRecallReadiness(recallId))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not compute mock-recall readiness.'))
+      setError(getErrorMessage(err, t('recallClosure.errorComputeReadiness')))
     } finally {
       setLoading(false)
     }
-  }, [recallId])
+  }, [recallId, t])
 
   useEffect(() => {
     void load()
@@ -269,16 +273,16 @@ export function MockRecallReadinessSection({ recallId }: { recallId: string }) {
     setExporting(true)
     try {
       await exportMockRecallReadiness(recallId)
-      setNotice('Readiness report exported for the inspection file.')
+      setNotice(t('recallClosure.readinessReportExportedNotice'))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not export the readiness report.'))
+      setError(getErrorMessage(err, t('recallClosure.errorExportReadiness')))
     } finally {
       setExporting(false)
     }
   }
 
   return (
-    <CollapsibleSection title="Mock Recall Readiness" icon={<ShieldAlert className="h-4 w-4 text-status-warning" />} defaultOpen>
+    <CollapsibleSection title={t('recallClosure.mockRecallReadinessTitle')} icon={<ShieldAlert className="h-4 w-4 text-status-warning" />} defaultOpen>
       {error && <p className="mb-2 text-sm text-status-error">{error}</p>}
       {notice && <p className="mb-2 text-sm text-status-success">{notice}</p>}
       {loading ? (
@@ -287,10 +291,10 @@ export function MockRecallReadinessSection({ recallId }: { recallId: string }) {
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {([
-              ['Stakeholders notified', result.totalStakeholdersNotified],
-              ['Acked within 24h', `${result.acknowledgedWithin24hPercent.toFixed(0)}%`],
-              ['Stock traced', `${result.stockTracedPercent.toFixed(0)}%`],
-              ['Downstream lists received', result.downstreamListsReceivedCount],
+              [t('recallClosure.stakeholdersNotified'), result.totalStakeholdersNotified],
+              [t('recallClosure.ackedWithin24h'), `${result.acknowledgedWithin24hPercent.toFixed(0)}%`],
+              [t('recallClosure.stockTraced'), `${result.stockTracedPercent.toFixed(0)}%`],
+              [t('recallClosure.downstreamListsReceived'), result.downstreamListsReceivedCount],
             ] as const).map(([label, value]) => (
               <div key={label} className="rounded-lg bg-muted/40 p-2 text-center">
                 <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
@@ -300,12 +304,12 @@ export function MockRecallReadinessSection({ recallId }: { recallId: string }) {
           </div>
           {result.medianTimeToAcknowledgeHours !== null && (
             <p className="mt-2 text-xs text-muted-foreground">
-              Median time to acknowledge: {result.medianTimeToAcknowledgeHours.toFixed(1)} hours
+              {t('recallClosure.medianTimeToAcknowledge', { hours: result.medianTimeToAcknowledgeHours.toFixed(1) })}
             </p>
           )}
           {result.gaps.length > 0 && (
             <div className="mt-3">
-              <p className="mb-1 text-xs font-semibold text-status-warning">Gaps</p>
+              <p className="mb-1 text-xs font-semibold text-status-warning">{t('recallClosure.gaps')}</p>
               <ul className="space-y-1 text-xs text-foreground">
                 {result.gaps.map((g, i) => (
                   <li key={i}>• {g}</li>
@@ -315,7 +319,7 @@ export function MockRecallReadinessSection({ recallId }: { recallId: string }) {
           )}
           {canManage && (
             <button onClick={exportReport} disabled={exporting} className={`${btnPrimary} mt-4`}>
-              {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Export for inspection file
+              {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} {t('recallClosure.exportForInspectionFile')}
             </button>
           )}
         </>

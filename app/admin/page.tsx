@@ -25,6 +25,7 @@ import {
   type RegulatoryCoverageRow,
   type SystemHealth,
 } from '@/lib/api/platform-dashboard'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 /** Real-usage content, 11 Sep 2026 ("more colors on the dashboards") — the icon chip now carries a real hue from the same `--chart-*` tokens `ReportingDashboardPanel` uses, instead of every tile reading as the same flat gray-on-white regardless of what it's showing. `warn`/`ok` stay true semantic status colors, reserved for a genuine alert/success state — `accent` is the new decorative default for a tile with nothing to alert on. */
 function StatTile({
@@ -85,29 +86,38 @@ function SectionCard({ title, description, children }: { title: string; descript
   )
 }
 
-const HealthBadge = ({ status }: { status: string }) => (
-  <span
-    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
-      status === 'up' ? 'bg-status-success/10 text-status-success' : 'bg-status-error/10 text-status-error'
-    }`}
-  >
-    {status === 'up' ? <CheckCircle2 className="h-3 w-3" /> : <FileWarning className="h-3 w-3" />}
-    {status === 'up' ? 'Operational' : 'Down'}
-  </span>
-)
+function HealthBadge({ status }: { status: string }) {
+  const { t } = useTranslation()
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+        status === 'up' ? 'bg-status-success/10 text-status-success' : 'bg-status-error/10 text-status-error'
+      }`}
+    >
+      {status === 'up' ? <CheckCircle2 className="h-3 w-3" /> : <FileWarning className="h-3 w-3" />}
+      {status === 'up' ? t('platformDashboard.operational') : t('platformDashboard.down')}
+    </span>
+  )
+}
 
-const QueueRow = ({ label, depth }: { label: string; depth: { waiting: number; active: number; delayed: number; failed: number } }) => (
-  <div className="flex items-center justify-between py-2 text-sm">
-    <span className="text-[var(--text)]">{label}</span>
-    <div className="flex items-center gap-4 font-mono text-xs">
-      <span className="text-[var(--text-muted)]">waiting {depth.waiting}</span>
-      <span className="text-[var(--text-muted)]">delayed {depth.delayed}</span>
-      <span className={depth.failed > 0 ? 'text-status-error font-semibold' : 'text-[var(--text-muted)]'}>failed {depth.failed}</span>
+function QueueRow({ label, depth }: { label: string; depth: { waiting: number; active: number; delayed: number; failed: number } }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex items-center justify-between py-2 text-sm">
+      <span className="text-[var(--text)]">{label}</span>
+      <div className="flex items-center gap-4 font-mono text-xs">
+        <span className="text-[var(--text-muted)]">{t('platformDashboard.waiting', { n: String(depth.waiting) })}</span>
+        <span className="text-[var(--text-muted)]">{t('platformDashboard.delayed', { n: String(depth.delayed) })}</span>
+        <span className={depth.failed > 0 ? 'text-status-error font-semibold' : 'text-[var(--text-muted)]'}>
+          {t('platformDashboard.failed', { n: String(depth.failed) })}
+        </span>
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 export default function PlatformDashboardPage() {
+  const { t } = useTranslation()
   const [overview, setOverview] = useState<DashboardOverview | null>(null)
   const [health, setHealth] = useState<SystemHealth | null>(null)
   const [coverage, setCoverage] = useState<RegulatoryCoverageRow[]>([])
@@ -125,11 +135,11 @@ export default function PlatformDashboardPage() {
       setHealth(h)
       setCoverage(c)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load the platform dashboard.'))
+      setError(getErrorMessage(err, t('platformDashboard.errorLoad')))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     load()
@@ -140,11 +150,11 @@ export default function PlatformDashboardPage() {
     setScanResult(null)
     try {
       const result = await runDeadlineScan()
-      setScanResult(`Scan complete: ${result.breached} breached, ${result.t24} approaching (24h), ${result.t72} approaching (72h).`)
+      setScanResult(t('platformDashboard.scanComplete', { breached: String(result.breached), t24: String(result.t24), t72: String(result.t72) }))
       const h = await getSystemHealth()
       setHealth(h)
     } catch (err) {
-      setScanResult(getErrorMessage(err, 'Deadline scan failed.'))
+      setScanResult(getErrorMessage(err, t('platformDashboard.scanFailed')))
     } finally {
       setScanning(false)
     }
@@ -153,7 +163,7 @@ export default function PlatformDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-[var(--text-muted)]">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading dashboard…
+        <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('platformDashboard.loading')}
       </div>
     )
   }
@@ -164,18 +174,23 @@ export default function PlatformDashboardPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
-      <PageHeader title="Platform Dashboard" description="Business overview, system health, and regulatory coverage — at a glance" />
+      <PageHeader title={t('platformDashboard.title')} description={t('platformDashboard.description')} />
 
       {error && <div className="p-3 rounded-lg bg-status-error/10 border border-status-error text-status-error text-sm">{error}</div>}
 
       {/* A. Business Overview */}
-      <SectionCard title="Business Overview" description="Tenant growth and the registration pipeline">
+      <SectionCard title={t('platformDashboard.businessOverviewTitle')} description={t('platformDashboard.businessOverviewDescription')}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatTile label="Total companies" value={overview?.totalCompanies ?? 0} icon={Building2} tone="gold" />
-          <StatTile label="Active" value={overview?.activeCompanies ?? 0} icon={CheckCircle2} tone="ok" />
-          <StatTile label="Suspended" value={overview?.suspendedCompanies ?? 0} icon={PauseCircle} tone={overview && overview.suspendedCompanies > 0 ? 'warn' : 'accent'} />
+          <StatTile label={t('platformDashboard.totalCompanies')} value={overview?.totalCompanies ?? 0} icon={Building2} tone="gold" />
+          <StatTile label={t('platformDashboard.active')} value={overview?.activeCompanies ?? 0} icon={CheckCircle2} tone="ok" />
           <StatTile
-            label="Median approval time"
+            label={t('platformDashboard.suspended')}
+            value={overview?.suspendedCompanies ?? 0}
+            icon={PauseCircle}
+            tone={overview && overview.suspendedCompanies > 0 ? 'warn' : 'accent'}
+          />
+          <StatTile
+            label={t('platformDashboard.medianApprovalTime')}
             value={overview?.medianApprovalHours === null || overview?.medianApprovalHours === undefined ? '—' : `${overview.medianApprovalHours.toFixed(1)}h`}
             icon={Clock}
           />
@@ -192,23 +207,29 @@ export default function PlatformDashboardPage() {
           </div>
         </div>
         <div className="mt-2 flex items-center gap-4 text-xs text-[var(--text-muted)]">
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-status-success" /> {approved} approved</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-status-warning" /> {pending} pending / in review</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-status-error" /> {rejected} rejected</span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-status-success" /> {t('platformDashboard.approved', { n: String(approved) })}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-status-warning" /> {t('platformDashboard.pendingInReview', { n: String(pending) })}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-status-error" /> {t('platformDashboard.rejected', { n: String(rejected) })}
+          </span>
         </div>
       </SectionCard>
 
       {/* B. System Health */}
-      <SectionCard title="System Health" description="Infrastructure status and background job queues">
+      <SectionCard title={t('platformDashboard.systemHealthTitle')} description={t('platformDashboard.systemHealthDescription')}>
         <div className="flex items-center gap-6 mb-5">
           <div className="flex items-center gap-2">
             <Database className="h-4 w-4 text-[var(--text-muted)]" />
-            <span className="text-sm text-[var(--text)]">Postgres</span>
+            <span className="text-sm text-[var(--text)]">{t('platformDashboard.postgres')}</span>
             {health && <HealthBadge status={health.database.status} />}
           </div>
           <div className="flex items-center gap-2">
             <Server className="h-4 w-4 text-[var(--text-muted)]" />
-            <span className="text-sm text-[var(--text)]">Redis</span>
+            <span className="text-sm text-[var(--text)]">{t('platformDashboard.redis')}</span>
             {health && <HealthBadge status={health.redis.status} />}
           </div>
         </div>
@@ -216,16 +237,16 @@ export default function PlatformDashboardPage() {
         <div className="divide-y divide-[var(--border)] border-t border-[var(--border)]">
           {health && (
             <>
-              <QueueRow label="Deadline escalation queue" depth={health.queues.deadlineEscalation} />
-              <QueueRow label="Notification email queue" depth={health.queues.notificationEmail} />
+              <QueueRow label={t('platformDashboard.deadlineEscalationQueue')} depth={health.queues.deadlineEscalation} />
+              <QueueRow label={t('platformDashboard.notificationEmailQueue')} depth={health.queues.notificationEmail} />
             </>
           )}
         </div>
 
         <div className="mt-5 pt-5 border-t border-[var(--border)] flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-[var(--text)]">Force deadline check</p>
-            <p className="text-xs text-[var(--text-muted)]">Runs the same scan the hourly job runs — escalates overdue tasks and sends real notifications/emails immediately, across every company.</p>
+            <p className="text-sm font-medium text-[var(--text)]">{t('platformDashboard.forceDeadlineCheck')}</p>
+            <p className="text-xs text-[var(--text-muted)]">{t('platformDashboard.forceDeadlineCheckDescription')}</p>
           </div>
           <button
             onClick={handleScan}
@@ -233,23 +254,23 @@ export default function PlatformDashboardPage() {
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium disabled:opacity-50 flex-shrink-0"
           >
             {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-            Run now
+            {t('platformDashboard.runNow')}
           </button>
         </div>
         {scanResult && <p className="mt-3 text-xs text-[var(--text-muted)]">{scanResult}</p>}
       </SectionCard>
 
       {/* C. Regulatory Coverage Tracker */}
-      <SectionCard title="Regulatory Coverage" description="How complete each authority's configuration is, out of 6 report types">
+      <SectionCard title={t('platformDashboard.regulatoryCoverageTitle')} description={t('platformDashboard.regulatoryCoverageDescription')}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-[var(--text-muted)] uppercase tracking-wide">
-                <th className="pb-2 font-medium">Authority</th>
-                <th className="pb-2 font-medium">Country</th>
-                <th className="pb-2 font-medium text-center">Reporting rules</th>
-                <th className="pb-2 font-medium text-center">Form schemas</th>
-                <th className="pb-2 font-medium text-center">Submission formats</th>
+                <th className="pb-2 font-medium">{t('platformDashboard.columnAuthority')}</th>
+                <th className="pb-2 font-medium">{t('platformDashboard.columnCountry')}</th>
+                <th className="pb-2 font-medium text-center">{t('platformDashboard.columnReportingRules')}</th>
+                <th className="pb-2 font-medium text-center">{t('platformDashboard.columnFormSchemas')}</th>
+                <th className="pb-2 font-medium text-center">{t('platformDashboard.columnSubmissionFormats')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
@@ -257,7 +278,11 @@ export default function PlatformDashboardPage() {
                 const cell = (n: number) => {
                   const pct = row.totalReportTypes > 0 ? n / row.totalReportTypes : 0
                   const cls = pct === 0 ? 'text-[var(--text-muted)]' : pct < 1 ? 'text-status-warning' : 'text-status-success'
-                  return <span className={`font-mono text-xs font-medium ${cls}`}>{n}/{row.totalReportTypes}</span>
+                  return (
+                    <span className={`font-mono text-xs font-medium ${cls}`}>
+                      {n}/{row.totalReportTypes}
+                    </span>
+                  )
                 }
                 return (
                   <tr key={row.authorityId}>
@@ -276,7 +301,7 @@ export default function PlatformDashboardPage() {
           </table>
         </div>
         <a href="/country-rules" className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-[var(--primary)] hover:underline">
-          <RefreshCw className="h-3.5 w-3.5" /> Close gaps in Country Rules
+          <RefreshCw className="h-3.5 w-3.5" /> {t('platformDashboard.closeGapsInCountryRules')}
         </a>
       </SectionCard>
     </div>

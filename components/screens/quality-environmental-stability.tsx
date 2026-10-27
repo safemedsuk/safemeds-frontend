@@ -18,22 +18,24 @@ import { listFacilities } from '@/lib/api/company'
 import { listSpecifications, SpecificationParameter } from '@/lib/api/quality'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
 
 const CLEANROOM_GRADES = ['A', 'B', 'C', 'D'] as const
-const MONITORING_TYPES = [
-  { value: 'viable_air', label: 'Viable Air' },
-  { value: 'viable_surface', label: 'Viable Surface' },
-  { value: 'viable_personnel', label: 'Viable Personnel' },
-  { value: 'non_viable_particle', label: 'Non-Viable Particle' },
+const MONITORING_TYPE_KEYS: { value: string; labelKey: MessageKey }[] = [
+  { value: 'viable_air', labelKey: 'envStability.monitoringViableAir' },
+  { value: 'viable_surface', labelKey: 'envStability.monitoringViableSurface' },
+  { value: 'viable_personnel', labelKey: 'envStability.monitoringViablePersonnel' },
+  { value: 'non_viable_particle', labelKey: 'envStability.monitoringNonViableParticle' },
 ]
-const STORAGE_CONDITIONS = [
-  { value: 'long_term_30c_75rh', label: 'Long-Term — 30°C / 75% RH (Zone IVb)' },
-  { value: 'intermediate_30c_65rh', label: 'Intermediate — 30°C / 65% RH' },
-  { value: 'accelerated_40c_75rh', label: 'Accelerated — 40°C / 75% RH' },
-  { value: 'long_term_25c_60rh', label: 'Long-Term — 25°C / 60% RH (temperate)' },
+const STORAGE_CONDITION_KEYS: { value: string; labelKey: MessageKey }[] = [
+  { value: 'long_term_30c_75rh', labelKey: 'envStability.storageLongTerm30c75rh' },
+  { value: 'intermediate_30c_65rh', labelKey: 'envStability.storageIntermediate30c65rh' },
+  { value: 'accelerated_40c_75rh', labelKey: 'envStability.storageAccelerated40c75rh' },
+  { value: 'long_term_25c_60rh', labelKey: 'envStability.storageLongTerm25c60rh' },
 ]
 
 function formatDate(value: string | null): string {
@@ -48,6 +50,7 @@ function formatDate(value: string | null): string {
  * sidebar with many near-duplicate entries.
  */
 export function QualityEnvironmentalStabilityScreen() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canViewEm = has('quality.view_all')
   const canManageEm = has('quality.manage_environmental_monitoring')
@@ -58,10 +61,10 @@ export function QualityEnvironmentalStabilityScreen() {
   if (!canViewEm) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Environmental Monitoring &amp; Stability</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('envStability.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view this.</p>
+          <p className="text-sm text-muted-foreground">{t('envStability.noPermission')}</p>
         </div>
       </div>
     )
@@ -70,9 +73,9 @@ export function QualityEnvironmentalStabilityScreen() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Environmental Monitoring &amp; Stability</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('envStability.title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          EU GMP Annex 1 cleanroom monitoring and ICH Q1A(R2) stability studies.
+          {t('envStability.subtitle')}
         </p>
       </div>
 
@@ -81,13 +84,13 @@ export function QualityEnvironmentalStabilityScreen() {
           onClick={() => setTab('em')}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 ${tab === 'em' ? 'border-safemeds-teal text-foreground' : 'border-transparent text-muted-foreground'}`}
         >
-          <Wind className="h-4 w-4" /> Environmental Monitoring
+          <Wind className="h-4 w-4" /> {t('envStability.tabEm')}
         </button>
         <button
           onClick={() => setTab('stability')}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 ${tab === 'stability' ? 'border-safemeds-teal text-foreground' : 'border-transparent text-muted-foreground'}`}
         >
-          <Thermometer className="h-4 w-4" /> Stability Studies
+          <Thermometer className="h-4 w-4" /> {t('envStability.tabStability')}
         </button>
       </div>
 
@@ -101,6 +104,7 @@ export function QualityEnvironmentalStabilityScreen() {
 }
 
 function EnvironmentalMonitoringTab({ canManage }: { canManage: boolean }) {
+  const { t } = useTranslation()
   const [rows, setRows] = useState<EnvironmentalMonitoringResult[]>([])
   const [facilities, setFacilities] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -111,7 +115,7 @@ function EnvironmentalMonitoringTab({ canManage }: { canManage: boolean }) {
 
   const [facilityId, setFacilityId] = useState('')
   const [cleanroomGrade, setCleanroomGrade] = useState<(typeof CLEANROOM_GRADES)[number]>('A')
-  const [monitoringType, setMonitoringType] = useState(MONITORING_TYPES[0].value)
+  const [monitoringType, setMonitoringType] = useState(MONITORING_TYPE_KEYS[0].value)
   const [sampleLocation, setSampleLocation] = useState('')
   const [result, setResult] = useState('')
   const [sampledAt, setSampledAt] = useState(new Date().toISOString().slice(0, 16))
@@ -129,7 +133,7 @@ function EnvironmentalMonitoringTab({ canManage }: { canManage: boolean }) {
         setFacilities(facilitiesRes.rows)
         if (!facilityId && facilitiesRes.rows.length > 0) setFacilityId(facilitiesRes.rows[0].id)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load environmental monitoring results.')))
+      .catch((err) => setError(getErrorMessage(err, t('envStability.errorLoadEm'))))
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [excursionOnly])
@@ -148,13 +152,13 @@ function EnvironmentalMonitoringTab({ canManage }: { canManage: boolean }) {
         result,
         sampledAt: new Date(sampledAt).toISOString(),
       })
-      setNotice('Environmental monitoring result recorded.')
+      setNotice(t('envStability.recordedNotice'))
       setShowCreate(false)
       setResult('')
       setSampleLocation('')
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not record the result.'))
+      setError(getErrorMessage(err, t('envStability.errorRecordResult')))
     } finally {
       setSubmitting(false)
     }
@@ -165,11 +169,11 @@ function EnvironmentalMonitoringTab({ canManage }: { canManage: boolean }) {
       <div className="flex items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           <input type="checkbox" checked={excursionOnly} onChange={(e) => setExcursionOnly(e.target.checked)} />
-          Excursions only
+          {t('envStability.excursionsOnly')}
         </label>
         {canManage && (
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors">
-            <Plus className="h-4 w-4" /> Log Reading
+            <Plus className="h-4 w-4" /> {t('envStability.logReading')}
           </button>
         )}
       </div>
@@ -185,39 +189,39 @@ function EnvironmentalMonitoringTab({ canManage }: { canManage: boolean }) {
         ) : rows.length === 0 ? (
           <div className="p-12 text-center">
             <Wind className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No environmental monitoring results logged yet.</p>
+            <p className="text-sm text-muted-foreground">{t('envStability.noEmResultsYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Grade</th>
-                <th className="p-3">Type</th>
-                <th className="p-3">Location</th>
-                <th className="p-3">Result</th>
-                <th className="p-3">Limits</th>
-                <th className="p-3">Sampled</th>
-                <th className="p-3">Status</th>
+                <th className="p-3">{t('envStability.columnGrade')}</th>
+                <th className="p-3">{t('envStability.columnType')}</th>
+                <th className="p-3">{t('envStability.columnLocation')}</th>
+                <th className="p-3">{t('envStability.columnResult')}</th>
+                <th className="p-3">{t('envStability.columnLimits')}</th>
+                <th className="p-3">{t('envStability.columnSampled')}</th>
+                <th className="p-3">{t('envStability.columnStatus')}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="border-b border-border last:border-0">
-                  <td className="p-3 font-medium text-foreground">Grade {r.cleanroomGrade}</td>
+                  <td className="p-3 font-medium text-foreground">{t('envStability.gradeN', { grade: r.cleanroomGrade })}</td>
                   <td className="p-3 text-muted-foreground capitalize">{r.monitoringType.replace(/_/g, ' ')}</td>
                   <td className="p-3 text-muted-foreground">{r.sampleLocation ?? '—'}</td>
                   <td className="p-3 text-foreground">{r.result}</td>
                   <td className="p-3 text-xs text-muted-foreground">
-                    alert {r.alertLimit ?? '—'} / action {r.actionLimit ?? '—'}
+                    {t('envStability.alertAction', { alert: r.alertLimit ?? '—', action: r.actionLimit ?? '—' })}
                   </td>
                   <td className="p-3 text-muted-foreground">{formatDate(r.sampledAt)}</td>
                   <td className="p-3">
                     {r.excursion ? (
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${r.excursionLevel === 'action' ? 'bg-status-error/10 text-status-error' : 'bg-status-warning/10 text-status-warning'}`}>
-                        {r.excursionLevel === 'action' ? 'Action excursion' : 'Alert excursion'}
+                        {r.excursionLevel === 'action' ? t('envStability.actionExcursion') : t('envStability.alertExcursion')}
                       </span>
                     ) : (
-                      <span className="rounded-full bg-status-success/10 px-2 py-0.5 text-xs font-medium text-status-success">Within limits</span>
+                      <span className="rounded-full bg-status-success/10 px-2 py-0.5 text-xs font-medium text-status-success">{t('envStability.withinLimits')}</span>
                     )}
                   </td>
                 </tr>
@@ -230,10 +234,10 @@ function EnvironmentalMonitoringTab({ canManage }: { canManage: boolean }) {
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg">
-            <h2 className="mb-4 text-lg font-semibold text-foreground">Log Environmental Monitoring Reading</h2>
+            <h2 className="mb-4 text-lg font-semibold text-foreground">{t('envStability.logModalTitle')}</h2>
             <div className="space-y-3">
               <div>
-                <label className={labelClass}>Facility</label>
+                <label className={labelClass}>{t('envStability.facility')}</label>
                 <select className={inputClass} value={facilityId} onChange={(e) => setFacilityId(e.target.value)}>
                   {facilities.map((f) => (
                     <option key={f.id} value={f.id}>{f.name}</option>
@@ -242,42 +246,42 @@ function EnvironmentalMonitoringTab({ canManage }: { canManage: boolean }) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelClass}>Cleanroom Grade</label>
+                  <label className={labelClass}>{t('envStability.cleanroomGrade')}</label>
                   <select className={inputClass} value={cleanroomGrade} onChange={(e) => setCleanroomGrade(e.target.value as typeof cleanroomGrade)}>
                     {CLEANROOM_GRADES.map((g) => (
-                      <option key={g} value={g}>Grade {g}</option>
+                      <option key={g} value={g}>{t('envStability.gradeN', { grade: g })}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className={labelClass}>Monitoring Type</label>
+                  <label className={labelClass}>{t('envStability.monitoringType')}</label>
                   <select className={inputClass} value={monitoringType} onChange={(e) => setMonitoringType(e.target.value)}>
-                    {MONITORING_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
+                    {MONITORING_TYPE_KEYS.map((ty) => (
+                      <option key={ty.value} value={ty.value}>{t(ty.labelKey)}</option>
                     ))}
                   </select>
                 </div>
               </div>
               <div>
-                <label className={labelClass}>Sample Location (optional)</label>
+                <label className={labelClass}>{t('envStability.sampleLocation')}</label>
                 <input className={inputClass} value={sampleLocation} onChange={(e) => setSampleLocation(e.target.value)} />
               </div>
               <div>
-                <label className={labelClass}>Result</label>
-                <input className={inputClass} value={result} onChange={(e) => setResult(e.target.value)} placeholder="e.g. 0, 5, growth_detected" />
+                <label className={labelClass}>{t('envStability.resultField')}</label>
+                <input className={inputClass} value={result} onChange={(e) => setResult(e.target.value)} placeholder={t('envStability.resultPlaceholder')} />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Leave the alert/action limit blank to use EU GMP Annex 1&apos;s default for this grade.
+                  {t('envStability.limitDefaultNote')}
                 </p>
               </div>
               <div>
-                <label className={labelClass}>Sampled At</label>
+                <label className={labelClass}>{t('envStability.sampledAt')}</label>
                 <input type="datetime-local" className={inputClass} value={sampledAt} onChange={(e) => setSampledAt(e.target.value)} />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">
-              <button onClick={() => setShowCreate(false)} className="rounded-lg border border-border px-4 py-2 text-sm text-foreground">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="rounded-lg border border-border px-4 py-2 text-sm text-foreground">{t('common.cancel')}</button>
               <button onClick={submit} disabled={submitting || !facilityId || !result} className="rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-                {submitting ? 'Saving…' : 'Save'}
+                {submitting ? t('envStability.saving') : t('envStability.save')}
               </button>
             </div>
           </div>
@@ -288,6 +292,7 @@ function EnvironmentalMonitoringTab({ canManage }: { canManage: boolean }) {
 }
 
 function StabilityTab({ canManage }: { canManage: boolean }) {
+  const { t } = useTranslation()
   const [studies, setStudies] = useState<StabilityStudy[]>([])
   const [products, setProducts] = useState<{ id: string; brandName: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -299,7 +304,7 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
   const [detailParameters, setDetailParameters] = useState<SpecificationParameter[]>([])
 
   const [productId, setProductId] = useState('')
-  const [storageCondition, setStorageCondition] = useState(STORAGE_CONDITIONS[0].value)
+  const [storageCondition, setStorageCondition] = useState(STORAGE_CONDITION_KEYS[0].value)
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10))
   const [submitting, setSubmitting] = useState(false)
 
@@ -312,7 +317,7 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
         setProducts(productsRes.rows)
         if (!productId && productsRes.rows.length > 0) setProductId(productsRes.rows[0].id)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load stability studies.')))
+      .catch((err) => setError(getErrorMessage(err, t('envStability.errorLoadStudies'))))
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -324,11 +329,11 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
     setError(null)
     try {
       await createStabilityStudy({ productId, storageCondition, startDate })
-      setNotice('Stability study created — the full ICH Q1A(R2) timepoint schedule has been seeded.')
+      setNotice(t('envStability.studyCreatedNotice'))
       setShowCreate(false)
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create the stability study.'))
+      setError(getErrorMessage(err, t('envStability.errorCreateStudy')))
     } finally {
       setSubmitting(false)
     }
@@ -353,7 +358,7 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
         setDetailParameters([])
       }
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load the study.'))
+      setError(getErrorMessage(err, t('envStability.errorLoadStudy')))
     } finally {
       setDetailLoading(false)
     }
@@ -362,10 +367,10 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
   async function recordResult(timepointId: string, pullDate: string, parameterId: string, result: string) {
     try {
       await recordStabilityTimepointResults(timepointId, { pullDate, results: [{ parameterId, result }] })
-      setNotice('Timepoint results recorded.')
+      setNotice(t('envStability.timepointResultsRecordedNotice'))
       if (detail) openDetail(detail.id)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not record the timepoint results.'))
+      setError(getErrorMessage(err, t('envStability.errorRecordTimepoint')))
     }
   }
 
@@ -374,7 +379,7 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
       <div className="flex items-center justify-end">
         {canManage && (
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors">
-            <Plus className="h-4 w-4" /> New Stability Study
+            <Plus className="h-4 w-4" /> {t('envStability.newStabilityStudy')}
           </button>
         )}
       </div>
@@ -390,33 +395,36 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
         ) : studies.length === 0 ? (
           <div className="p-12 text-center">
             <Thermometer className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No stability studies yet.</p>
+            <p className="text-sm text-muted-foreground">{t('envStability.noStudiesYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Storage Condition</th>
-                <th className="p-3">Start Date</th>
-                <th className="p-3">Status</th>
+                <th className="p-3">{t('envStability.columnStorageCondition')}</th>
+                <th className="p-3">{t('envStability.columnStartDate')}</th>
+                <th className="p-3">{t('envStability.columnStatus')}</th>
                 <th className="p-3" />
               </tr>
             </thead>
             <tbody>
-              {studies.map((s) => (
-                <tr key={s.id} className="border-b border-border last:border-0">
-                  <td className="p-3 text-foreground">
-                    {STORAGE_CONDITIONS.find((c) => c.value === s.storageCondition)?.label ?? s.storageCondition}
-                  </td>
-                  <td className="p-3 text-muted-foreground">{formatDate(s.startDate)}</td>
-                  <td className="p-3 text-muted-foreground capitalize">{s.status.replace(/_/g, ' ')}</td>
-                  <td className="p-3">
-                    <button onClick={() => openDetail(s.id)} className="text-xs font-medium text-safemeds-teal hover:underline">
-                      View Timepoints
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {studies.map((s) => {
+                const conditionKey = STORAGE_CONDITION_KEYS.find((c) => c.value === s.storageCondition)
+                return (
+                  <tr key={s.id} className="border-b border-border last:border-0">
+                    <td className="p-3 text-foreground">
+                      {conditionKey ? t(conditionKey.labelKey) : s.storageCondition}
+                    </td>
+                    <td className="p-3 text-muted-foreground">{formatDate(s.startDate)}</td>
+                    <td className="p-3 text-muted-foreground capitalize">{s.status.replace(/_/g, ' ')}</td>
+                    <td className="p-3">
+                      <button onClick={() => openDetail(s.id)} className="text-xs font-medium text-safemeds-teal hover:underline">
+                        {t('envStability.viewTimepoints')}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}
@@ -425,10 +433,10 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg">
-            <h2 className="mb-4 text-lg font-semibold text-foreground">New Stability Study</h2>
+            <h2 className="mb-4 text-lg font-semibold text-foreground">{t('envStability.newStudyModalTitle')}</h2>
             <div className="space-y-3">
               <div>
-                <label className={labelClass}>Product</label>
+                <label className={labelClass}>{t('envStability.product')}</label>
                 <select className={inputClass} value={productId} onChange={(e) => setProductId(e.target.value)}>
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>{p.brandName}</option>
@@ -436,22 +444,22 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Storage Condition</label>
+                <label className={labelClass}>{t('envStability.storageCondition')}</label>
                 <select className={inputClass} value={storageCondition} onChange={(e) => setStorageCondition(e.target.value)}>
-                  {STORAGE_CONDITIONS.map((c) => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
+                  {STORAGE_CONDITION_KEYS.map((c) => (
+                    <option key={c.value} value={c.value}>{t(c.labelKey)}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Start Date</label>
+                <label className={labelClass}>{t('envStability.startDate')}</label>
                 <input type="date" className={inputClass} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">
-              <button onClick={() => setShowCreate(false)} className="rounded-lg border border-border px-4 py-2 text-sm text-foreground">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="rounded-lg border border-border px-4 py-2 text-sm text-foreground">{t('common.cancel')}</button>
               <button onClick={submitStudy} disabled={submitting || !productId} className="rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-                {submitting ? 'Saving…' : 'Create'}
+                {submitting ? t('envStability.saving') : t('envStability.create')}
               </button>
             </div>
           </div>
@@ -461,29 +469,29 @@ function StabilityTab({ canManage }: { canManage: boolean }) {
       {(detail || detailLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-2xl rounded-lg border border-border bg-card p-6 shadow-lg max-h-[80vh] overflow-y-auto">
-            <h2 className="mb-4 text-lg font-semibold text-foreground">Stability Timepoints</h2>
+            <h2 className="mb-4 text-lg font-semibold text-foreground">{t('envStability.timepointsTitle')}</h2>
             {detailLoading || !detail ? (
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mx-auto" />
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    <th className="p-2">Month</th>
-                    <th className="p-2">Pull Date</th>
-                    <th className="p-2">Status</th>
-                    <th className="p-2">Within Spec</th>
-                    {canManage && <th className="p-2">Record</th>}
+                    <th className="p-2">{t('envStability.columnMonth')}</th>
+                    <th className="p-2">{t('envStability.columnPullDate')}</th>
+                    <th className="p-2">{t('envStability.columnStatus')}</th>
+                    <th className="p-2">{t('envStability.columnWithinSpec')}</th>
+                    {canManage && <th className="p-2">{t('envStability.columnRecord')}</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {(detail.timepoints ?? []).map((t) => (
-                    <TimepointRow key={t.id} timepoint={t} canManage={canManage} parameters={detailParameters} onRecord={recordResult} />
+                  {(detail.timepoints ?? []).map((tp) => (
+                    <TimepointRow key={tp.id} timepoint={tp} canManage={canManage} parameters={detailParameters} onRecord={recordResult} />
                   ))}
                 </tbody>
               </table>
             )}
             <div className="mt-6 flex justify-end">
-              <button onClick={() => setDetail(null)} className="rounded-lg border border-border px-4 py-2 text-sm text-foreground">Close</button>
+              <button onClick={() => setDetail(null)} className="rounded-lg border border-border px-4 py-2 text-sm text-foreground">{t('envStability.close')}</button>
             </div>
           </div>
         </div>
@@ -503,6 +511,7 @@ function TimepointRow({
   parameters: SpecificationParameter[]
   onRecord: (timepointId: string, pullDate: string, parameterId: string, result: string) => void
 }) {
+  const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
   const [pullDate, setPullDate] = useState(new Date().toISOString().slice(0, 10))
   const [parameterId, setParameterId] = useState(parameters[0]?.id ?? '')
@@ -517,9 +526,9 @@ function TimepointRow({
         {timepoint.withinSpec === null ? (
           '—'
         ) : timepoint.withinSpec ? (
-          <span className="rounded-full bg-status-success/10 px-2 py-0.5 text-xs font-medium text-status-success">Within spec</span>
+          <span className="rounded-full bg-status-success/10 px-2 py-0.5 text-xs font-medium text-status-success">{t('envStability.withinSpec')}</span>
         ) : (
-          <span className="rounded-full bg-status-error/10 px-2 py-0.5 text-xs font-medium text-status-error">Out of spec</span>
+          <span className="rounded-full bg-status-error/10 px-2 py-0.5 text-xs font-medium text-status-error">{t('envStability.outOfSpec')}</span>
         )}
       </td>
       {canManage && (
@@ -529,7 +538,7 @@ function TimepointRow({
               <input type="date" className={inputClass} value={pullDate} onChange={(e) => setPullDate(e.target.value)} />
               {parameters.length === 0 ? (
                 <p className="text-[11px] text-status-warning">
-                  No specification parameters found for this study&apos;s product. Add a specification with parameters first.
+                  {t('envStability.noParametersWarning')}
                 </p>
               ) : (
                 <select className={inputClass} value={parameterId} onChange={(e) => setParameterId(e.target.value)}>
@@ -541,7 +550,7 @@ function TimepointRow({
                   ))}
                 </select>
               )}
-              <input className={inputClass} placeholder="Result" value={result} onChange={(e) => setResult(e.target.value)} />
+              <input className={inputClass} placeholder={t('envStability.resultPlaceholderGeneric')} value={result} onChange={(e) => setResult(e.target.value)} />
               <button
                 disabled={!parameterId}
                 onClick={() => {
@@ -550,12 +559,12 @@ function TimepointRow({
                 }}
                 className="rounded-lg bg-safemeds-teal px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
               >
-                Save
+                {t('envStability.save')}
               </button>
             </div>
           ) : (
             <button onClick={() => setEditing(true)} className="text-xs font-medium text-safemeds-teal hover:underline">
-              Record
+              {t('envStability.record')}
             </button>
           )}
         </td>

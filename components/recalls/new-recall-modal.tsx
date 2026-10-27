@@ -7,6 +7,7 @@ import { createRecall } from '@/lib/api/recalls'
 import { type Product } from '@/lib/api/master-data'
 import { ProductPicker } from '@/components/pv-cases/product-picker'
 import { Modal } from '@/components/ui/modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 
@@ -29,6 +30,7 @@ export function NewRecallModal({
   onCreated: (recallId: string) => void
   defaultMode?: 'real' | 'mock'
 }) {
+  const { t } = useTranslation()
   const [product, setProduct] = useState<Product | null>(null)
   const [reason, setReason] = useState('')
   const [recallClass, setRecallClass] = useState('')
@@ -55,55 +57,55 @@ export function NewRecallModal({
       })
       onCreated(recall.id)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not report this recall.'))
+      setError(getErrorMessage(err, t('newRecallModal.errorCreate')))
     } finally {
       setCreating(false)
     }
   }
 
   return (
-    <Modal title={defaultMode === 'mock' ? 'Schedule a Mock Recall Drill' : 'Report a Product Recall'} onClose={onClose} maxWidth="max-w-2xl">
+    <Modal title={defaultMode === 'mock' ? t('newRecallModal.scheduleMockDrillTitle') : t('newRecallModal.reportRecallTitle')} onClose={onClose} maxWidth="max-w-2xl">
       <div className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Product</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('newRecallModal.product')}</label>
           <ProductPicker linkedProduct={product} onSelect={setProduct} onClear={() => setProduct(null)} />
         </div>
 
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Reason</label>
-          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="What was found, and why is a recall needed?" className={inputClass} />
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('newRecallModal.reason')}</label>
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder={t('newRecallModal.reasonPlaceholder')} className={inputClass} />
         </div>
 
         <div>
           <label className="mb-1.5 block text-xs font-medium text-foreground">
-            Recall class <span className="font-normal text-muted-foreground">(optional — free text until Kenya&apos;s own scheme is sourced)</span>
+            {t('newRecallModal.recallClass')} <span className="font-normal text-muted-foreground">{t('newRecallModal.recallClassOptional')}</span>
           </label>
-          <input value={recallClass} onChange={(e) => setRecallClass(e.target.value)} placeholder="e.g. Class II" className={inputClass} />
+          <input value={recallClass} onChange={(e) => setRecallClass(e.target.value)} placeholder={t('newRecallModal.recallClassPlaceholder')} className={inputClass} />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">Type</label>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">{t('newRecallModal.type')}</label>
             <select value={type} onChange={(e) => setType(e.target.value as typeof type)} className={inputClass}>
               <option value="">—</option>
-              <option value="voluntary">Voluntary</option>
-              <option value="directed">Directed (regulator-mandated)</option>
+              <option value="voluntary">{t('newRecallModal.voluntary')}</option>
+              <option value="directed">{t('newRecallModal.directed')}</option>
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">Level</label>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">{t('newRecallModal.level')}</label>
             <select value={level} onChange={(e) => setLevel(e.target.value as typeof level)} className={inputClass}>
               <option value="">—</option>
-              <option value="wholesale">Wholesale</option>
-              <option value="retail_facility">Retail/Facility</option>
-              <option value="patient">Patient</option>
+              <option value="wholesale">{t('newRecallModal.wholesale')}</option>
+              <option value="retail_facility">{t('newRecallModal.retailFacility')}</option>
+              <option value="patient">{t('newRecallModal.patient')}</option>
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">Mode</label>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">{t('newRecallModal.mode')}</label>
             <select value={mode} onChange={(e) => setMode(e.target.value as typeof mode)} className={inputClass}>
-              <option value="real">Real recall</option>
-              <option value="mock">Drill (mock)</option>
+              <option value="real">{t('newRecallModal.realRecall')}</option>
+              <option value="mock">{t('newRecallModal.drillMock')}</option>
             </select>
           </div>
         </div>
@@ -112,7 +114,7 @@ export function NewRecallModal({
 
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleCreate}
@@ -120,7 +122,7 @@ export function NewRecallModal({
             className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {creating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Report recall
+            {t('newRecallModal.reportRecall')}
           </button>
         </div>
       </div>

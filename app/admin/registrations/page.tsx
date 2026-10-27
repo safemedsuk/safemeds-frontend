@@ -16,6 +16,8 @@ import {
   type RegistrationStatus,
 } from '@/lib/api/platform'
 import { DocumentPreviewModal } from '@/components/ui/document-preview-modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 function inferLicenceContentType(key: string | null): string {
   const ext = key?.split('.').pop()?.toLowerCase()
@@ -25,39 +27,41 @@ function inferLicenceContentType(key: string | null): string {
   return ''
 }
 
-const STATUS_FILTERS: Array<{ value: RegistrationStatus | 'all'; label: string }> = [
-  { value: 'under_review', label: 'Awaiting Review' },
-  { value: 'pending_verification', label: 'Pending Email Verification' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'all', label: 'All' },
+const STATUS_FILTER_KEYS: Array<{ value: RegistrationStatus | 'all'; labelKey: MessageKey }> = [
+  { value: 'under_review', labelKey: 'registrationsAdmin.filterAwaitingReview' },
+  { value: 'pending_verification', labelKey: 'registrationsAdmin.filterPendingVerification' },
+  { value: 'approved', labelKey: 'registrationsAdmin.filterApproved' },
+  { value: 'rejected', labelKey: 'registrationsAdmin.filterRejected' },
+  { value: 'all', labelKey: 'registrationsAdmin.filterAll' },
 ]
 
-const COMPANY_TYPE_LABEL: Record<string, string> = {
-  manufacturer: '🏭 Manufacturer',
-  importer_distributor: '🚚 Importer/Distributor',
-  pharmacy_chain: '💊 Pharmacy Chain',
-  e_pharmacy: '📱 E-Pharmacy',
+const COMPANY_TYPE_LABEL_KEYS: Record<string, MessageKey> = {
+  manufacturer: 'registrationsAdmin.companyTypeManufacturer',
+  importer_distributor: 'registrationsAdmin.companyTypeImporterDistributor',
+  pharmacy_chain: 'registrationsAdmin.companyTypePharmacyChain',
+  e_pharmacy: 'registrationsAdmin.companyTypeEPharmacy',
 }
 
 function StatusBadge({ status }: { status: RegistrationStatus }) {
-  const config: Record<RegistrationStatus, { bg: string; text: string; icon: typeof Clock; label: string }> = {
-    pending_verification: { bg: 'bg-[var(--warn-bg)]', text: 'text-[var(--warn)]', icon: Clock, label: 'Pending Verification' },
-    under_review: { bg: 'bg-[var(--warn-bg)]', text: 'text-[var(--warn)]', icon: Clock, label: 'Awaiting Review' },
-    approved: { bg: 'bg-[var(--ok-bg)]', text: 'text-[var(--ok)]', icon: CheckCircle2, label: 'Approved' },
-    rejected: { bg: 'bg-[var(--bad-bg)]', text: 'text-[var(--bad)]', icon: XCircle, label: 'Rejected' },
+  const { t } = useTranslation()
+  const config: Record<RegistrationStatus, { bg: string; text: string; icon: typeof Clock; labelKey: MessageKey }> = {
+    pending_verification: { bg: 'bg-[var(--warn-bg)]', text: 'text-[var(--warn)]', icon: Clock, labelKey: 'registrationsAdmin.statusPendingVerification' },
+    under_review: { bg: 'bg-[var(--warn-bg)]', text: 'text-[var(--warn)]', icon: Clock, labelKey: 'registrationsAdmin.statusAwaitingReview' },
+    approved: { bg: 'bg-[var(--ok-bg)]', text: 'text-[var(--ok)]', icon: CheckCircle2, labelKey: 'registrationsAdmin.statusApproved' },
+    rejected: { bg: 'bg-[var(--bad-bg)]', text: 'text-[var(--bad)]', icon: XCircle, labelKey: 'registrationsAdmin.statusRejected' },
   }
-  const { bg, text, icon: Icon, label } = config[status]
+  const { bg, text, icon: Icon, labelKey } = config[status]
 
   return (
     <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${bg} ${text}`}>
       <Icon className="h-3.5 w-3.5" />
-      {label}
+      {t(labelKey)}
     </div>
   )
 }
 
 export default function RegistrationsPage() {
+  const { t } = useTranslation()
   const [density, setDensity] = useState<DensityMode>('normal')
   const [statusFilter, setStatusFilter] = useState<RegistrationStatus | 'all'>('under_review')
   const [registrations, setRegistrations] = useState<RegistrationListItem[]>([])
@@ -83,11 +87,11 @@ export default function RegistrationsPage() {
       const { registrations } = await listRegistrations(statusFilter === 'all' ? undefined : statusFilter)
       setRegistrations(registrations)
     } catch {
-      setLoadError('Could not load registrations. Please try again.')
+      setLoadError(t('registrationsAdmin.errorLoad'))
     } finally {
       setLoading(false)
     }
-  }, [statusFilter])
+  }, [statusFilter, t])
 
   useEffect(() => {
     getAllCountries().then(setCountries).catch(() => undefined)
@@ -106,7 +110,7 @@ export default function RegistrationsPage() {
     try {
       setDetail(await getRegistration(id))
     } catch {
-      setActionError('Could not load registration details.')
+      setActionError(t('registrationsAdmin.errorLoadDetails'))
     } finally {
       setDetailLoading(false)
     }
@@ -121,7 +125,7 @@ export default function RegistrationsPage() {
 
   const handleApprove = async () => {
     if (!selectedId) return
-    if (!window.confirm('Approve this registration? This creates the company and its admin account immediately.')) {
+    if (!window.confirm(t('registrationsAdmin.confirmApprove'))) {
       return
     }
     setActionLoading(true)
@@ -131,7 +135,7 @@ export default function RegistrationsPage() {
       closeDetail()
       await loadRegistrations()
     } catch {
-      setActionError('Could not approve this registration. Please try again.')
+      setActionError(t('registrationsAdmin.errorApprove'))
     } finally {
       setActionLoading(false)
     }
@@ -139,7 +143,7 @@ export default function RegistrationsPage() {
 
   const handleReject = async () => {
     if (!selectedId || rejectReason.trim().length < 3) {
-      setActionError('Please enter a reason (at least 3 characters).')
+      setActionError(t('registrationsAdmin.errorReasonRequired'))
       return
     }
     setActionLoading(true)
@@ -149,7 +153,7 @@ export default function RegistrationsPage() {
       closeDetail()
       await loadRegistrations()
     } catch {
-      setActionError('Could not reject this registration. Please try again.')
+      setActionError(t('registrationsAdmin.errorReject'))
     } finally {
       setActionLoading(false)
     }
@@ -158,14 +162,14 @@ export default function RegistrationsPage() {
   const columns: DataTableColumn<RegistrationListItem>[] = [
     {
       key: 'referenceNumber',
-      label: 'Reference',
+      label: t('registrationsAdmin.columnReference'),
       width: '140px',
       sortable: true,
       render: (value) => <code className="text-xs bg-[var(--surface-raised)] px-2 py-1 rounded">{value}</code>,
     },
     {
       key: 'companyName',
-      label: 'Company',
+      label: t('registrationsAdmin.columnCompany'),
       sortable: true,
       render: (value, row) => (
         <div>
@@ -176,13 +180,15 @@ export default function RegistrationsPage() {
     },
     {
       key: 'companyType',
-      label: 'Type',
+      label: t('registrationsAdmin.columnType'),
       sortable: true,
-      render: (value) => <span className="text-[var(--text)]">{COMPANY_TYPE_LABEL[value as string] ?? value}</span>,
+      render: (value) => (
+        <span className="text-[var(--text)]">{COMPANY_TYPE_LABEL_KEYS[value as string] ? t(COMPANY_TYPE_LABEL_KEYS[value as string]) : value}</span>
+      ),
     },
     {
       key: 'adminFullName',
-      label: 'Admin Contact',
+      label: t('registrationsAdmin.columnAdminContact'),
       sortable: true,
       render: (value, row) => (
         <div>
@@ -193,12 +199,12 @@ export default function RegistrationsPage() {
     },
     {
       key: 'freeMailDomain',
-      label: 'Flags',
+      label: t('registrationsAdmin.columnFlags'),
       render: (_value, row) =>
         row.freeMailDomain || row.domainNameMismatch ? (
-          <div className="flex items-center gap-1 text-xs text-[var(--warn)]" title="Worth a closer look before approving">
+          <div className="flex items-center gap-1 text-xs text-[var(--warn)]" title={t('registrationsAdmin.flagsTitle')}>
             <AlertTriangle className="h-3.5 w-3.5" />
-            {row.freeMailDomain ? 'Free email' : 'Domain mismatch'}
+            {row.freeMailDomain ? t('registrationsAdmin.freeEmail') : t('registrationsAdmin.domainMismatch')}
           </div>
         ) : (
           <span className="text-xs text-[var(--text-muted)]">—</span>
@@ -206,13 +212,13 @@ export default function RegistrationsPage() {
     },
     {
       key: 'status',
-      label: 'Status',
+      label: t('registrationsAdmin.columnStatus'),
       sortable: true,
       render: (value) => <StatusBadge status={value} />,
     },
     {
       key: 'createdAt',
-      label: 'Submitted',
+      label: t('registrationsAdmin.columnSubmitted'),
       sortable: true,
       align: 'right',
       render: (value) =>
@@ -224,13 +230,13 @@ export default function RegistrationsPage() {
     <div className="min-h-screen bg-[var(--bg)] p-6">
       <div className="max-w-7xl mx-auto">
         <PageHeader
-          title="Registration Review Queue"
-          description="Manage company registration applications and approvals"
-          breadcrumb={[{ label: 'Admin', href: '/admin' }, { label: 'Registrations' }]}
+          title={t('registrationsAdmin.title')}
+          description={t('registrationsAdmin.description')}
+          breadcrumb={[{ label: t('registrationsAdmin.breadcrumbAdmin'), href: '/admin' }, { label: t('registrationsAdmin.breadcrumbRegistrations') }]}
         />
 
         <div className="mb-4 flex gap-2">
-          {STATUS_FILTERS.map((filter) => (
+          {STATUS_FILTER_KEYS.map((filter) => (
             <button
               key={filter.value}
               onClick={() => setStatusFilter(filter.value)}
@@ -240,7 +246,7 @@ export default function RegistrationsPage() {
                   : 'bg-[var(--surface)] text-[var(--text-muted)] hover:bg-[var(--surface-raised)]'
               }`}
             >
-              {filter.label}
+              {t(filter.labelKey)}
             </button>
           ))}
         </div>
@@ -253,14 +259,14 @@ export default function RegistrationsPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16 text-[var(--text-muted)]">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading registrations…
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('registrationsAdmin.loading')}
           </div>
         ) : (
           <DataTableV2
             data={registrations}
             columns={columns}
-            title="Registrations"
-            description={`${registrations.length} registration${registrations.length === 1 ? '' : 's'}`}
+            title={t('registrationsAdmin.tableTitle')}
+            description={t('registrationsAdmin.registrationCount', { count: String(registrations.length), plural: registrations.length === 1 ? '' : 's' })}
             density={density}
             onDensityChange={setDensity}
             showDensityToggle={true}
@@ -278,29 +284,29 @@ export default function RegistrationsPage() {
             <div className="w-full sm:w-96 bg-[var(--surface)] rounded-t-2xl sm:rounded-2xl p-6 space-y-6 max-h-[80vh] overflow-y-auto">
               {detailLoading || !detail ? (
                 <div className="flex items-center justify-center py-16 text-[var(--text-muted)]">
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('registrationsAdmin.loadingEllipsis')}
                 </div>
               ) : (
                 <>
                   <div>
-                    <h3 className="text-lg font-semibold text-[var(--text)]">Registration Details</h3>
+                    <h3 className="text-lg font-semibold text-[var(--text)]">{t('registrationsAdmin.detailsTitle')}</h3>
                     <p className="text-sm text-[var(--text-muted)] mt-1">{detail.referenceNumber}</p>
                   </div>
 
                   <div className="space-y-4">
                     <div>
-                      <label className="text-xs font-medium text-[var(--text-muted)] uppercase">Company Name</label>
+                      <label className="text-xs font-medium text-[var(--text-muted)] uppercase">{t('registrationsAdmin.companyName')}</label>
                       <p className="text-sm font-medium text-[var(--text)] mt-1">{detail.companyName}</p>
                       <p className="text-xs text-[var(--text-muted)]">{countryName(detail.countryId)}</p>
                     </div>
 
                     <div>
-                      <label className="text-xs font-medium text-[var(--text-muted)] uppercase">License Number</label>
+                      <label className="text-xs font-medium text-[var(--text-muted)] uppercase">{t('registrationsAdmin.licenseNumber')}</label>
                       <p className="text-sm font-medium text-[var(--text)] mt-1">{detail.licenceNumber}</p>
                     </div>
 
                     <div>
-                      <label className="text-xs font-medium text-[var(--text-muted)] uppercase">Admin Contact</label>
+                      <label className="text-xs font-medium text-[var(--text-muted)] uppercase">{t('registrationsAdmin.adminContact')}</label>
                       <p className="text-sm font-medium text-[var(--text)] mt-1">{detail.adminFullName}</p>
                       <p className="text-sm text-[var(--text-muted)]">{detail.adminEmail}</p>
                       {detail.adminPhone && <p className="text-sm text-[var(--text-muted)]">{detail.adminPhone}</p>}
@@ -310,19 +316,19 @@ export default function RegistrationsPage() {
                       <div className="flex items-start gap-2 p-3 rounded-lg bg-[var(--warn-bg)] text-[var(--warn)] text-xs">
                         <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
                         <span>
-                          {detail.freeMailDomain && 'Admin email uses a free/consumer email provider. '}
-                          {detail.domainNameMismatch && "Admin email domain doesn't obviously match the company name."}
+                          {detail.freeMailDomain && t('registrationsAdmin.freeMailWarning')}
+                          {detail.domainNameMismatch && t('registrationsAdmin.domainMismatchWarning')}
                         </span>
                       </div>
                     )}
 
                     <div>
-                      <label className="text-xs font-medium text-[var(--text-muted)] uppercase">Status</label>
+                      <label className="text-xs font-medium text-[var(--text-muted)] uppercase">{t('registrationsAdmin.status')}</label>
                       <div className="mt-2">
                         <StatusBadge status={detail.status} />
                       </div>
                       {detail.status === 'rejected' && detail.rejectionReason && (
-                        <p className="text-xs text-[var(--text-muted)] mt-2">Reason: {detail.rejectionReason}</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-2">{t('registrationsAdmin.reasonLabel', { reason: detail.rejectionReason })}</p>
                       )}
                     </div>
 
@@ -341,14 +347,14 @@ export default function RegistrationsPage() {
                             className="w-full px-4 py-2 bg-[var(--ok)] text-white rounded-lg text-sm font-medium hover:bg-[var(--ok)]/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                           >
                             {actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                            Approve Registration
+                            {t('registrationsAdmin.approveRegistration')}
                           </button>
                           <button
                             onClick={() => setShowRejectForm(true)}
                             disabled={actionLoading}
                             className="w-full px-4 py-2 bg-[var(--bad)] text-white rounded-lg text-sm font-medium hover:bg-[var(--bad)]/90 transition-colors disabled:opacity-50"
                           >
-                            Reject Registration
+                            {t('registrationsAdmin.rejectRegistration')}
                           </button>
                         </>
                       )}
@@ -356,14 +362,14 @@ export default function RegistrationsPage() {
                       {detail.status === 'under_review' && showRejectForm && (
                         <div className="space-y-2">
                           <label className="text-xs font-medium text-[var(--text-muted)] uppercase">
-                            Reason for rejection
+                            {t('registrationsAdmin.reasonForRejection')}
                           </label>
                           <textarea
                             value={rejectReason}
                             onChange={(e) => setRejectReason(e.target.value)}
                             rows={3}
                             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                            placeholder="Explain why this registration is being rejected…"
+                            placeholder={t('registrationsAdmin.rejectionPlaceholder')}
                           />
                           <div className="flex gap-2">
                             <button
@@ -371,7 +377,7 @@ export default function RegistrationsPage() {
                               disabled={actionLoading}
                               className="flex-1 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors"
                             >
-                              Cancel
+                              {t('common.cancel')}
                             </button>
                             <button
                               onClick={handleReject}
@@ -379,7 +385,7 @@ export default function RegistrationsPage() {
                               className="flex-1 px-4 py-2 bg-[var(--bad)] text-white rounded-lg text-sm font-medium hover:bg-[var(--bad)]/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                               {actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                              Confirm Rejection
+                              {t('registrationsAdmin.confirmRejection')}
                             </button>
                           </div>
                         </div>
@@ -391,7 +397,7 @@ export default function RegistrationsPage() {
                           className="w-full px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors flex items-center justify-center gap-2"
                         >
                           <Eye className="h-4 w-4" />
-                          View License Document
+                          {t('registrationsAdmin.viewLicenseDocument')}
                         </button>
                       )}
                     </div>
@@ -401,7 +407,7 @@ export default function RegistrationsPage() {
                     onClick={closeDetail}
                     className="w-full px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors"
                   >
-                    Close
+                    {t('registrationsAdmin.close')}
                   </button>
                 </>
               )}
@@ -410,8 +416,8 @@ export default function RegistrationsPage() {
 
           {showingLicence && detail?.licenceViewUrl && (
             <DocumentPreviewModal
-              title={`${detail.companyName} — License Document`}
-              filename={detail.licenceDocKey?.split('/').pop() ?? 'license-document'}
+              title={t('registrationsAdmin.licenseDocumentTitle', { company: detail.companyName })}
+              filename={detail.licenceDocKey?.split('/').pop() ?? t('registrationsAdmin.licenseDocumentFallbackName')}
               contentType={inferLicenceContentType(detail.licenceDocKey)}
               getUrl={async () => detail.licenceViewUrl as string}
               onClose={() => setShowingLicence(false)}

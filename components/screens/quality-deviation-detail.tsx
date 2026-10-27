@@ -22,6 +22,8 @@ import { postTransition } from '@/lib/api/workflow'
 import { WorkflowActionsPanel } from '@/components/pv-cases/workflow-actions-panel'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -32,12 +34,12 @@ const SEVERITY_STYLES: Record<DeviationSeverity, string> = {
   minor: 'bg-status-info/10 text-status-info',
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  detected: 'Detected',
-  classifying: 'Classifying',
-  investigating: 'Investigating',
-  capa_pending: 'CAPA Pending',
-  closed: 'Closed',
+const STATUS_LABEL_KEYS: Record<string, MessageKey> = {
+  detected: 'qualityDeviationDetail.statusDetected',
+  classifying: 'qualityDeviationDetail.statusClassifying',
+  investigating: 'qualityDeviationDetail.statusInvestigating',
+  capa_pending: 'qualityDeviationDetail.statusCapaPending',
+  closed: 'qualityDeviationDetail.statusClosed',
 }
 
 function formatDateTime(value: string | null): string {
@@ -58,6 +60,7 @@ type LinkedCapa = Capa & { owner?: { id: string; fullName: string } | null }
 
 export function QualityDeviationDetail({ deviationId }: { deviationId: string }) {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canLog = has('quality.log_deviation')
   const canManageCapa = has('quality.manage_capa')
@@ -75,9 +78,9 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
     setError(null)
     getDeviation(deviationId)
       .then(setDeviation)
-      .catch((err) => setError(getErrorMessage(err, 'Could not load this deviation.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityDeviationDetail.errorLoad'))))
       .finally(() => setLoading(false))
-  }, [deviationId])
+  }, [deviationId, t])
 
   useEffect(() => load(), [load])
 
@@ -96,7 +99,7 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
       <div className="space-y-6 p-6">
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">{error ?? 'Deviation not found.'}</p>
+          <p className="text-sm text-muted-foreground">{error ?? t('qualityDeviationDetail.notFound')}</p>
         </div>
       </div>
     )
@@ -105,7 +108,7 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
   return (
     <div className="space-y-6 p-6">
       <button onClick={() => router.push('/quality-deviations')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to Deviations
+        <ArrowLeft className="h-4 w-4" /> {t('qualityDeviationDetail.backToDeviations')}
       </button>
 
       <div className="flex items-start justify-between gap-3">
@@ -113,14 +116,14 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
           <p className="font-mono text-xs text-muted-foreground">{deviation.deviationNumber}</p>
           <h1 className="text-2xl font-display font-bold text-foreground">{deviation.title}</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            {DEVIATION_SOURCE_TYPE_LABELS[deviation.sourceType as keyof typeof DEVIATION_SOURCE_TYPE_LABELS] ?? deviation.sourceType} · Detected {formatDateTime(deviation.detectedAt)}
+            {DEVIATION_SOURCE_TYPE_LABELS[deviation.sourceType as keyof typeof DEVIATION_SOURCE_TYPE_LABELS] ?? deviation.sourceType} · {t('qualityDeviationDetail.detected', { date: formatDateTime(deviation.detectedAt) })}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {deviation.severity && (
             <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${SEVERITY_STYLES[deviation.severity]}`}>{deviation.severity}</span>
           )}
-          <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">{STATUS_LABELS[deviation.status] ?? deviation.status}</span>
+          <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">{STATUS_LABEL_KEYS[deviation.status] ? t(STATUS_LABEL_KEYS[deviation.status]) : deviation.status}</span>
         </div>
       </div>
 
@@ -129,14 +132,14 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
 
       {deviation.description && (
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Description</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">{t('qualityDeviationDetail.description')}</p>
           <p className="text-sm text-foreground whitespace-pre-wrap">{deviation.description}</p>
         </div>
       )}
 
       {deviation.containmentActions && (
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Immediate Containment Actions</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">{t('qualityDeviationDetail.containmentActions')}</p>
           <p className="text-sm text-foreground whitespace-pre-wrap">{deviation.containmentActions}</p>
         </div>
       )}
@@ -144,7 +147,7 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
       {deviation.investigationDueAt && (
         <div className="flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning/5 p-3 text-xs leading-relaxed text-foreground">
           <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-warning" />
-          <p>Investigation due by <strong>{formatDateTime(deviation.investigationDueAt)}</strong>.</p>
+          <p>{t('qualityDeviationDetail.investigationDueBy')} <strong>{formatDateTime(deviation.investigationDueAt)}</strong>.</p>
         </div>
       )}
 
@@ -153,42 +156,42 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
         workflowInstanceId={deviation.workflowInstanceId}
         onTransitioned={refresh}
         customTriggers={{
-          classifying: { label: 'Classify Severity', onClick: (t) => setClassifying(t) },
+          classifying: { label: t('qualityDeviationDetail.classifySeverity'), onClick: (tr) => setClassifying(tr) },
         }}
       />
 
       {canLog && (deviation.status === 'investigating' || deviation.investigation) && (
         <div className="rounded-lg border border-border bg-card p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Investigation Record</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('qualityDeviationDetail.investigationRecord')}</p>
             {deviation.status === 'investigating' && (
               <button onClick={() => setShowInvestigation(true)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-                {deviation.investigation ? 'Update Investigation' : 'Record Investigation'}
+                {deviation.investigation ? t('qualityDeviationDetail.updateInvestigation') : t('qualityDeviationDetail.recordInvestigation')}
               </button>
             )}
           </div>
           {deviation.investigation ? (
             <div className="grid gap-2 text-sm">
-              <p><span className="text-muted-foreground">Root-cause method:</span> {ROOT_CAUSE_METHOD_LABELS[deviation.investigation.rootCauseMethod as keyof typeof ROOT_CAUSE_METHOD_LABELS] ?? deviation.investigation.rootCauseMethod ?? '—'}</p>
-              {deviation.investigation.findings && <p><span className="text-muted-foreground">Findings:</span> {deviation.investigation.findings}</p>}
-              {deviation.investigation.evidenceReferences && <p><span className="text-muted-foreground">Evidence:</span> {deviation.investigation.evidenceReferences}</p>}
+              <p><span className="text-muted-foreground">{t('qualityDeviationDetail.rootCauseMethod')}</span> {ROOT_CAUSE_METHOD_LABELS[deviation.investigation.rootCauseMethod as keyof typeof ROOT_CAUSE_METHOD_LABELS] ?? deviation.investigation.rootCauseMethod ?? '—'}</p>
+              {deviation.investigation.findings && <p><span className="text-muted-foreground">{t('qualityDeviationDetail.findings')}</span> {deviation.investigation.findings}</p>}
+              {deviation.investigation.evidenceReferences && <p><span className="text-muted-foreground">{t('qualityDeviationDetail.evidence')}</span> {deviation.investigation.evidenceReferences}</p>}
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">No investigation recorded yet.</p>
+            <p className="text-xs text-muted-foreground">{t('qualityDeviationDetail.noInvestigationYet')}</p>
           )}
           <div className="flex items-start gap-2 rounded-lg border border-status-info/30 bg-status-info/5 p-2.5 text-xs leading-relaxed text-muted-foreground">
             <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-info" />
-            <p>Four-eyes: whoever moves this to CAPA Pending as reviewer cannot also be the recorded investigator.</p>
+            <p>{t('qualityDeviationDetail.fourEyesNote')}</p>
           </div>
         </div>
       )}
 
       {canManageCapa && deviation.status === 'capa_pending' && (
         <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">CAPA</p>
-          <p className="text-xs text-muted-foreground">A CAPA must be opened against this deviation before it can close.</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('qualityDeviationDetail.capa')}</p>
+          <p className="text-xs text-muted-foreground">{t('qualityDeviationDetail.capaRequiredNote')}</p>
           <button onClick={() => setShowOpenCapa(true)} className="rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce">
-            Open CAPA
+            {t('qualityDeviationDetail.openCapa')}
           </button>
         </div>
       )}
@@ -199,7 +202,7 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
           onClose={() => setClassifying(null)}
           onClassified={() => {
             setClassifying(null)
-            setNotice('Severity classified.')
+            setNotice(t('qualityDeviationDetail.severityClassifiedNotice'))
             refresh()
           }}
         />
@@ -208,46 +211,46 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
       {canLog && (deviation.status === 'investigating' || deviation.investigation) && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <RecordDocumentUpload
-            title="Investigation evidence"
-            description="Attach supporting files for the investigation (photos, logs, witness statements) as soon as you have them — you don't need to save the investigation record first. Each file is stored and audited against this deviation."
+            title={t('qualityDeviationDetail.investigationEvidenceTitle')}
+            description={t('qualityDeviationDetail.investigationEvidenceDescription')}
             uploadPath={`/quality/deviations/${deviation.id}/investigation/evidence`}
             listRecordType="deviation_investigation_evidence"
             recordId={deviation.id}
-            onUploaded={() => setNotice('Evidence attached.')}
+            onUploaded={() => setNotice(t('qualityDeviationDetail.evidenceAttachedNotice'))}
             canUpload={canLog}
           />
           <RecordDocumentUpload
-            title="Investigation report (required)"
-            description="The completed investigation report. The investigation cannot be completed until this document is attached."
+            title={t('qualityDeviationDetail.investigationReportTitle')}
+            description={t('qualityDeviationDetail.investigationReportDescription')}
             uploadPath={`/quality/deviations/${deviation.id}/investigation/report`}
             listRecordType="deviation_investigation_report"
             recordId={deviation.id}
-            onUploaded={() => setNotice('Investigation report attached.')}
+            onUploaded={() => setNotice(t('qualityDeviationDetail.reportAttachedNotice'))}
             canUpload={canLog}
           />
         </div>
       )}
 
       <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Linked CAPAs</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('qualityDeviationDetail.linkedCapas')}</p>
         {deviation.capas.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No CAPA is linked to this deviation yet.</p>
+          <p className="text-xs text-muted-foreground">{t('qualityDeviationDetail.noCapaLinkedYet')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-xs text-muted-foreground">
-                  <th className="py-2 pr-3 font-medium">Root cause</th>
-                  <th className="py-2 pr-3 font-medium">Owner</th>
-                  <th className="py-2 pr-3 font-medium">Corrective due</th>
-                  <th className="py-2 pr-3 font-medium">Status</th>
+                  <th className="py-2 pr-3 font-medium">{t('qualityDeviationDetail.columnRootCause')}</th>
+                  <th className="py-2 pr-3 font-medium">{t('qualityDeviationDetail.columnOwner')}</th>
+                  <th className="py-2 pr-3 font-medium">{t('qualityDeviationDetail.columnCorrectiveDue')}</th>
+                  <th className="py-2 pr-3 font-medium">{t('qualityDeviationDetail.columnStatus')}</th>
                 </tr>
               </thead>
               <tbody>
                 {(deviation.capas as LinkedCapa[]).map((c) => (
                   <tr key={c.id} className="border-b border-border last:border-0">
                     <td className="py-2 pr-3 text-foreground">{c.rootCause ?? c.title}</td>
-                    <td className="py-2 pr-3 text-foreground">{c.owner?.fullName ?? 'Unassigned'}</td>
+                    <td className="py-2 pr-3 text-foreground">{c.owner?.fullName ?? t('qualityDeviationDetail.unassigned')}</td>
                     <td className="py-2 pr-3 text-foreground">{c.correctiveActionDueDate ?? c.dueDate ?? '—'}</td>
                     <td className="py-2 pr-3 text-foreground">{CAPA_STATUS_LABELS[c.status] ?? c.status}</td>
                   </tr>
@@ -265,7 +268,7 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
           onClose={() => setShowInvestigation(false)}
           onRecorded={() => {
             setShowInvestigation(false)
-            setNotice('Investigation recorded.')
+            setNotice(t('qualityDeviationDetail.investigationRecordedNotice'))
             refresh()
           }}
         />
@@ -273,12 +276,12 @@ export function QualityDeviationDetail({ deviationId }: { deviationId: string })
 
       {showOpenCapa && (
         <OpenCapaModal
-          contextNote="This CAPA is opened against this deviation. Owner, both due dates and the root cause are required, as for every CAPA."
+          contextNote={t('qualityDeviationDetail.capaContextNote')}
           submit={(input) => openCapaForDeviation(deviation.id, input).then(() => undefined)}
           onClose={() => setShowOpenCapa(false)}
           onOpened={() => {
             setShowOpenCapa(false)
-            setNotice('CAPA opened against this deviation.')
+            setNotice(t('qualityDeviationDetail.capaOpenedNotice'))
             refresh()
           }}
         />
@@ -296,6 +299,7 @@ function ClassifySeverityModal({
   onClose: () => void
   onClassified: () => void
 }) {
+  const { t } = useTranslation()
   const [severity, setSeverity] = useState<DeviationSeverity>('major')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -307,28 +311,34 @@ function ClassifySeverityModal({
       await postTransition(workflowInstanceId, 'classifying', undefined, undefined, { severity })
       onClassified()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not classify this deviation.'))
+      setError(getErrorMessage(err, t('qualityDeviationDetail.errorClassify')))
       setSubmitting(false)
     }
+  }
+
+  const severityLabel = (s: DeviationSeverity): string => {
+    if (s === 'critical') return t('qualityDeviationDetail.critical')
+    if (s === 'major') return t('qualityDeviationDetail.major')
+    return t('qualityDeviationDetail.minor')
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 space-y-4">
-        <h3 className="font-display font-bold text-base text-foreground">Classify Severity</h3>
-        <p className="text-xs text-muted-foreground">Sets the real investigation deadline. Critical fires an immediate notification to Quality Managers.</p>
+        <h3 className="font-display font-bold text-base text-foreground">{t('qualityDeviationDetail.classifySeverity')}</h3>
+        <p className="text-xs text-muted-foreground">{t('qualityDeviationDetail.classifySubtitle')}</p>
         <div className="space-y-2">
           {(['critical', 'major', 'minor'] as DeviationSeverity[]).map((s) => (
             <label key={s} className="flex items-center gap-2 rounded-lg border border-border p-2.5 text-sm text-foreground hover:bg-muted cursor-pointer">
               <input type="radio" name="severity" checked={severity === s} onChange={() => setSeverity(s)} />
-              <span className="capitalize font-medium">{s}</span>
+              <span className="capitalize font-medium">{severityLabel(s)}</span>
             </label>
           ))}
         </div>
         {error && <p className="text-sm text-status-error">{error}</p>}
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -336,7 +346,7 @@ function ClassifySeverityModal({
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Classify
+            {t('qualityDeviationDetail.classify')}
           </button>
         </div>
       </div>
@@ -355,6 +365,7 @@ function RecordInvestigationModal({
   onClose: () => void
   onRecorded: () => void
 }) {
+  const { t } = useTranslation()
   const [rootCauseMethod, setRootCauseMethod] = useState(existing?.rootCauseMethod ?? '')
   const [findings, setFindings] = useState(existing?.findings ?? '')
   const [evidenceReferences, setEvidenceReferences] = useState(existing?.evidenceReferences ?? '')
@@ -372,7 +383,7 @@ function RecordInvestigationModal({
       })
       onRecorded()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not record this investigation.'))
+      setError(getErrorMessage(err, t('qualityDeviationDetail.errorRecordInvestigation')))
       setSubmitting(false)
     }
   }
@@ -380,12 +391,12 @@ function RecordInvestigationModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4 my-8">
-        <h3 className="font-display font-bold text-base text-foreground">Investigation Record</h3>
+        <h3 className="font-display font-bold text-base text-foreground">{t('qualityDeviationDetail.investigationRecord')}</h3>
 
         <div>
-          <label className={labelClass}>Root-Cause Method</label>
+          <label className={labelClass}>{t('qualityDeviationDetail.rootCauseMethodField')}</label>
           <select value={rootCauseMethod} onChange={(e) => setRootCauseMethod(e.target.value)} className={inputClass}>
-            <option value="">Select a method</option>
+            <option value="">{t('qualityDeviationDetail.selectMethod')}</option>
             {ROOT_CAUSE_METHODS.map((m) => (
               <option key={m} value={m}>{ROOT_CAUSE_METHOD_LABELS[m]}</option>
             ))}
@@ -393,20 +404,20 @@ function RecordInvestigationModal({
         </div>
 
         <div>
-          <label className={labelClass}>Findings</label>
+          <label className={labelClass}>{t('qualityDeviationDetail.findingsField')}</label>
           <textarea value={findings} onChange={(e) => setFindings(e.target.value)} rows={4} className={inputClass} />
         </div>
 
         <div>
-          <label className={labelClass}>Evidence References</label>
-          <textarea value={evidenceReferences} onChange={(e) => setEvidenceReferences(e.target.value)} rows={2} className={inputClass} placeholder="e.g. document IDs, batch records, photos" />
+          <label className={labelClass}>{t('qualityDeviationDetail.evidenceReferences')}</label>
+          <textarea value={evidenceReferences} onChange={(e) => setEvidenceReferences(e.target.value)} rows={2} className={inputClass} placeholder={t('qualityDeviationDetail.evidenceReferencesPlaceholder')} />
         </div>
 
         {error && <p className="text-sm text-status-error">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -414,11 +425,10 @@ function RecordInvestigationModal({
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save
+            {t('qualityDeviationDetail.save')}
           </button>
         </div>
       </div>
     </div>
   )
 }
-

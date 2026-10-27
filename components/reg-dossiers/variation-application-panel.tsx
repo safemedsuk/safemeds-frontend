@@ -6,6 +6,7 @@ import { getErrorMessage } from '@/lib/api/client'
 import { attachVariationInvoice, attachVariationPaymentProof, getRegVariation, type RegVariation } from '@/lib/api/reg-dossiers'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { DocumentsPanel } from '@/components/documents/documents-panel'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 function UploadRow({
   label,
@@ -13,24 +14,30 @@ function UploadRow({
   busy,
   canManage,
   onPick,
+  requiredLabel,
+  replaceLabel,
+  uploadLabel,
 }: {
   label: string
   done: boolean
   busy: boolean
   canManage: boolean
   onPick: (file: File) => void
+  requiredLabel: string
+  replaceLabel: string
+  uploadLabel: string
 }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3">
       <div className="flex items-center gap-2">
         {done ? <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-status-success" /> : <Circle className="h-4 w-4 flex-shrink-0 text-muted-foreground/40" />}
         <span className={`text-sm ${done ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</span>
-        <span className="rounded-full bg-status-error/10 px-2 py-0.5 text-[10px] font-medium text-status-error whitespace-nowrap">Required</span>
+        <span className="rounded-full bg-status-error/10 px-2 py-0.5 text-[10px] font-medium text-status-error whitespace-nowrap">{requiredLabel}</span>
       </div>
       {canManage && (
         <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-safemeds-teal hover:underline">
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-          {done ? 'Replace' : 'Upload'}
+          {done ? replaceLabel : uploadLabel}
           <input
             type="file"
             className="hidden"
@@ -61,6 +68,7 @@ function UploadRow({
  * document(s) — no bespoke uploader for that half.
  */
 export function VariationApplicationPanel({ variationId, onChanged }: { variationId: string; onChanged: () => void }) {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('regulatory.manage_variations')
 
@@ -73,9 +81,9 @@ export function VariationApplicationPanel({ variationId, onChanged }: { variatio
     setLoading(true)
     getRegVariation(variationId)
       .then((v) => setVariation(v))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load this variation.')))
+      .catch((err) => setError(getErrorMessage(err, t('variationApplication.couldNotLoad'))))
       .finally(() => setLoading(false))
-  }, [variationId])
+  }, [variationId, t])
 
   useEffect(load, [load])
 
@@ -88,7 +96,7 @@ export function VariationApplicationPanel({ variationId, onChanged }: { variatio
       await load()
       onChanged()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not upload this document.'))
+      setError(getErrorMessage(err, t('variationApplication.couldNotUpload')))
     } finally {
       setUploadingSlot(null)
     }
@@ -101,8 +109,8 @@ export function VariationApplicationPanel({ variationId, onChanged }: { variatio
           <FileCheck className="h-5 w-5 text-[var(--primary)]" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-[var(--text)]">Variation Application Requirements</h2>
-          <p className="text-xs text-[var(--text-muted)]">Three documents are required before this can move to Submitted.</p>
+          <h2 className="text-sm font-semibold text-[var(--text)]">{t('variationApplication.heading')}</h2>
+          <p className="text-xs text-[var(--text-muted)]">{t('variationApplication.subheading')}</p>
         </div>
       </div>
 
@@ -116,24 +124,30 @@ export function VariationApplicationPanel({ variationId, onChanged }: { variatio
         ) : variation ? (
           <ul className="space-y-2">
             <UploadRow
-              label="Proof of payment"
+              label={t('variationApplication.paymentProofLabel')}
               done={Boolean(variation.paymentProofDocumentId)}
               busy={uploadingSlot === 'paymentProof'}
               canManage={canManage}
               onPick={(f) => handleUpload('paymentProof', f)}
+              requiredLabel={t('variationApplication.required')}
+              replaceLabel={t('variationApplication.replace')}
+              uploadLabel={t('variationApplication.upload')}
             />
             <UploadRow
-              label="PPB variation invoice"
+              label={t('variationApplication.invoiceLabel')}
               done={Boolean(variation.invoiceDocumentId)}
               busy={uploadingSlot === 'invoice'}
               canManage={canManage}
               onPick={(f) => handleUpload('invoice', f)}
+              requiredLabel={t('variationApplication.required')}
+              replaceLabel={t('variationApplication.replace')}
+              uploadLabel={t('variationApplication.upload')}
             />
           </ul>
         ) : null}
 
         <div>
-          <p className="mb-2 text-xs font-medium text-foreground">Accompanying change document(s) — at least 1 required</p>
+          <p className="mb-2 text-xs font-medium text-foreground">{t('variationApplication.accompanyingDocuments')}</p>
           <DocumentsPanel recordType="reg_variation" recordId={variationId} onUploaded={onChanged} />
         </div>
       </div>

@@ -27,6 +27,7 @@ import {
 } from '@/lib/api/pv-cases'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { ProductPicker } from '@/components/pv-cases/product-picker'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -55,6 +56,7 @@ function emptyEvent(): AdverseEventRow {
 
 export function PvCaseWizard() {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canCreate = has('pv.capture_case')
 
@@ -121,9 +123,9 @@ export function PvCaseWizard() {
         setCountries(countryRows)
         setReportTypes(reportTypeRows)
       })
-      .catch((err) => setRefDataError(getErrorMessage(err, 'Could not load reference data.')))
+      .catch((err) => setRefDataError(getErrorMessage(err, t('pvCaseWizard.errorLoadRefData'))))
       .finally(() => setRefDataLoading(false))
-  }, [])
+  }, [t])
 
   // Stage 1 task 1.2 — resolve the real digitized form once both a report
   // type and a country of report are picked, the same country-specific-
@@ -169,7 +171,7 @@ export function PvCaseWizard() {
       return
     }
     listClinicalTrials({ limit: 100 })
-      .then(({ trials }) => setClinicalTrials(trials.filter((t) => t.status === 'active')))
+      .then(({ trials }) => setClinicalTrials(trials.filter((trial) => trial.status === 'active')))
       .catch(() => {
         // Best-effort — the picker just stays empty; the backend's own 400 ("clinicalTrialId required") still catches a missing selection on submit.
       })
@@ -189,10 +191,10 @@ export function PvCaseWizard() {
   if (!canCreate) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">New PV Case</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('pvCaseWizard.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to capture PV cases. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('pvCaseWizard.noPermission')}</p>
         </div>
       </div>
     )
@@ -241,14 +243,14 @@ export function PvCaseWizard() {
   // requirement in plain language; rendered as a summary list next to
   // Submit whenever it's non-empty, so nothing is silently blocking.
   const missingReasons: string[] = []
-  if (!reportTypeId) missingReasons.push('Report type')
-  if (!countryOfOccurrenceId) missingReasons.push('Country of occurrence')
-  if (!countryOfReportId) missingReasons.push('Country of report')
-  if (!awarenessDate) missingReasons.push('Awareness date')
-  if (!receivedDate) missingReasons.push('Received date')
-  if (validProducts.length === 0) missingReasons.push('At least one suspect product with a name')
-  if (validEvents.length === 0) missingReasons.push('At least one adverse event with both a reported term and a narrative')
-  if (channel === 'clinical_study' && !clinicalTrialId) missingReasons.push('Clinical trial (required for the clinical-study channel)')
+  if (!reportTypeId) missingReasons.push(t('pvCaseWizard.missingReportType'))
+  if (!countryOfOccurrenceId) missingReasons.push(t('pvCaseWizard.missingCountryOccurrence'))
+  if (!countryOfReportId) missingReasons.push(t('pvCaseWizard.missingCountryReport'))
+  if (!awarenessDate) missingReasons.push(t('pvCaseWizard.missingAwarenessDate'))
+  if (!receivedDate) missingReasons.push(t('pvCaseWizard.missingReceivedDate'))
+  if (validProducts.length === 0) missingReasons.push(t('pvCaseWizard.missingProduct'))
+  if (validEvents.length === 0) missingReasons.push(t('pvCaseWizard.missingEvent'))
+  if (channel === 'clinical_study' && !clinicalTrialId) missingReasons.push(t('pvCaseWizard.missingClinicalTrial'))
 
   const canSubmit = missingReasons.length === 0 && !submitting
 
@@ -299,7 +301,7 @@ export function PvCaseWizard() {
       setCreatedCase({ id: created.id, referenceNumber: created.referenceNumber })
       setSubmitting(false)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this case.'))
+      setError(getErrorMessage(err, t('pvCaseWizard.errorCreateCase')))
       setSubmitting(false)
     }
   }
@@ -310,15 +312,13 @@ export function PvCaseWizard() {
         <div className="rounded-lg border border-status-success/30 bg-status-success/5 p-4 flex items-start gap-3">
           <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-status-success mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-foreground">Case {createdCase.referenceNumber} created</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Every case needs at least one source document (the original report form, email, or photo it was captured from) before it can leave Intake — attach it now, or from the case page later.
-            </p>
+            <p className="text-sm font-medium text-foreground">{t('pvCaseWizard.caseCreated', { ref: createdCase.referenceNumber })}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{t('pvCaseWizard.sourceDocNote')}</p>
           </div>
         </div>
 
         <div className="rounded-lg border border-border bg-card p-5">
-          <h2 className="mb-4 text-base font-semibold text-foreground">Source Document</h2>
+          <h2 className="mb-4 text-base font-semibold text-foreground">{t('pvCaseWizard.sourceDocument')}</h2>
           <DocumentsPanel recordType="pv_case" recordId={createdCase.id} />
         </div>
 
@@ -327,7 +327,7 @@ export function PvCaseWizard() {
             onClick={() => router.push(`/pv-cases/${createdCase.id}`)}
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce"
           >
-            Continue to case
+            {t('pvCaseWizard.continueToCase')}
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
@@ -338,25 +338,25 @@ export function PvCaseWizard() {
   return (
     <div className="space-y-6 p-6 max-w-4xl">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">New PV Case</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Capture a suspected adverse event or product-quality report.</p>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('pvCaseWizard.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('pvCaseWizard.subtitle')}</p>
       </div>
 
       {refDataError && <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{refDataError}</div>}
       {refDataLoading && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading reference data…
+          <Loader2 className="h-4 w-4 animate-spin" /> {t('pvCaseWizard.loadingRefData')}
         </div>
       )}
 
       {!refDataLoading && (
         <>
-          <Section title="Case Information">
+          <Section title={t('pvCaseWizard.sectionCaseInformation')}>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelClass}>Report type *</label>
+                <label className={labelClass}>{t('pvCaseWizard.reportType')}</label>
                 <select value={reportTypeId} onChange={(e) => setReportTypeId(e.target.value)} className={inputClass}>
-                  <option value="">Select…</option>
+                  <option value="">{t('common.selectPlaceholder')}</option>
                   {reportTypes.map((rt) => (
                     <option key={rt.id} value={rt.id}>
                       {rt.name}
@@ -365,7 +365,7 @@ export function PvCaseWizard() {
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Intake channel</label>
+                <label className={labelClass}>{t('pvCaseWizard.intakeChannel')}</label>
                 <select value={channel} onChange={(e) => setChannel(e.target.value as CaseChannel)} className={inputClass}>
                   {Object.entries(CASE_CHANNEL_LABELS).map(([value, label]) => (
                     <option key={value} value={value}>
@@ -375,9 +375,9 @@ export function PvCaseWizard() {
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Country of occurrence *</label>
+                <label className={labelClass}>{t('pvCaseWizard.countryOfOccurrence')}</label>
                 <select value={countryOfOccurrenceId} onChange={(e) => setCountryOfOccurrenceId(e.target.value)} className={inputClass}>
-                  <option value="">Select…</option>
+                  <option value="">{t('common.selectPlaceholder')}</option>
                   {countries.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -386,9 +386,9 @@ export function PvCaseWizard() {
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Country of report *</label>
+                <label className={labelClass}>{t('pvCaseWizard.countryOfReport')}</label>
                 <select value={countryOfReportId} onChange={(e) => setCountryOfReportId(e.target.value)} className={inputClass}>
-                  <option value="">Select…</option>
+                  <option value="">{t('common.selectPlaceholder')}</option>
                   {countries.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -397,11 +397,11 @@ export function PvCaseWizard() {
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Awareness date * (reporting-clock start)</label>
+                <label className={labelClass}>{t('pvCaseWizard.awarenessDate')}</label>
                 <input type="date" value={awarenessDate} onChange={(e) => setAwarenessDate(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Received date *</label>
+                <label className={labelClass}>{t('pvCaseWizard.receivedDate')}</label>
                 <input type="date" value={receivedDate} onChange={(e) => setReceivedDate(e.target.value)} className={inputClass} />
               </div>
             </div>
@@ -410,18 +410,19 @@ export function PvCaseWizard() {
               <div className="mt-4 rounded-lg border border-border bg-muted/30 p-3 text-xs">
                 {formSchemaLoading ? (
                   <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Resolving the official form for this selection…
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('pvCaseWizard.resolvingForm')}
                   </span>
                 ) : formSchema ? (
                   <p className="text-foreground">
-                    You&apos;re completing: <span className="font-semibold">{selectedReportType?.name}</span>
-                    {formSchema.officialFormCode && <span className="text-muted-foreground"> — official form {formSchema.officialFormCode}</span>}
-                    . The fields below map onto this form&apos;s own captured data.
+                    {t('pvCaseWizard.completingPrefix')} <span className="font-semibold">{selectedReportType?.name}</span>
+                    {formSchema.officialFormCode && (
+                      <span className="text-muted-foreground"> {t('pvCaseWizard.officialFormSuffix', { code: formSchema.officialFormCode })}</span>
+                    )}
+                    . {t('pvCaseWizard.formMapsNote')}
                   </p>
                 ) : (
                   <p className="text-muted-foreground">
-                    No digitized official form is configured yet for {selectedReportType?.name ?? 'this report type'} in the selected country of
-                    report — the generic fields below are still captured and reportable, they just don&apos;t map to a specific PPB form number.
+                    {t('pvCaseWizard.noFormConfigured', { reportType: selectedReportType?.name ?? t('pvCaseWizard.thisReportType') })}
                   </p>
                 )}
               </div>
@@ -430,27 +431,30 @@ export function PvCaseWizard() {
             {channel === 'clinical_study' && (
               <div className="mt-4 rounded-lg border border-safemeds-teal/30 bg-safemeds-teal/5 p-4 space-y-3">
                 <p className="text-xs text-foreground">
-                  <span className="font-semibold">Clinical-trial SAE:</span> this is solicited data, not a spontaneous report — it must trace back to a specific trial.
+                  <span className="font-semibold">{t('pvCaseWizard.clinicalTrialSaePrefix')}</span> {t('pvCaseWizard.clinicalTrialSaeNote')}
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className={labelClass}>Clinical trial *</label>
+                    <label className={labelClass}>{t('pvCaseWizard.clinicalTrial')}</label>
                     <select value={clinicalTrialId} onChange={(e) => setClinicalTrialId(e.target.value)} className={inputClass}>
-                      <option value="">Select…</option>
-                      {clinicalTrials.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.trialReference} — {t.trialName}
+                      <option value="">{t('common.selectPlaceholder')}</option>
+                      {clinicalTrials.map((trial) => (
+                        <option key={trial.id} value={trial.id}>
+                          {trial.trialReference} — {trial.trialName}
                         </option>
                       ))}
                     </select>
-                    {clinicalTrials.length === 0 && (
-                      <p className="mt-1 text-xs text-muted-foreground">No active trials set up yet — create one under Clinical Trials first.</p>
-                    )}
+                    {clinicalTrials.length === 0 && <p className="mt-1 text-xs text-muted-foreground">{t('pvCaseWizard.noActiveTrials')}</p>}
                   </div>
                   <div>
-                    <label className={labelClass}>Trial subject (optional)</label>
-                    <select value={clinicalTrialSubjectId} onChange={(e) => setClinicalTrialSubjectId(e.target.value)} disabled={!clinicalTrialId} className={inputClass}>
-                      <option value="">Not pre-enrolled / unknown</option>
+                    <label className={labelClass}>{t('pvCaseWizard.trialSubjectOptional')}</label>
+                    <select
+                      value={clinicalTrialSubjectId}
+                      onChange={(e) => setClinicalTrialSubjectId(e.target.value)}
+                      disabled={!clinicalTrialId}
+                      className={inputClass}
+                    >
+                      <option value="">{t('pvCaseWizard.notPreEnrolled')}</option>
                       {clinicalTrialSubjects.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.subjectCode}
@@ -463,94 +467,104 @@ export function PvCaseWizard() {
             )}
 
             <div className="mt-4">
-              <label className={labelClass}>Additional information</label>
+              <label className={labelClass}>{t('pvCaseWizard.additionalInformation')}</label>
               <textarea
                 value={additionalInformation}
                 onChange={(e) => setAdditionalInformation(e.target.value)}
                 rows={2}
                 className={inputClass}
-                placeholder="Any context not captured elsewhere — encrypted at rest"
+                placeholder={t('pvCaseWizard.additionalInformationPlaceholder')}
               />
             </div>
           </Section>
 
-          <Section title="Reporter">
+          <Section title={t('pvCaseWizard.sectionReporter')}>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelClass}>Reporter type</label>
+                <label className={labelClass}>{t('pvCaseWizard.reporterType')}</label>
                 <select value={reporterType} onChange={(e) => setReporterType(e.target.value as ReporterType)} className={inputClass}>
-                  <option value="healthcare_professional">Healthcare Professional</option>
-                  <option value="consumer">Consumer / Patient</option>
+                  <option value="healthcare_professional">{t('pvCaseWizard.healthcareProfessional')}</option>
+                  <option value="consumer">{t('pvCaseWizard.consumerPatient')}</option>
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Qualification</label>
-                <input value={reporterQualification} onChange={(e) => setReporterQualification(e.target.value)} placeholder="e.g. Pharmacist, Nurse" className={inputClass} />
+                <label className={labelClass}>{t('pvCaseWizard.qualification')}</label>
+                <input
+                  value={reporterQualification}
+                  onChange={(e) => setReporterQualification(e.target.value)}
+                  placeholder={t('pvCaseWizard.qualificationPlaceholder')}
+                  className={inputClass}
+                />
               </div>
               <div>
-                <label className={labelClass}>Full name</label>
+                <label className={labelClass}>{t('pvCaseWizard.fullName')}</label>
                 <input value={reporterFullName} onChange={(e) => setReporterFullName(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Organization</label>
+                <label className={labelClass}>{t('pvCaseWizard.organization')}</label>
                 <input value={reporterOrganization} onChange={(e) => setReporterOrganization(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Email</label>
+                <label className={labelClass}>{t('pvCaseWizard.email')}</label>
                 <input type="email" value={reporterEmail} onChange={(e) => setReporterEmail(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Phone</label>
+                <label className={labelClass}>{t('pvCaseWizard.phone')}</label>
                 <input value={reporterPhone} onChange={(e) => setReporterPhone(e.target.value)} className={inputClass} />
               </div>
             </div>
           </Section>
 
-          <Section title="Patient">
+          <Section title={t('pvCaseWizard.sectionPatient')}>
             <div className="grid gap-4 sm:grid-cols-3">
               <div>
-                <label className={labelClass}>Initials</label>
-                <input value={patientInitials} onChange={(e) => setPatientInitials(e.target.value)} placeholder="e.g. J.M." className={inputClass} />
+                <label className={labelClass}>{t('pvCaseWizard.initials')}</label>
+                <input
+                  value={patientInitials}
+                  onChange={(e) => setPatientInitials(e.target.value)}
+                  placeholder={t('pvCaseWizard.initialsPlaceholder')}
+                  className={inputClass}
+                />
               </div>
               <div>
-                <label className={labelClass}>Age (years)</label>
+                <label className={labelClass}>{t('pvCaseWizard.ageYears')}</label>
                 <input type="number" min={0} max={130} value={patientAgeYears} onChange={(e) => setPatientAgeYears(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Sex</label>
+                <label className={labelClass}>{t('pvCaseWizard.sex')}</label>
                 <select value={patientSex} onChange={(e) => setPatientSex(e.target.value as PatientSex)} className={inputClass}>
-                  <option value="unknown">Unknown</option>
-                  <option value="female">Female</option>
-                  <option value="male">Male</option>
+                  <option value="unknown">{t('common.unknown')}</option>
+                  <option value="female">{t('pvCaseWizard.female')}</option>
+                  <option value="male">{t('pvCaseWizard.male')}</option>
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Weight (kg)</label>
+                <label className={labelClass}>{t('pvCaseWizard.weightKg')}</label>
                 <input type="number" min={0} value={patientWeightKg} onChange={(e) => setPatientWeightKg(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Height (cm)</label>
+                <label className={labelClass}>{t('pvCaseWizard.heightCm')}</label>
                 <input type="number" min={0} value={patientHeightCm} onChange={(e) => setPatientHeightCm(e.target.value)} className={inputClass} />
               </div>
             </div>
             <div className="mt-4">
-              <label className={labelClass}>Relevant medical history</label>
+              <label className={labelClass}>{t('pvCaseWizard.medicalHistory')}</label>
               <textarea
                 value={patientMedicalHistory}
                 onChange={(e) => setPatientMedicalHistory(e.target.value)}
                 rows={2}
                 className={inputClass}
-                placeholder="Encrypted at rest"
+                placeholder={t('pvCaseWizard.encryptedAtRest')}
               />
             </div>
           </Section>
 
-          <Section title="Suspect Products" subtitle="At least one is required">
+          <Section title={t('pvCaseWizard.sectionSuspectProducts')} subtitle={t('pvCaseWizard.atLeastOneRequired')}>
             <div className="space-y-4">
               {products.map((product, index) => (
                 <div key={product.key} className="rounded-lg border border-border p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product {index + 1}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('pvCaseWizard.productN', { n: String(index + 1) })}</p>
                     {products.length > 1 && (
                       <button onClick={() => removeProductRow(product.key)} className="text-muted-foreground hover:text-status-error">
                         <Trash2 className="h-4 w-4" />
@@ -559,7 +573,7 @@ export function PvCaseWizard() {
                   </div>
 
                   <div>
-                    <label className={labelClass}>Match against your product catalog</label>
+                    <label className={labelClass}>{t('pvCaseWizard.matchCatalog')}</label>
                     <ProductPicker
                       linkedProduct={linkedProducts[product.key] ?? null}
                       onSelect={(picked) => handlePickProduct(product.key, picked)}
@@ -569,28 +583,28 @@ export function PvCaseWizard() {
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <label className={labelClass}>Medicinal product *</label>
+                      <label className={labelClass}>{t('pvCaseWizard.medicinalProduct')}</label>
                       <input
                         value={product.medicinalProduct}
                         onChange={(e) => updateProduct(product.key, { medicinalProduct: e.target.value })}
-                        placeholder="e.g. Amoxil 500mg"
+                        placeholder={t('pvCaseWizard.medicinalProductPlaceholder')}
                         className={inputClass}
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Characterization</label>
+                      <label className={labelClass}>{t('pvCaseWizard.characterization')}</label>
                       <select
                         value={product.drugCharacterization}
                         onChange={(e) => updateProduct(product.key, { drugCharacterization: e.target.value as DrugCharacterization })}
                         className={inputClass}
                       >
-                        <option value="suspect">Suspect</option>
-                        <option value="concomitant">Concomitant</option>
-                        <option value="interacting">Interacting</option>
+                        <option value="suspect">{t('pvCaseWizard.suspect')}</option>
+                        <option value="concomitant">{t('pvCaseWizard.concomitant')}</option>
+                        <option value="interacting">{t('pvCaseWizard.interacting')}</option>
                       </select>
                     </div>
                     <div>
-                      <label className={labelClass}>Active substance</label>
+                      <label className={labelClass}>{t('pvCaseWizard.activeSubstance')}</label>
                       <input
                         value={product.activeSubstanceName ?? ''}
                         onChange={(e) => updateProduct(product.key, { activeSubstanceName: e.target.value })}
@@ -598,44 +612,54 @@ export function PvCaseWizard() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Batch/lot number</label>
+                      <label className={labelClass}>{t('pvCaseWizard.batchLotNumber')}</label>
                       <input value={product.batchNumber ?? ''} onChange={(e) => updateProduct(product.key, { batchNumber: e.target.value })} className={inputClass} />
                     </div>
                     <div>
-                      <label className={labelClass}>Dose</label>
-                      <input value={product.doseText ?? ''} onChange={(e) => updateProduct(product.key, { doseText: e.target.value })} placeholder="e.g. 500mg TDS" className={inputClass} />
+                      <label className={labelClass}>{t('pvCaseWizard.dose')}</label>
+                      <input
+                        value={product.doseText ?? ''}
+                        onChange={(e) => updateProduct(product.key, { doseText: e.target.value })}
+                        placeholder={t('pvCaseWizard.dosePlaceholder')}
+                        className={inputClass}
+                      />
                     </div>
                     <div>
-                      <label className={labelClass}>Route</label>
-                      <input value={product.route ?? ''} onChange={(e) => updateProduct(product.key, { route: e.target.value })} placeholder="e.g. Oral" className={inputClass} />
+                      <label className={labelClass}>{t('pvCaseWizard.route')}</label>
+                      <input
+                        value={product.route ?? ''}
+                        onChange={(e) => updateProduct(product.key, { route: e.target.value })}
+                        placeholder={t('pvCaseWizard.routePlaceholder')}
+                        className={inputClass}
+                      />
                     </div>
                     <div>
-                      <label className={labelClass}>Start date</label>
+                      <label className={labelClass}>{t('pvCaseWizard.startDate')}</label>
                       <input type="date" value={product.startDate ?? ''} onChange={(e) => updateProduct(product.key, { startDate: e.target.value })} className={inputClass} />
                     </div>
                     <div>
-                      <label className={labelClass}>End date</label>
+                      <label className={labelClass}>{t('pvCaseWizard.endDate')}</label>
                       <input type="date" value={product.endDate ?? ''} onChange={(e) => updateProduct(product.key, { endDate: e.target.value })} className={inputClass} />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className={labelClass}>Action taken with drug</label>
+                      <label className={labelClass}>{t('pvCaseWizard.actionTaken')}</label>
                       <input
                         value={product.actionTaken ?? ''}
                         onChange={(e) => updateProduct(product.key, { actionTaken: e.target.value })}
-                        placeholder="e.g. Drug withdrawn"
+                        placeholder={t('pvCaseWizard.actionTakenPlaceholder')}
                         className={inputClass}
                       />
                     </div>
                   </div>
                   <div>
-                    <p className={labelClass}>Special situations for this product</p>
+                    <p className={labelClass}>{t('pvCaseWizard.specialSituationsForProduct')}</p>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {(
                         [
-                          ['isOverdose', 'Overdose'],
-                          ['isOffLabelUse', 'Off-label use'],
-                          ['isMisuse', 'Misuse'],
-                          ['isMedicationError', 'Medication error'],
+                          ['isOverdose', t('pvCaseWizard.overdose')],
+                          ['isOffLabelUse', t('pvCaseWizard.offLabelUse')],
+                          ['isMisuse', t('pvCaseWizard.misuse')],
+                          ['isMedicationError', t('pvCaseWizard.medicationError')],
                         ] as const
                       ).map(([field, label]) => (
                         <label key={field} className="flex items-center gap-2 text-sm text-foreground">
@@ -655,17 +679,17 @@ export function PvCaseWizard() {
                 onClick={() => setProducts((prev) => [...prev, emptyProduct()])}
                 className="flex items-center gap-1.5 text-sm font-medium text-safemeds-teal hover:underline"
               >
-                <Plus className="h-4 w-4" /> Add another suspect product
+                <Plus className="h-4 w-4" /> {t('pvCaseWizard.addAnotherProduct')}
               </button>
             </div>
           </Section>
 
-          <Section title="Adverse Events" subtitle="At least one is required">
+          <Section title={t('pvCaseWizard.sectionAdverseEvents')} subtitle={t('pvCaseWizard.atLeastOneRequired')}>
             <div className="space-y-4">
               {events.map((event, index) => (
                 <div key={event.key} className="rounded-lg border border-border p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Event {index + 1}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('pvCaseWizard.eventN', { n: String(index + 1) })}</p>
                     {events.length > 1 && (
                       <button onClick={() => setEvents((prev) => prev.filter((e) => e.key !== event.key))} className="text-muted-foreground hover:text-status-error">
                         <Trash2 className="h-4 w-4" />
@@ -674,55 +698,55 @@ export function PvCaseWizard() {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <label className={labelClass}>Reported term *</label>
+                      <label className={labelClass}>{t('pvCaseWizard.reportedTerm')}</label>
                       <input
                         value={event.reportedTerm}
                         onChange={(e) => updateEvent(event.key, { reportedTerm: e.target.value })}
-                        placeholder="Reporter's own words, e.g. 'skin rash'"
+                        placeholder={t('pvCaseWizard.reportedTermPlaceholder')}
                         className={inputClass}
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Outcome</label>
+                      <label className={labelClass}>{t('pvCaseWizard.outcome')}</label>
                       <select value={event.outcome} onChange={(e) => updateEvent(event.key, { outcome: e.target.value as ReactionOutcome })} className={inputClass}>
-                        <option value="unknown">Unknown</option>
-                        <option value="recovered">Recovered</option>
-                        <option value="recovering">Recovering</option>
-                        <option value="not_recovered">Not recovered</option>
-                        <option value="recovered_with_sequelae">Recovered with sequelae</option>
-                        <option value="fatal">Fatal</option>
+                        <option value="unknown">{t('common.unknown')}</option>
+                        <option value="recovered">{t('pvCaseWizard.recovered')}</option>
+                        <option value="recovering">{t('pvCaseWizard.recovering')}</option>
+                        <option value="not_recovered">{t('pvCaseWizard.notRecovered')}</option>
+                        <option value="recovered_with_sequelae">{t('pvCaseWizard.recoveredWithSequelae')}</option>
+                        <option value="fatal">{t('pvCaseWizard.fatal')}</option>
                       </select>
                     </div>
                     <div>
-                      <label className={labelClass}>Onset date</label>
+                      <label className={labelClass}>{t('pvCaseWizard.onsetDate')}</label>
                       <input type="date" value={event.onsetDate ?? ''} onChange={(e) => updateEvent(event.key, { onsetDate: e.target.value })} className={inputClass} />
                     </div>
                     <div>
-                      <label className={labelClass}>Resolution date</label>
+                      <label className={labelClass}>{t('pvCaseWizard.resolutionDate')}</label>
                       <input type="date" value={event.resolutionDate ?? ''} onChange={(e) => updateEvent(event.key, { resolutionDate: e.target.value })} className={inputClass} />
                     </div>
                   </div>
                   <div>
-                    <label className={labelClass}>Narrative *</label>
+                    <label className={labelClass}>{t('pvCaseWizard.narrative')}</label>
                     <textarea
                       value={event.narrative}
                       onChange={(e) => updateEvent(event.key, { narrative: e.target.value })}
                       rows={2}
-                      placeholder="Full description of the reaction — encrypted at rest"
+                      placeholder={t('pvCaseWizard.narrativePlaceholder')}
                       className={inputClass}
                     />
                   </div>
                   <div>
-                    <p className={labelClass}>Seriousness criteria (FOM001 §8.III)</p>
+                    <p className={labelClass}>{t('pvCaseWizard.seriousnessCriteria')}</p>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {(
                         [
-                          ['seriousnessDeath', 'Death'],
-                          ['seriousnessLifeThreatening', 'Life threatening'],
-                          ['seriousnessHospitalization', 'Hospitalization'],
-                          ['seriousnessDisabling', 'Disability'],
-                          ['seriousnessCongenitalAnomaly', 'Congenital anomaly'],
-                          ['seriousnessOther', 'Other'],
+                          ['seriousnessDeath', t('pvCaseWizard.death')],
+                          ['seriousnessLifeThreatening', t('pvCaseWizard.lifeThreatening')],
+                          ['seriousnessHospitalization', t('pvCaseWizard.hospitalization')],
+                          ['seriousnessDisabling', t('pvCaseWizard.disability')],
+                          ['seriousnessCongenitalAnomaly', t('pvCaseWizard.congenitalAnomaly')],
+                          ['seriousnessOther', t('pvCaseWizard.other')],
                         ] as const
                       ).map(([field, label]) => (
                         <label key={field} className="flex items-center gap-2 text-sm text-foreground">
@@ -743,7 +767,7 @@ export function PvCaseWizard() {
                         checked={Boolean(event.isLackOfEfficacy)}
                         onChange={(e) => updateEvent(event.key, { isLackOfEfficacy: e.target.checked })}
                       />
-                      Lack of efficacy (therapeutic ineffectiveness)
+                      {t('pvCaseWizard.lackOfEfficacy')}
                     </label>
                   )}
                 </div>
@@ -752,12 +776,12 @@ export function PvCaseWizard() {
                 onClick={() => setEvents((prev) => [...prev, emptyEvent()])}
                 className="flex items-center gap-1.5 text-sm font-medium text-safemeds-teal hover:underline"
               >
-                <Plus className="h-4 w-4" /> Add another adverse event
+                <Plus className="h-4 w-4" /> {t('pvCaseWizard.addAnotherEvent')}
               </button>
             </div>
           </Section>
 
-          <Section title="Special Situations" subtitle="Optional — only complete what applies to this case">
+          <Section title={t('pvCaseWizard.sectionSpecialSituations')} subtitle={t('pvCaseWizard.optionalApplicable')}>
             <div className="space-y-4">
               <label className="flex items-center gap-2 text-sm text-foreground">
                 <input
@@ -765,19 +789,19 @@ export function PvCaseWizard() {
                   checked={suspectedFalsifiedOrSubstandard}
                   onChange={(e) => setSuspectedFalsifiedOrSubstandard(e.target.checked)}
                 />
-                Suspected falsified or substandard product
+                {t('pvCaseWizard.suspectedFalsified')}
               </label>
 
               <label className="flex items-center gap-2 text-sm text-foreground">
                 <input type="checkbox" checked={pregnancyExposure} onChange={(e) => setPregnancyExposure(e.target.checked)} />
-                Pregnancy exposure
+                {t('pvCaseWizard.pregnancyExposure')}
               </label>
 
               {pregnancyExposure && (
                 <div className="rounded-lg border border-border p-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <label className={labelClass}>Expected delivery date</label>
+                      <label className={labelClass}>{t('pvCaseWizard.expectedDeliveryDate')}</label>
                       <input
                         type="date"
                         value={pregnancyExpectedDeliveryDate}
@@ -786,7 +810,7 @@ export function PvCaseWizard() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Gestation weeks at exposure</label>
+                      <label className={labelClass}>{t('pvCaseWizard.gestationWeeks')}</label>
                       <input
                         type="number"
                         min={0}
@@ -797,7 +821,7 @@ export function PvCaseWizard() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Outcome</label>
+                      <label className={labelClass}>{t('pvCaseWizard.outcome')}</label>
                       <select value={pregnancyOutcome} onChange={(e) => setPregnancyOutcome(e.target.value as PregnancyOutcome)} className={inputClass}>
                         {Object.entries(PREGNANCY_OUTCOME_LABELS).map(([value, label]) => (
                           <option key={value} value={value}>
@@ -809,7 +833,7 @@ export function PvCaseWizard() {
                   </div>
                   {pregnancyOutcome === 'live_birth_congenital_anomaly' && (
                     <div className="mt-4">
-                      <label className={labelClass}>Congenital anomaly detail</label>
+                      <label className={labelClass}>{t('pvCaseWizard.congenitalAnomalyDetail')}</label>
                       <textarea
                         value={pregnancyCongenitalAnomalyDetail}
                         onChange={(e) => setPregnancyCongenitalAnomalyDetail(e.target.value)}
@@ -823,23 +847,23 @@ export function PvCaseWizard() {
             </div>
           </Section>
 
-          <Section title="Consent">
+          <Section title={t('pvCaseWizard.sectionConsent')}>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelClass}>Was consent to report obtained?</label>
+                <label className={labelClass}>{t('pvCaseWizard.consentObtained')}</label>
                 <select value={consentGranted} onChange={(e) => setConsentGranted(e.target.value as typeof consentGranted)} className={inputClass}>
-                  <option value="not_captured">Not captured now</option>
-                  <option value="yes">Granted</option>
-                  <option value="no">Declined</option>
+                  <option value="not_captured">{t('pvCaseWizard.notCapturedNow')}</option>
+                  <option value="yes">{t('pvCaseWizard.granted')}</option>
+                  <option value="no">{t('pvCaseWizard.declined')}</option>
                 </select>
               </div>
               {consentGranted !== 'not_captured' && (
                 <div>
-                  <label className={labelClass}>Method</label>
+                  <label className={labelClass}>{t('pvCaseWizard.method')}</label>
                   <select value={consentMethod} onChange={(e) => setConsentMethod(e.target.value as ConsentMethod)} className={inputClass}>
-                    <option value="written">Written</option>
-                    <option value="verbal">Verbal</option>
-                    <option value="implied">Implied</option>
+                    <option value="written">{t('pvCaseWizard.written')}</option>
+                    <option value="verbal">{t('pvCaseWizard.verbal')}</option>
+                    <option value="implied">{t('pvCaseWizard.implied')}</option>
                   </select>
                 </div>
               )}
@@ -855,7 +879,7 @@ export function PvCaseWizard() {
           {!submitting && missingReasons.length > 0 && (
             <div className="rounded-lg border border-status-warning/30 bg-status-warning/5 p-4 text-sm text-foreground">
               <p className="flex items-center gap-2 font-medium text-status-warning">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" /> Still needed before this case can be submitted:
+                <AlertCircle className="h-4 w-4 flex-shrink-0" /> {t('pvCaseWizard.stillNeeded')}
               </p>
               <ul className="mt-2 ml-6 list-disc space-y-0.5 text-muted-foreground">
                 {missingReasons.map((reason) => (
@@ -867,16 +891,16 @@ export function PvCaseWizard() {
 
           <div className="flex justify-end gap-3 pb-6">
             <button onClick={() => router.push('/pv-cases')} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground">
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               onClick={handleSubmit}
               disabled={!canSubmit}
-              title={missingReasons.length > 0 ? `Still needed: ${missingReasons.join(', ')}` : undefined}
+              title={missingReasons.length > 0 ? t('pvCaseWizard.stillNeededTitle', { reasons: missingReasons.join(', ') }) : undefined}
               className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Submit Case
+              {t('pvCaseWizard.submitCase')}
             </button>
           </div>
         </>

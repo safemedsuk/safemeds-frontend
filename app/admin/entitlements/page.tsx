@@ -12,26 +12,29 @@ import {
   type CompanySummary,
   type Entitlement,
 } from '@/lib/api/entitlements'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 /** The known VigiCloud/QualCloud/RegCloud module keys — the entitlement primitive itself is generic and accepts any moduleKey, this list is just what the console offers a one-click toggle for. */
-const KNOWN_MODULES: { key: string; label: string; description: string }[] = [
-  { key: 'vigicloud', label: 'VigiCloud', description: 'Pharmacovigilance — adverse event capture, medical review, submission' },
-  { key: 'qualcloud', label: 'QualCloud', description: 'Quality management — deviations, CAPAs, batch release' },
-  { key: 'regcloud', label: 'RegCloud', description: 'Regulatory affairs — product registrations, renewals, dossiers' },
+const KNOWN_MODULE_KEYS: { key: string; labelKey: MessageKey; descriptionKey: MessageKey }[] = [
+  { key: 'vigicloud', labelKey: 'entitlementsAdmin.vigicloudLabel', descriptionKey: 'entitlementsAdmin.vigicloudDescription' },
+  { key: 'qualcloud', labelKey: 'entitlementsAdmin.qualcloudLabel', descriptionKey: 'entitlementsAdmin.qualcloudDescription' },
+  { key: 'regcloud', labelKey: 'entitlementsAdmin.regcloudLabel', descriptionKey: 'entitlementsAdmin.regcloudDescription' },
 ]
 
-const COMPANY_TYPE_LABEL: Record<string, string> = {
-  manufacturer: 'Manufacturer',
-  importer_distributor: 'Importer/Distributor',
-  pharmacy_chain: 'Pharmacy Chain',
-  e_pharmacy: 'E-Pharmacy',
-  medical_facility: 'Medical Facility',
-  ngo_social_health: 'NGO / Social Health',
-  research_institution: 'Research Institution',
-  other: 'Other',
+const COMPANY_TYPE_LABEL_KEYS: Record<string, MessageKey> = {
+  manufacturer: 'entitlementsAdmin.companyTypeManufacturer',
+  importer_distributor: 'entitlementsAdmin.companyTypeImporterDistributor',
+  pharmacy_chain: 'entitlementsAdmin.companyTypePharmacyChain',
+  e_pharmacy: 'entitlementsAdmin.companyTypeEPharmacy',
+  medical_facility: 'entitlementsAdmin.companyTypeMedicalFacility',
+  ngo_social_health: 'entitlementsAdmin.companyTypeNgoSocialHealth',
+  research_institution: 'entitlementsAdmin.companyTypeResearchInstitution',
+  other: 'entitlementsAdmin.companyTypeOther',
 }
 
 export default function EntitlementsPage() {
+  const { t } = useTranslation()
   const [density, setDensity] = useState<DensityMode>('normal')
   const [companies, setCompanies] = useState<CompanySummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,11 +56,11 @@ export default function EntitlementsPage() {
       const { companies } = await listCompanies(undefined, 1)
       setCompanies(companies)
     } catch (err) {
-      setLoadError(err instanceof ApiRequestError ? err.message : 'Could not load companies.')
+      setLoadError(err instanceof ApiRequestError ? err.message : t('entitlementsAdmin.errorLoadCompanies'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     loadCompanies()
@@ -71,7 +74,7 @@ export default function EntitlementsPage() {
     try {
       setEntitlements(await listCompanyEntitlements(company.id))
     } catch (err) {
-      setDetailError(err instanceof ApiRequestError ? err.message : 'Could not load entitlements.')
+      setDetailError(err instanceof ApiRequestError ? err.message : t('entitlementsAdmin.errorLoadEntitlements'))
     } finally {
       setDetailLoading(false)
     }
@@ -95,7 +98,7 @@ export default function EntitlementsPage() {
       await grantEntitlement(selected.id, moduleKey, !current?.enabled)
       setEntitlements(await listCompanyEntitlements(selected.id))
     } catch (err) {
-      setDetailError(err instanceof ApiRequestError ? err.message : 'Could not update this entitlement.')
+      setDetailError(err instanceof ApiRequestError ? err.message : t('entitlementsAdmin.errorUpdateEntitlement'))
     } finally {
       setToggling(null)
     }
@@ -111,7 +114,7 @@ export default function EntitlementsPage() {
       setCustomModuleKey('')
       setCustomFeatureKey('')
     } catch (err) {
-      setDetailError(err instanceof ApiRequestError ? err.message : 'Could not add this entitlement.')
+      setDetailError(err instanceof ApiRequestError ? err.message : t('entitlementsAdmin.errorAddEntitlement'))
     } finally {
       setToggling(null)
     }
@@ -120,7 +123,7 @@ export default function EntitlementsPage() {
   const columns: DataTableColumn<CompanySummary>[] = [
     {
       key: 'name',
-      label: 'Company',
+      label: t('entitlementsAdmin.columnCompany'),
       sortable: true,
       render: (value, row) => (
         <div>
@@ -131,13 +134,15 @@ export default function EntitlementsPage() {
     },
     {
       key: 'companyType',
-      label: 'Type',
+      label: t('entitlementsAdmin.columnType'),
       sortable: true,
-      render: (value) => <span className="text-[var(--text)]">{COMPANY_TYPE_LABEL[value as string] ?? value}</span>,
+      render: (value) => (
+        <span className="text-[var(--text)]">{COMPANY_TYPE_LABEL_KEYS[value as string] ? t(COMPANY_TYPE_LABEL_KEYS[value as string]) : value}</span>
+      ),
     },
     {
       key: 'status',
-      label: 'Status',
+      label: t('entitlementsAdmin.columnStatus'),
       sortable: true,
       render: (value) => (
         <span
@@ -145,7 +150,7 @@ export default function EntitlementsPage() {
             value === 'active' ? 'bg-[var(--ok-bg)] text-[var(--ok)]' : 'bg-[var(--bad-bg)] text-[var(--bad)]'
           }`}
         >
-          {value === 'active' ? 'Active' : 'Suspended'}
+          {value === 'active' ? t('entitlementsAdmin.active') : t('entitlementsAdmin.suspended')}
         </span>
       ),
     },
@@ -155,9 +160,9 @@ export default function EntitlementsPage() {
     <div className="min-h-screen bg-[var(--bg)] p-6">
       <div className="max-w-7xl mx-auto">
         <PageHeader
-          title="Entitlements"
-          description="Grant or revoke module and feature access per company — the monetisation layer gating paid provisioning"
-          breadcrumb={[{ label: 'Admin', href: '/admin' }, { label: 'Entitlements' }]}
+          title={t('entitlementsAdmin.title')}
+          description={t('entitlementsAdmin.description')}
+          breadcrumb={[{ label: t('entitlementsAdmin.breadcrumbAdmin'), href: '/admin' }, { label: t('entitlementsAdmin.breadcrumbEntitlements') }]}
         />
 
         {loadError && (
@@ -166,14 +171,14 @@ export default function EntitlementsPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16 text-[var(--text-muted)]">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading companies…
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('entitlementsAdmin.loadingCompanies')}
           </div>
         ) : (
           <DataTableV2
             data={companies}
             columns={columns}
-            title="Companies"
-            description={`${companies.length} compan${companies.length === 1 ? 'y' : 'ies'}`}
+            title={t('entitlementsAdmin.companiesTitle')}
+            description={t('entitlementsAdmin.companyCount', { count: String(companies.length), plural: companies.length === 1 ? 'y' : 'ies' })}
             density={density}
             onDensityChange={setDensity}
             showDensityToggle={true}
@@ -200,19 +205,15 @@ export default function EntitlementsPage() {
 
               {detailLoading ? (
                 <div className="flex items-center justify-center py-10 text-[var(--text-muted)]">
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('entitlementsAdmin.loadingEllipsis')}
                 </div>
               ) : (
                 <>
                   <div>
-                    <label className="text-xs font-medium text-[var(--text-muted)] uppercase mb-2 block">Modules</label>
-                    <p className="text-xs text-[var(--text-muted)] mb-2">
-                      These toggles control this company&apos;s <strong>access</strong> to an already-built module —
-                      not whether the module exists or works. Toggling VigiCloud on may require an active PSMF first
-                      (see Governance → PSMF for that company).
-                    </p>
+                    <label className="text-xs font-medium text-[var(--text-muted)] uppercase mb-2 block">{t('entitlementsAdmin.modulesLabel')}</label>
+                    <p className="text-xs text-[var(--text-muted)] mb-2">{t('entitlementsAdmin.modulesExplanation')}</p>
                     <div className="space-y-2">
-                      {KNOWN_MODULES.map((mod) => {
+                      {KNOWN_MODULE_KEYS.map((mod) => {
                         const grant = findModuleGrant(mod.key)
                         const enabled = grant?.enabled ?? false
                         return (
@@ -230,8 +231,8 @@ export default function EntitlementsPage() {
                               <ToggleLeft className="h-5 w-5 flex-shrink-0 mt-0.5 text-[var(--text-muted)]" />
                             )}
                             <span className="min-w-0">
-                              <span className="block text-sm font-medium text-[var(--text)]">{mod.label}</span>
-                              <span className="block text-xs text-[var(--text-muted)] mt-0.5">{mod.description}</span>
+                              <span className="block text-sm font-medium text-[var(--text)]">{t(mod.labelKey)}</span>
+                              <span className="block text-xs text-[var(--text-muted)] mt-0.5">{t(mod.descriptionKey)}</span>
                             </span>
                           </button>
                         )
@@ -239,14 +240,12 @@ export default function EntitlementsPage() {
                     </div>
                   </div>
 
-                  {entitlements.filter((e) => !KNOWN_MODULES.some((m) => m.key === e.moduleKey && e.featureKey === '*')).length > 0 && (
+                  {entitlements.filter((e) => !KNOWN_MODULE_KEYS.some((m) => m.key === e.moduleKey && e.featureKey === '*')).length > 0 && (
                     <div>
-                      <label className="text-xs font-medium text-[var(--text-muted)] uppercase mb-2 block">
-                        Other grants (feature-level or custom modules)
-                      </label>
+                      <label className="text-xs font-medium text-[var(--text-muted)] uppercase mb-2 block">{t('entitlementsAdmin.otherGrantsLabel')}</label>
                       <ul className="space-y-1.5">
                         {entitlements
-                          .filter((e) => !KNOWN_MODULES.some((m) => m.key === e.moduleKey && e.featureKey === '*'))
+                          .filter((e) => !KNOWN_MODULE_KEYS.some((m) => m.key === e.moduleKey && e.featureKey === '*'))
                           .map((e) => (
                             <li key={e.id} className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-[var(--surface-raised)]">
                               <span className="font-mono text-[var(--text)]">
@@ -254,7 +253,7 @@ export default function EntitlementsPage() {
                                 {e.featureKey !== '*' && <span className="text-[var(--text-muted)]"> / {e.featureKey}</span>}
                               </span>
                               <span className={e.enabled ? 'text-[var(--ok)] font-medium' : 'text-[var(--bad)] font-medium'}>
-                                {e.enabled ? 'Enabled' : 'Disabled'}
+                                {e.enabled ? t('entitlementsAdmin.enabled') : t('entitlementsAdmin.disabled')}
                               </span>
                             </li>
                           ))}
@@ -263,20 +262,18 @@ export default function EntitlementsPage() {
                   )}
 
                   <div className="pt-4 border-t border-[var(--border)]">
-                    <label className="text-xs font-medium text-[var(--text-muted)] uppercase mb-2 block">
-                      Grant a specific module or feature
-                    </label>
+                    <label className="text-xs font-medium text-[var(--text-muted)] uppercase mb-2 block">{t('entitlementsAdmin.grantSpecificLabel')}</label>
                     <div className="flex gap-2">
                       <input
                         value={customModuleKey}
                         onChange={(e) => setCustomModuleKey(e.target.value)}
-                        placeholder="module key"
+                        placeholder={t('entitlementsAdmin.moduleKeyPlaceholder')}
                         className="flex-1 min-w-0 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
                       />
                       <input
                         value={customFeatureKey}
                         onChange={(e) => setCustomFeatureKey(e.target.value)}
-                        placeholder="feature (optional)"
+                        placeholder={t('entitlementsAdmin.featureOptionalPlaceholder')}
                         className="flex-1 min-w-0 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)]"
                       />
                       <button
@@ -295,7 +292,7 @@ export default function EntitlementsPage() {
                 onClick={closeDetail}
                 className="w-full px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors"
               >
-                Close
+                {t('entitlementsAdmin.close')}
               </button>
             </div>
           </div>

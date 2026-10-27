@@ -15,16 +15,18 @@ import {
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { validateUploadSize } from '@/lib/upload-limits'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
 
-const SOURCE_LABELS: Record<string, string> = {
-  market_surveillance: 'Market Surveillance',
-  complaint: 'Complaint',
-  distributor: 'Distributor',
-  regulator: 'Regulator',
-  scan_feature: 'Scanned (camera or manual code entry)',
+const SOURCE_LABEL_KEYS: Record<string, MessageKey> = {
+  market_surveillance: 'qualityFalsified.sourceMarketSurveillance',
+  complaint: 'qualityFalsified.sourceComplaint',
+  distributor: 'qualityFalsified.sourceDistributor',
+  regulator: 'qualityFalsified.sourceRegulator',
+  scan_feature: 'qualityFalsified.sourceScanFeature',
 }
 
 /** Holds a generated UUID for the lifetime of one component instance, used as the recordId for evidence uploaded before this report exists. */
@@ -50,6 +52,7 @@ const STATUS_STYLES: Record<string, string> = {
  * `source` option exists only as a real, forward-reserved value.
  */
 export function QualityFalsifiedProductReportsScreen() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canView = has('quality.view_all')
   const canManage = has('quality.manage_falsified_reports')
@@ -67,9 +70,9 @@ export function QualityFalsifiedProductReportsScreen() {
     setError(null)
     listFalsifiedProductReports({ page: 1, limit: 50 })
       .then((res) => setReports(res.rows))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load falsified product reports.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityFalsified.errorLoad'))))
       .finally(() => setLoading(false))
-  }, [])
+  }, [t])
 
   useEffect(load, [load])
 
@@ -77,10 +80,10 @@ export function QualityFalsifiedProductReportsScreen() {
     setBusyId(report.id)
     try {
       await confirmFalsifiedProductReport(report.id, { routeToPvCase: Boolean(report.productId) })
-      setNotice('Report confirmed — a Deviation has been opened.')
+      setNotice(t('qualityFalsified.confirmedNotice'))
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not confirm this report.'))
+      setError(getErrorMessage(err, t('qualityFalsified.errorConfirm')))
     } finally {
       setBusyId(null)
     }
@@ -90,10 +93,10 @@ export function QualityFalsifiedProductReportsScreen() {
     setBusyId(report.id)
     try {
       await closeFalsifiedProductReport(report.id)
-      setNotice('Report closed.')
+      setNotice(t('qualityFalsified.closedNotice'))
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not close this report.'))
+      setError(getErrorMessage(err, t('qualityFalsified.errorClose')))
     } finally {
       setBusyId(null)
     }
@@ -102,10 +105,10 @@ export function QualityFalsifiedProductReportsScreen() {
   if (!canView) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Falsified &amp; Substandard Product Reports</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityFalsified.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view these reports.</p>
+          <p className="text-sm text-muted-foreground">{t('qualityFalsified.noPermission')}</p>
         </div>
       </div>
     )
@@ -115,12 +118,12 @@ export function QualityFalsifiedProductReportsScreen() {
     <div className="space-y-6 p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Falsified &amp; Substandard Product Reports</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Confirming a report opens a real linked Deviation and, where relevant, a PV case.</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityFalsified.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('qualityFalsified.subtitle')}</p>
         </div>
         {canManage && (
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors">
-            <Plus className="h-4 w-4" /> Report
+            <Plus className="h-4 w-4" /> {t('qualityFalsified.report')}
           </button>
         )}
       </div>
@@ -136,27 +139,27 @@ export function QualityFalsifiedProductReportsScreen() {
         ) : reports.length === 0 ? (
           <div className="p-12 text-center">
             <AlertTriangle className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No reports yet.</p>
+            <p className="text-sm text-muted-foreground">{t('qualityFalsified.noReportsYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Source</th>
-                <th className="p-3">Evidence</th>
-                <th className="p-3">Linked Records</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Action</th>
+                <th className="p-3">{t('qualityFalsified.columnSource')}</th>
+                <th className="p-3">{t('qualityFalsified.columnEvidence')}</th>
+                <th className="p-3">{t('qualityFalsified.columnLinkedRecords')}</th>
+                <th className="p-3">{t('qualityFalsified.columnStatus')}</th>
+                <th className="p-3">{t('qualityFalsified.columnAction')}</th>
               </tr>
             </thead>
             <tbody>
               {reports.map((r) => (
                 <tr key={r.id} className="border-b border-border last:border-0">
-                  <td className="p-3 text-foreground">{SOURCE_LABELS[r.source] ?? r.source}</td>
+                  <td className="p-3 text-foreground">{SOURCE_LABEL_KEYS[r.source] ? t(SOURCE_LABEL_KEYS[r.source]) : r.source}</td>
                   <td className="p-3 text-muted-foreground max-w-xs truncate">{r.evidenceDescription}</td>
                   <td className="p-3 text-xs text-muted-foreground">
-                    {r.linkedDeviationId && <span className="mr-2">Deviation</span>}
-                    {r.linkedCaseId && <span className="mr-2">PV Case</span>}
+                    {r.linkedDeviationId && <span className="mr-2">{t('qualityFalsified.deviation')}</span>}
+                    {r.linkedCaseId && <span className="mr-2">{t('qualityFalsified.pvCase')}</span>}
                     {!r.linkedDeviationId && !r.linkedCaseId && '—'}
                   </td>
                   <td className="p-3">
@@ -166,16 +169,16 @@ export function QualityFalsifiedProductReportsScreen() {
                     {r.status === 'reported' && canManage && (
                       <>
                         <button disabled={busyId === r.id} onClick={() => doConfirm(r)} className="text-xs font-medium text-safemeds-teal hover:underline disabled:opacity-50">
-                          Confirm
+                          {t('qualityFalsified.confirm')}
                         </button>
                         <button onClick={() => setDismissing(r)} className="text-xs font-medium text-muted-foreground hover:underline">
-                          Dismiss
+                          {t('qualityFalsified.dismiss')}
                         </button>
                       </>
                     )}
                     {r.status === 'confirmed' && canManage && (
                       <button disabled={busyId === r.id} onClick={() => doClose(r)} className="text-xs font-medium text-safemeds-teal hover:underline disabled:opacity-50">
-                        Close
+                        {t('qualityFalsified.close')}
                       </button>
                     )}
                   </td>
@@ -191,7 +194,7 @@ export function QualityFalsifiedProductReportsScreen() {
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false)
-            setNotice('Report filed.')
+            setNotice(t('qualityFalsified.filedNotice'))
             load()
           }}
         />
@@ -203,7 +206,7 @@ export function QualityFalsifiedProductReportsScreen() {
           onDismissed={async (reason) => {
             await dismissFalsifiedProductReport(dismissing.id, { reason })
             setDismissing(null)
-            setNotice('Report dismissed.')
+            setNotice(t('qualityFalsified.dismissedNotice'))
             load()
           }}
         />
@@ -213,6 +216,7 @@ export function QualityFalsifiedProductReportsScreen() {
 }
 
 function CreateReportModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { t } = useTranslation()
   const holdingId = useHoldingId()
   const [source, setSource] = useState('market_surveillance')
   const [scannedCode, setScannedCode] = useState('')
@@ -235,7 +239,7 @@ function CreateReportModal({ onClose, onCreated }: { onClose: () => void; onCrea
       const version = await uploadDocument('falsified_product_report', holdingId, file, { title: `Falsified product evidence — ${file.name}` })
       setUploadedDocs((prev) => [...prev, { documentId: version.documentId, filename: file.name }])
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not attach this file.'))
+      setError(getErrorMessage(err, t('qualityFalsified.errorAttach')))
     } finally {
       setUploading(false)
     }
@@ -254,7 +258,7 @@ function CreateReportModal({ onClose, onCreated }: { onClose: () => void; onCrea
       })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not file this report.'))
+      setError(getErrorMessage(err, t('qualityFalsified.errorFile')))
       setSubmitting(false)
     }
   }
@@ -262,21 +266,20 @@ function CreateReportModal({ onClose, onCreated }: { onClose: () => void; onCrea
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
       <div className="w-full max-w-lg rounded-lg border border-border bg-card p-6 space-y-4 my-8">
-        <h2 className="font-display font-bold text-lg text-foreground">Report a Suspected Falsified/Substandard Product</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('qualityFalsified.createModalTitle')}</h2>
         <div>
-          <label className={labelClass}>Source *</label>
+          <label className={labelClass}>{t('qualityFalsified.source')}</label>
           <select value={source} onChange={(e) => setSource(e.target.value)} className={inputClass}>
-            {Object.entries(SOURCE_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
+            {Object.entries(SOURCE_LABEL_KEYS).map(([key, labelKey]) => (
+              <option key={key} value={key}>{t(labelKey)}</option>
             ))}
           </select>
         </div>
 
         <div className="rounded-lg border border-border p-3 space-y-2">
-          <p className="text-xs font-medium text-foreground">Scan a product/batch code</p>
+          <p className="text-xs font-medium text-foreground">{t('qualityFalsified.scanBoxTitle')}</p>
           <p className="text-xs text-muted-foreground">
-            Scan the product&apos;s QR/barcode with your device&apos;s camera, or enter the code by hand if scanning
-            isn&apos;t available. Using this sets the source above to &quot;Scanned&quot;.
+            {t('qualityFalsified.scanBoxDescription')}
           </p>
           {scannedCode ? (
             <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2 text-sm text-foreground">
@@ -291,18 +294,18 @@ function CreateReportModal({ onClose, onCreated }: { onClose: () => void; onCrea
               onClick={() => setShowScan(true)}
               className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
             >
-              <Camera className="h-3.5 w-3.5" /> Scan or enter code
+              <Camera className="h-3.5 w-3.5" /> {t('qualityFalsified.scanOrEnterCode')}
             </button>
           )}
         </div>
 
         <div>
-          <label className={labelClass}>Evidence Description *</label>
-          <textarea value={evidenceDescription} onChange={(e) => setEvidenceDescription(e.target.value)} rows={4} className={inputClass} placeholder="Describe what was observed" />
+          <label className={labelClass}>{t('qualityFalsified.evidenceDescription')}</label>
+          <textarea value={evidenceDescription} onChange={(e) => setEvidenceDescription(e.target.value)} rows={4} className={inputClass} placeholder={t('qualityFalsified.evidenceDescriptionPlaceholder')} />
         </div>
 
         <div>
-          <label className={labelClass}>Supporting documents or photos</label>
+          <label className={labelClass}>{t('qualityFalsified.supportingDocuments')}</label>
           {uploadedDocs.length > 0 && (
             <ul className="mb-2 space-y-1">
               {uploadedDocs.map((d) => (
@@ -314,7 +317,7 @@ function CreateReportModal({ onClose, onCreated }: { onClose: () => void; onCrea
           )}
           <label className="flex items-center gap-2 text-xs">
             <span className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 font-medium text-foreground hover:bg-muted">
-              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add a file
+              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} {t('qualityFalsified.addFile')}
               <input type="file" className="hidden" disabled={uploading} onChange={(e) => handleUpload(e.target.files?.[0])} />
             </span>
           </label>
@@ -323,7 +326,7 @@ function CreateReportModal({ onClose, onCreated }: { onClose: () => void; onCrea
         {error && <p className="text-sm text-status-error">{error}</p>}
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -331,7 +334,7 @@ function CreateReportModal({ onClose, onCreated }: { onClose: () => void; onCrea
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Report
+            {t('qualityFalsified.report')}
           </button>
         </div>
       </div>
@@ -358,6 +361,7 @@ function CreateReportModal({ onClose, onCreated }: { onClose: () => void; onCrea
  * soon" placeholder.
  */
 function ScanCodeModal({ onClose, onScanned }: { onClose: () => void; onScanned: (code: string) => void }) {
+  const { t } = useTranslation()
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [manualCode, setManualCode] = useState('')
@@ -398,7 +402,7 @@ function ScanCodeModal({ onClose, onScanned }: { onClose: () => void; onScanned:
           }
         }, 400)
       } catch (err) {
-        setCameraError(err instanceof Error ? err.message : 'Could not access the camera.')
+        setCameraError(err instanceof Error ? err.message : t('qualityFalsified.errorCamera'))
       }
     }
     void start()
@@ -413,34 +417,34 @@ function ScanCodeModal({ onClose, onScanned }: { onClose: () => void; onScanned:
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 space-y-4">
-        <h3 className="font-display font-bold text-base text-foreground">Scan a code</h3>
+        <h3 className="font-display font-bold text-base text-foreground">{t('qualityFalsified.scanModalTitle')}</h3>
         {supportsBarcodeDetector ? (
           <>
             <div className="overflow-hidden rounded-lg bg-black">
               <video ref={videoRef} muted playsInline className="aspect-square w-full object-cover" />
             </div>
-            {scanning && !cameraError && <p className="text-xs text-muted-foreground">Point the camera at the product&apos;s barcode or QR code.</p>}
-            {cameraError && <p className="text-xs text-status-error">{cameraError} You can enter the code below instead.</p>}
+            {scanning && !cameraError && <p className="text-xs text-muted-foreground">{t('qualityFalsified.pointCamera')}</p>}
+            {cameraError && <p className="text-xs text-status-error">{cameraError} {t('qualityFalsified.cameraErrorSuffix')}</p>}
           </>
         ) : (
           <p className="text-xs text-muted-foreground">
-            This browser doesn&apos;t support in-page camera scanning. Enter the code printed on the product below.
+            {t('qualityFalsified.noCameraSupport')}
           </p>
         )}
         <div>
-          <label className={labelClass}>Or enter the code manually</label>
-          <input className={inputClass} value={manualCode} onChange={(e) => setManualCode(e.target.value)} placeholder="e.g. a GS1 barcode or batch QR value" />
+          <label className={labelClass}>{t('qualityFalsified.enterCodeManually')}</label>
+          <input className={inputClass} value={manualCode} onChange={(e) => setManualCode(e.target.value)} placeholder={t('qualityFalsified.codePlaceholder')} />
         </div>
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={() => manualCode.trim() && onScanned(manualCode.trim())}
             disabled={!manualCode.trim()}
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
-            Use this code
+            {t('qualityFalsified.useThisCode')}
           </button>
         </div>
       </div>
@@ -449,6 +453,7 @@ function ScanCodeModal({ onClose, onScanned }: { onClose: () => void; onScanned:
 }
 
 function DismissReportModal({ onClose, onDismissed }: { onClose: () => void; onDismissed: (reason: string) => Promise<void> }) {
+  const { t } = useTranslation()
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -460,7 +465,7 @@ function DismissReportModal({ onClose, onDismissed }: { onClose: () => void; onD
     try {
       await onDismissed(reason.trim())
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not dismiss this report.'))
+      setError(getErrorMessage(err, t('qualityFalsified.errorDismiss')))
       setSubmitting(false)
     }
   }
@@ -468,15 +473,15 @@ function DismissReportModal({ onClose, onDismissed }: { onClose: () => void; onD
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 space-y-4">
-        <h3 className="font-display font-bold text-base text-foreground">Dismiss Report</h3>
+        <h3 className="font-display font-bold text-base text-foreground">{t('qualityFalsified.dismissModalTitle')}</h3>
         <div>
-          <label className={labelClass}>Reason *</label>
-          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className={inputClass} placeholder="e.g. Investigated — product confirmed genuine" />
+          <label className={labelClass}>{t('qualityFalsified.reasonField')}</label>
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className={inputClass} placeholder={t('qualityFalsified.reasonPlaceholder')} />
         </div>
         {error && <p className="text-sm text-status-error">{error}</p>}
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -484,7 +489,7 @@ function DismissReportModal({ onClose, onDismissed }: { onClose: () => void; onD
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Dismiss
+            {t('qualityFalsified.dismiss')}
           </button>
         </div>
       </div>

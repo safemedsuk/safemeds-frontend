@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { PenTool, CheckCircle2, Clock, File } from 'lucide-react'
 import { SignatureModal } from '@/components/ui/signature-modal'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface SignedDocument {
   id: string
@@ -37,6 +38,7 @@ const mockSignedDocuments: SignedDocument[] = [
 ]
 
 export function ElectronicSignature() {
+  const { t } = useTranslation()
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null)
   const [signedDocuments, setSignedDocuments] = useState<SignedDocument[]>(mockSignedDocuments)
@@ -64,8 +66,8 @@ export function ElectronicSignature() {
   const handleSign = async ({ intentStatement }: { intentStatement: string; signatureToken: string }) => {
     const newSignedDocument: SignedDocument = {
       id: `sig-${Date.now()}`,
-      title: pendingDocuments.find(d => d.id === selectedDocument)?.title || 'Document',
-      type: pendingDocuments.find(d => d.id === selectedDocument)?.type || 'Document',
+      title: pendingDocuments.find((d) => d.id === selectedDocument)?.title || t('electronicSignature.document'),
+      type: pendingDocuments.find((d) => d.id === selectedDocument)?.type || t('electronicSignature.document'),
       signedBy: 'John Doe',
       signedAt: new Date().toISOString(),
       intent: intentStatement,
@@ -89,8 +91,8 @@ export function ElectronicSignature() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Electronic Signature</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Sign critical documents digitally</p>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('electronicSignature.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('electronicSignature.subtitle')}</p>
       </div>
 
       {/* Success Message */}
@@ -98,8 +100,8 @@ export function ElectronicSignature() {
         <div className="rounded-lg bg-status-success/10 border border-status-success/30 px-4 py-3 flex items-center gap-3">
           <CheckCircle2 className="h-5 w-5 text-status-success flex-shrink-0" />
           <div>
-            <p className="font-medium text-status-success text-sm">Document signed successfully</p>
-            <p className="text-xs text-status-success/80">Your signature has been recorded in the audit trail.</p>
+            <p className="font-medium text-status-success text-sm">{t('electronicSignature.signedSuccessfully')}</p>
+            <p className="text-xs text-status-success/80">{t('electronicSignature.recordedInAuditTrail')}</p>
           </div>
         </div>
       )}
@@ -109,17 +111,17 @@ export function ElectronicSignature() {
         <div className="space-y-4">
           <h2 className="font-semibold text-foreground flex items-center gap-2">
             <File className="h-5 w-5" />
-            Pending Signatures
+            {t('electronicSignature.pendingSignatures')}
           </h2>
 
           {pendingDocuments.length === 0 ? (
             <div className="rounded-lg border border-border bg-card/50 p-8 text-center">
               <CheckCircle2 className="mx-auto h-12 w-12 text-status-success/30 mb-3" />
-              <p className="text-sm text-muted-foreground">No documents awaiting your signature</p>
+              <p className="text-sm text-muted-foreground">{t('electronicSignature.noDocsAwaiting')}</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {pendingDocuments.map(doc => (
+              {pendingDocuments.map((doc) => (
                 <div key={doc.id} className="rounded-lg border border-border bg-card p-4">
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div>
@@ -127,7 +129,7 @@ export function ElectronicSignature() {
                       <p className="text-sm text-muted-foreground mt-1">{doc.type}</p>
                     </div>
                     <span className="rounded-full bg-status-warning/10 text-status-warning text-xs font-medium px-2.5 py-0.5">
-                      Action Required
+                      {t('electronicSignature.actionRequired')}
                     </span>
                   </div>
 
@@ -136,7 +138,7 @@ export function ElectronicSignature() {
                     className="w-full flex items-center justify-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors"
                   >
                     <PenTool className="h-4 w-4" />
-                    Sign Document
+                    {t('electronicSignature.signDocument')}
                   </button>
                 </div>
               ))}
@@ -148,11 +150,11 @@ export function ElectronicSignature() {
         <div className="space-y-4">
           <h2 className="font-semibold text-foreground flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5" />
-            Signed Documents
+            {t('electronicSignature.signedDocuments')}
           </h2>
 
           <div className="space-y-3 max-h-96 overflow-y-auto">
-            {signedDocuments.map(doc => {
+            {signedDocuments.map((doc) => {
               const daysLeft = daysUntilExpiry(doc.validUntil)
               const expired = isExpired(doc.validUntil)
 
@@ -165,15 +167,15 @@ export function ElectronicSignature() {
                     </div>
                     {expired ? (
                       <span className="rounded-full bg-status-error/10 text-status-error text-xs font-medium px-2.5 py-0.5">
-                        Expired
+                        {t('electronicSignature.expired')}
                       </span>
                     ) : daysLeft < 90 ? (
                       <span className="rounded-full bg-status-warning/10 text-status-warning text-xs font-medium px-2.5 py-0.5">
-                        Expiring Soon
+                        {t('electronicSignature.expiringSoon')}
                       </span>
                     ) : (
                       <span className="rounded-full bg-status-success/10 text-status-success text-xs font-medium px-2.5 py-0.5">
-                        Valid
+                        {t('electronicSignature.valid')}
                       </span>
                     )}
                   </div>
@@ -184,13 +186,13 @@ export function ElectronicSignature() {
 
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <div>
-                      <p>Signed by {doc.signedBy}</p>
+                      <p>{t('electronicSignature.signedByPrefix', { name: doc.signedBy })}</p>
                       <p>{new Date(doc.signedAt).toLocaleDateString()}</p>
                     </div>
                     <div className="text-right">
-                      <p>Expires in</p>
+                      <p>{t('electronicSignature.expiresIn')}</p>
                       <p className={expired ? 'text-status-error' : daysLeft < 90 ? 'text-status-warning' : 'text-status-success'}>
-                        {expired ? 'Expired' : `${daysLeft} days`}
+                        {expired ? t('electronicSignature.expired') : t('electronicSignature.daysValue', { days: String(daysLeft) })}
                       </p>
                     </div>
                   </div>
@@ -204,10 +206,7 @@ export function ElectronicSignature() {
       {/* Legal Notice */}
       <div className="rounded-lg border border-safemeds-teal/30 bg-safemeds-teal/5 p-4">
         <p className="text-xs text-foreground leading-relaxed">
-          <span className="font-semibold">Legal Notice:</span> Electronic signatures created in this system are legally binding
-          under the ESIGN Act (United States) and eIDAS Regulation (Europe). All signatures are
-          timestamped and logged in our secure audit trail. By using this feature, you certify that
-          you have the authority to sign on behalf of your organization.
+          <span className="font-semibold">{t('electronicSignature.legalNoticePrefix')}</span> {t('electronicSignature.legalNoticeBody')}
         </p>
       </div>
 
@@ -216,9 +215,7 @@ export function ElectronicSignature() {
         isOpen={isSignatureModalOpen}
         onClose={() => setIsSignatureModalOpen(false)}
         onSigned={handleSign}
-        documentTitle={
-          pendingDocuments.find(d => d.id === selectedDocument)?.title || 'Document'
-        }
+        documentTitle={pendingDocuments.find((d) => d.id === selectedDocument)?.title || t('electronicSignature.document')}
         documentId={selectedDocument || ''}
       />
     </div>

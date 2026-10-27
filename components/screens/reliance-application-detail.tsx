@@ -17,6 +17,7 @@ import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
 import { Modal } from '@/components/ui/modal'
 import { ProductClassPicker } from '@/components/regulatory/product-class-picker'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 
@@ -37,6 +38,7 @@ function dossierStatusLabel(status: string): string {
  * detail page (real click-through, never a duplicated view).
  */
 export function RelianceApplicationDetail({ applicationId }: { applicationId: string }) {
+  const { t } = useTranslation()
   const router = useRouter()
   const { has } = usePermissions()
   const canManage = has('regulatory.manage_dossier')
@@ -51,6 +53,11 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
   const [startingDossierFor, setStartingDossierFor] = useState<{ authorityId: string; authorityName: string } | null>(null)
   const [closing, setClosing] = useState(false)
 
+  const STATUS_LABELS: Record<string, string> = {
+    active: t('relianceDetail.statusActive'),
+    closed: t('relianceDetail.statusClosed'),
+  }
+
   const load = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true)
@@ -58,12 +65,12 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
       try {
         setApplication(await getRelianceApplication(applicationId))
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not load this reliance application.'))
+        setError(getErrorMessage(err, t('relianceDetail.couldNotLoad')))
       } finally {
         if (!silent) setLoading(false)
       }
     },
-    [applicationId],
+    [applicationId, t],
   )
 
   const refresh = useCallback(() => load(true), [load])
@@ -76,15 +83,15 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
   }, [load])
 
   const handleClose = async () => {
-    if (!window.confirm('Close this reliance application? Its linked dossiers are unaffected and keep their own real status.')) return
+    if (!window.confirm(t('relianceDetail.confirmClose'))) return
     setClosing(true)
     setError(null)
     try {
       await closeRelianceApplication(applicationId)
       await refresh()
-      setNotice('Reliance application closed.')
+      setNotice(t('relianceDetail.closed'))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not close this application.'))
+      setError(getErrorMessage(err, t('relianceDetail.couldNotClose')))
     } finally {
       setClosing(false)
     }
@@ -101,7 +108,7 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
   if (error || !application) {
     return (
       <div className="space-y-6 p-6">
-        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error ?? 'Reliance application not found.'}</div>
+        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error ?? t('relianceDetail.notFound')}</div>
       </div>
     )
   }
@@ -113,7 +120,7 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
   return (
     <div className="space-y-6 p-6">
       <button onClick={() => router.push('/master-data')} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to Master Data
+        <ArrowLeft className="h-4 w-4" /> {t('relianceDetail.backToMasterData')}
       </button>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -125,7 +132,7 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
           <p className="mt-1 text-sm text-muted-foreground">{PATHWAY_TYPE_LABELS[application.pathwayType] ?? application.pathwayType}</p>
         </div>
         <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium whitespace-nowrap ${STATUS_STYLES[application.status] ?? 'bg-muted text-muted-foreground'}`}>
-          {application.status}
+          {STATUS_LABELS[application.status] ?? application.status}
         </span>
       </div>
 
@@ -133,14 +140,14 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
 
       {canManage && application.status === 'active' && (
         <div className="rounded-lg border border-border bg-muted/30 p-4 flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">Closing this application only marks it closed — every linked dossier keeps progressing independently.</p>
+          <p className="text-xs text-muted-foreground">{t('relianceDetail.closingNote')}</p>
           <button
             onClick={handleClose}
             disabled={closing}
             className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
           >
             {closing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
-            Close Application
+            {t('relianceDetail.closeApplication')}
           </button>
         </div>
       )}
@@ -148,15 +155,15 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
       <div className="rounded-lg border border-border bg-card p-5">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-foreground">Participating Authorities</h2>
-            <p className="text-xs text-muted-foreground">One real, independent dossier per authority — each flows through its own full submission process.</p>
+            <h2 className="text-sm font-semibold text-foreground">{t('relianceDetail.participatingAuthorities')}</h2>
+            <p className="text-xs text-muted-foreground">{t('relianceDetail.participatingSubtitle')}</p>
           </div>
           {canManage && application.status === 'active' && (
             <button
               onClick={() => setShowAddAuthority(true)}
               className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
             >
-              <Plus className="h-3.5 w-3.5" /> Add Authority
+              <Plus className="h-3.5 w-3.5" /> {t('relianceDetail.addAuthority')}
             </button>
           )}
         </div>
@@ -168,7 +175,7 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
                 <span className="text-sm font-medium text-foreground">
                   {s.authorityName} ({s.authorityCode})
                 </span>
-                {s.isLead && <span className="rounded-full bg-safemeds-teal/10 px-2 py-0.5 text-[10px] font-medium text-safemeds-teal">Lead</span>}
+                {s.isLead && <span className="rounded-full bg-safemeds-teal/10 px-2 py-0.5 text-[10px] font-medium text-safemeds-teal">{t('relianceDetail.leadBadge')}</span>}
               </div>
               {s.dossier ? (
                 <button
@@ -183,10 +190,10 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
                   onClick={() => setStartingDossierFor({ authorityId: s.authorityId, authorityName: s.authorityName })}
                   className="text-xs font-medium text-safemeds-teal hover:underline"
                 >
-                  Start Dossier
+                  {t('relianceDetail.startDossier')}
                 </button>
               ) : (
-                <span className="text-xs text-muted-foreground">Not started</span>
+                <span className="text-xs text-muted-foreground">{t('relianceDetail.notStarted')}</span>
               )}
             </li>
           ))}
@@ -202,10 +209,10 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
             try {
               await addParticipatingAuthority(applicationId, authorityId)
               setShowAddAuthority(false)
-              setNotice('Authority added.')
+              setNotice(t('relianceDetail.authorityAdded'))
               await refresh()
             } catch (err) {
-              setError(getErrorMessage(err, 'Could not add this authority.'))
+              setError(getErrorMessage(err, t('relianceDetail.couldNotAddAuthority')))
             }
           }}
         />
@@ -223,7 +230,7 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
               setStartingDossierFor(null)
               router.push(`/reg-dossiers/${dossier.id}`)
             } catch (err) {
-              setError(getErrorMessage(err, 'Could not start this dossier.'))
+              setError(getErrorMessage(err, t('relianceDetail.couldNotStartDossier')))
             }
           }}
         />
@@ -233,21 +240,22 @@ export function RelianceApplicationDetail({ applicationId }: { applicationId: st
 }
 
 function AddAuthorityModal({ authorities, onClose, onAdded }: { authorities: RegulatoryAuthority[]; onClose: () => void; onAdded: (authorityId: string) => void }) {
+  const { t } = useTranslation()
   const [authorityId, setAuthorityId] = useState(authorities[0]?.id ?? '')
 
   if (authorities.length === 0) {
     return (
-      <Modal title="Add a Participating Authority" onClose={onClose}>
+      <Modal title={t('addAuthorityModal.title')} onClose={onClose}>
         <div className="flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning/5 p-3 text-sm text-foreground">
           <ShieldAlert className="h-4 w-4 flex-shrink-0 mt-0.5 text-status-warning" />
-          Every configured authority is already part of this application.
+          {t('addAuthorityModal.allConfigured')}
         </div>
       </Modal>
     )
   }
 
   return (
-    <Modal title="Add a Participating Authority" onClose={onClose}>
+    <Modal title={t('addAuthorityModal.title')} onClose={onClose}>
       <div className="space-y-3">
         <select value={authorityId} onChange={(e) => setAuthorityId(e.target.value)} className={inputClass}>
           {authorities.map((a) => (
@@ -261,7 +269,7 @@ function AddAuthorityModal({ authorities, onClose, onAdded }: { authorities: Reg
           disabled={!authorityId}
           className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
         >
-          <CheckCircle2 className="h-3.5 w-3.5" /> Add
+          <CheckCircle2 className="h-3.5 w-3.5" /> {t('addAuthorityModal.add')}
         </button>
       </div>
     </Modal>
@@ -279,6 +287,7 @@ function StartDossierModal({
   onClose: () => void
   onStart: (productClass: string, route?: string) => void
 }) {
+  const { t } = useTranslation()
   const [productClass, setProductClass] = useState('')
   const [route, setRoute] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -290,14 +299,14 @@ function StartDossierModal({
   }
 
   return (
-    <Modal title={`Start Dossier — ${authorityName}`} onClose={onClose}>
+    <Modal title={t('startDossierModal.title', { authorityName })} onClose={onClose}>
       <div className="space-y-3">
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Product class</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('startDossierModal.productClassLabel')}</label>
           <ProductClassPicker authorityId={authorityId} value={productClass} onChange={setProductClass} className={inputClass} />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Route of administration (optional)</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('startDossierModal.routeLabel')}</label>
           <input value={route} onChange={(e) => setRoute(e.target.value)} className={inputClass} />
         </div>
         <button
@@ -306,7 +315,7 @@ function StartDossierModal({
           className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
         >
           {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          Start dossier
+          {t('startDossierModal.startDossier')}
         </button>
       </div>
     </Modal>

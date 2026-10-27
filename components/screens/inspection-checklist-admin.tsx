@@ -12,6 +12,7 @@ import {
 import { RegulatoryAuthority, listRegulatoryAuthorities } from '@/lib/api/regulatory-authorities'
 import { Modal } from '@/components/ui/modal'
 import { usePermissions } from '@/lib/hooks/use-permissions'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -26,6 +27,7 @@ const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
  * descriptive content.
  */
 export function InspectionChecklistAdmin() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('platform.config.manage')
 
@@ -44,8 +46,8 @@ export function InspectionChecklistAdmin() {
         setAuthorities(rows)
         setAuthorityId(rows[0]?.id ?? '')
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load regulatory authorities.')))
-  }, [canManage])
+      .catch((err) => setError(getErrorMessage(err, t('inspectionChecklistAdmin.errorLoadAuthorities'))))
+  }, [canManage, t])
 
   const load = (id: string) => {
     if (!id) return
@@ -53,7 +55,7 @@ export function InspectionChecklistAdmin() {
     setError(null)
     listInspectionChecklistTemplates(id)
       .then((rows) => setTemplates(rows.slice().sort((a, b) => a.sortOrder - b.sortOrder)))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load checklist sections.')))
+      .catch((err) => setError(getErrorMessage(err, t('inspectionChecklistAdmin.errorLoadSections'))))
       .finally(() => setLoading(false))
   }
 
@@ -65,10 +67,10 @@ export function InspectionChecklistAdmin() {
   if (!canManage) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Inspection Checklist</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('inspectionChecklistAdmin.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage the inspection checklist.</p>
+          <p className="text-sm text-muted-foreground">{t('inspectionChecklistAdmin.noPermission')}</p>
         </div>
       </div>
     )
@@ -80,31 +82,28 @@ export function InspectionChecklistAdmin() {
         <div>
           <div className="flex items-center gap-3">
             <ClipboardList className="h-6 w-6 text-safemeds-teal" />
-            <h1 className="text-3xl font-display font-bold text-foreground">Inspection Checklist</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground">{t('inspectionChecklistAdmin.title')}</h1>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">The GMP/GDP inspection checklist every tenant&apos;s Inspection Readiness screen is built from.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('inspectionChecklistAdmin.subtitle')}</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
           disabled={!authorityId}
           className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
         >
-          <Plus className="h-4 w-4" /> Add Section
+          <Plus className="h-4 w-4" /> {t('inspectionChecklistAdmin.addSection')}
         </button>
       </div>
 
       <div className="flex items-start gap-2 rounded-lg border border-status-info/30 bg-status-info/5 p-3 text-xs leading-relaxed text-muted-foreground">
         <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-info" />
         <p>
-          <strong className="text-foreground">What this is:</strong> every tenant&apos;s Inspection Readiness screen reads its sections from
-          this catalog. Editing a row here changes what every company under this authority sees — you can rewrite the title, description,
-          and guideline citation. Which real record a section&apos;s status is computed from (<span className="font-mono">mappedRecordType</span>)
-          stays code, never editable here.
+          <strong className="text-foreground">{t('inspectionChecklistAdmin.infoWhatThisIs')}</strong> {t('inspectionChecklistAdmin.infoBody')}
         </p>
       </div>
 
       <div className="rounded-lg border border-border bg-card p-4">
-        <label className={labelClass}>Regulatory authority</label>
+        <label className={labelClass}>{t('inspectionChecklistAdmin.regulatoryAuthority')}</label>
         <select value={authorityId} onChange={(e) => setAuthorityId(e.target.value)} className={`${inputClass} max-w-sm`}>
           {authorities.map((a) => (
             <option key={a.id} value={a.id}>
@@ -124,38 +123,38 @@ export function InspectionChecklistAdmin() {
         ) : templates.length === 0 ? (
           <div className="p-12 text-center">
             <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No checklist sections exist for this authority yet.</p>
+            <p className="text-sm text-muted-foreground">{t('inspectionChecklistAdmin.noSectionsYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">#</th>
-                <th className="p-3">Title</th>
-                <th className="p-3">Guideline Reference</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Active</th>
+                <th className="p-3">{t('inspectionChecklistAdmin.columnNumber')}</th>
+                <th className="p-3">{t('inspectionChecklistAdmin.columnTitle')}</th>
+                <th className="p-3">{t('inspectionChecklistAdmin.columnGuidelineReference')}</th>
+                <th className="p-3">{t('inspectionChecklistAdmin.columnStatus')}</th>
+                <th className="p-3">{t('inspectionChecklistAdmin.columnActive')}</th>
                 <th className="p-3" />
               </tr>
             </thead>
             <tbody>
-              {templates.map((t) => (
-                <tr key={t.id} className={`border-b border-border last:border-0 ${!t.active ? 'opacity-50' : ''}`}>
-                  <td className="p-3 text-muted-foreground">{t.sortOrder}</td>
+              {templates.map((row) => (
+                <tr key={row.id} className={`border-b border-border last:border-0 ${!row.active ? 'opacity-50' : ''}`}>
+                  <td className="p-3 text-muted-foreground">{row.sortOrder}</td>
                   <td className="p-3 text-foreground max-w-xs">
-                    <p className="font-medium">{t.title}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{t.description}</p>
+                    <p className="font-medium">{row.title}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{row.description}</p>
                   </td>
-                  <td className="p-3 text-muted-foreground italic">{t.guidelineReference || '—'}</td>
+                  <td className="p-3 text-muted-foreground italic">{row.guidelineReference || '—'}</td>
                   <td className="p-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${t.unverified ? 'bg-status-warning/10 text-status-warning' : 'bg-safemeds-teal/10 text-safemeds-teal'}`}>
-                      {t.unverified ? 'Unverified' : 'Verified'}
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${row.unverified ? 'bg-status-warning/10 text-status-warning' : 'bg-safemeds-teal/10 text-safemeds-teal'}`}>
+                      {row.unverified ? t('inspectionChecklistAdmin.unverified') : t('inspectionChecklistAdmin.verified')}
                     </span>
                   </td>
-                  <td className="p-3 text-foreground">{t.active ? 'Active' : 'Inactive'}</td>
+                  <td className="p-3 text-foreground">{row.active ? t('inspectionChecklistAdmin.active') : t('inspectionChecklistAdmin.inactive')}</td>
                   <td className="p-3 text-right">
-                    <button onClick={() => setEditing(t)} className="flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline">
-                      <Pencil className="h-3 w-3" /> Edit
+                    <button onClick={() => setEditing(row)} className="flex items-center gap-1 text-xs font-medium text-safemeds-teal hover:underline">
+                      <Pencil className="h-3 w-3" /> {t('inspectionChecklistAdmin.edit')}
                     </button>
                   </td>
                 </tr>
@@ -192,6 +191,7 @@ export function InspectionChecklistAdmin() {
 }
 
 function TemplateEditModal({ template, onClose, onSaved }: { template: InspectionChecklistTemplate; onClose: () => void; onSaved: () => void }) {
+  const { t } = useTranslation()
   const [title, setTitle] = useState(template.title)
   const [description, setDescription] = useState(template.description ?? '')
   const [guidelineReference, setGuidelineReference] = useState(template.guidelineReference ?? '')
@@ -215,54 +215,62 @@ function TemplateEditModal({ template, onClose, onSaved }: { template: Inspectio
       })
       onSaved()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save this section.'))
+      setError(getErrorMessage(err, t('inspectionChecklistAdmin.errorSave')))
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="Edit Checklist Section" onClose={onClose}>
+    <Modal title={t('inspectionChecklistAdmin.editModalTitle')} onClose={onClose}>
       <div className="space-y-3">
         {error && <p className="text-xs text-status-error">{error}</p>}
 
         <div className="rounded-lg bg-muted/40 p-2.5 text-xs text-muted-foreground">
-          <span className="font-mono">{template.sectionKey}</span> → resolver <span className="font-mono">{template.mappedRecordType ?? '—'}</span>, never editable here.
+          <span className="font-mono">{template.sectionKey}</span>{' '}
+          {t('inspectionChecklistAdmin.resolverNote', { mappedType: template.mappedRecordType ?? '—' })}
         </div>
 
         <div>
-          <label className={labelClass}>Title</label>
+          <label className={labelClass}>{t('inspectionChecklistAdmin.titleLabel')}</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Description</label>
+          <label className={labelClass}>{t('inspectionChecklistAdmin.description')}</label>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Guideline reference</label>
-          <input value={guidelineReference} onChange={(e) => setGuidelineReference(e.target.value)} placeholder="e.g. GUD/QC §4.1" className={inputClass} />
+          <label className={labelClass}>{t('inspectionChecklistAdmin.guidelineReference')}</label>
+          <input
+            value={guidelineReference}
+            onChange={(e) => setGuidelineReference(e.target.value)}
+            placeholder={t('inspectionChecklistAdmin.guidelineReferencePlaceholder')}
+            className={inputClass}
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Sort order</label>
+            <label className={labelClass}>{t('inspectionChecklistAdmin.sortOrder')}</label>
             <input type="number" min={1} value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value))} className={inputClass} />
           </div>
           <div className="flex flex-col justify-end gap-2 pb-1">
             <label className="flex items-center gap-2 text-sm text-foreground">
               <input type="checkbox" checked={!unverified} onChange={(e) => setUnverified(!e.target.checked)} className="h-4 w-4 rounded border-input" />
-              Verified against a real guideline citation
+              {t('inspectionChecklistAdmin.verifiedCheckboxLabel')}
             </label>
             <label className="flex items-center gap-2 text-sm text-foreground">
               <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4 rounded border-input" />
-              Active
+              {t('inspectionChecklistAdmin.active')}
             </label>
           </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">Cancel</button>
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
+            {t('common.cancel')}
+          </button>
           <button onClick={handleSave} disabled={busy} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50">
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save changes
+            {t('pvCaseDetail.saveChanges')}
           </button>
         </div>
       </div>
@@ -281,6 +289,7 @@ function TemplateCreateModal({
   onClose: () => void
   onCreated: () => void
 }) {
+  const { t } = useTranslation()
   const [sectionKey, setSectionKey] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -308,52 +317,58 @@ function TemplateCreateModal({
       })
       onCreated()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create this section.'))
+      setError(getErrorMessage(err, t('inspectionChecklistAdmin.errorCreate')))
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="Add a Checklist Section" onClose={onClose}>
+    <Modal title={t('inspectionChecklistAdmin.createModalTitle')} onClose={onClose}>
       <div className="space-y-3">
         <div className="flex items-start gap-2 rounded-lg border border-status-info/30 bg-status-info/5 p-2.5 text-xs text-muted-foreground">
           <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-info" />
-          Always created as <strong className="text-foreground">unverified</strong> — a section is only shown as live-verified once a field
-          expert confirms it against a real guideline citation via Edit. Leave &quot;mapped record type&quot; blank unless an engineer has
-          already shipped a matching live resolver — otherwise the section will honestly show &quot;no live resolver configured&quot;.
+          {t('inspectionChecklistAdmin.alwaysUnverifiedPrefix')} <strong className="text-foreground">{t('inspectionChecklistAdmin.alwaysUnverifiedBold')}</strong>{' '}
+          {t('inspectionChecklistAdmin.alwaysUnverifiedSuffix')}
         </div>
         {error && <p className="text-xs text-status-error">{error}</p>}
 
         <div>
-          <label className={labelClass}>Section key</label>
-          <input value={sectionKey} onChange={(e) => setSectionKey(e.target.value)} placeholder="e.g. environmental_monitoring" className={inputClass} />
+          <label className={labelClass}>{t('inspectionChecklistAdmin.sectionKey')}</label>
+          <input value={sectionKey} onChange={(e) => setSectionKey(e.target.value)} placeholder={t('inspectionChecklistAdmin.sectionKeyPlaceholder')} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Title</label>
+          <label className={labelClass}>{t('inspectionChecklistAdmin.titleLabel')}</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Description</label>
+          <label className={labelClass}>{t('inspectionChecklistAdmin.description')}</label>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Guideline reference (optional)</label>
-          <input value={guidelineReference} onChange={(e) => setGuidelineReference(e.target.value)} placeholder="e.g. GUD/099 §2" className={inputClass} />
+          <label className={labelClass}>{t('inspectionChecklistAdmin.guidelineReferenceOptional')}</label>
+          <input
+            value={guidelineReference}
+            onChange={(e) => setGuidelineReference(e.target.value)}
+            placeholder={t('inspectionChecklistAdmin.guidelineReferenceOptionalPlaceholder')}
+            className={inputClass}
+          />
         </div>
         <div>
-          <label className={labelClass}>Mapped record type (advanced — leave blank unless an engineer confirmed one exists)</label>
+          <label className={labelClass}>{t('inspectionChecklistAdmin.mappedRecordTypeLabel')}</label>
           <input value={mappedRecordType} onChange={(e) => setMappedRecordType(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Sort order</label>
+          <label className={labelClass}>{t('inspectionChecklistAdmin.sortOrder')}</label>
           <input type="number" min={1} value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value))} className={inputClass} />
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">Cancel</button>
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
+            {t('common.cancel')}
+          </button>
           <button onClick={handleCreate} disabled={!isValid || busy} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50">
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create section
+            {t('inspectionChecklistAdmin.createSection')}
           </button>
         </div>
       </div>

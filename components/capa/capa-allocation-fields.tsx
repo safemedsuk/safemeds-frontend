@@ -9,6 +9,7 @@ import {
   listRootCauseCategories,
   RootCauseCategory,
 } from '@/lib/api/capa-allocation'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export const capaInputClass =
   'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
@@ -85,6 +86,7 @@ interface Props {
  * people who actually hold the regulatory-approval permission.
  */
 export function CapaAllocationFields({ value, onChange, contextNote }: Props) {
+  const { t } = useTranslation()
   const [categories, setCategories] = useState<RootCauseCategory[]>([])
   const [owners, setOwners] = useState<AssignableUser[]>([])
   const [approvers, setApprovers] = useState<AssignableUser[]>([])
@@ -100,12 +102,12 @@ export function CapaAllocationFields({ value, onChange, contextNote }: Props) {
         setApprovers(a)
       })
       .catch(() => {
-        if (!cancelled) setLoadError('Could not load the category and people lists. Try again in a moment.')
+        if (!cancelled) setLoadError(t('capaAllocationFields.errorLoad'))
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [t])
 
   const set = <K extends keyof CapaAllocationDraft>(key: K, v: CapaAllocationDraft[K]) =>
     onChange({ ...value, [key]: v })
@@ -118,25 +120,25 @@ export function CapaAllocationFields({ value, onChange, contextNote }: Props) {
       {loadError && <p className="text-sm text-status-error">{loadError}</p>}
 
       <div>
-        <label className={capaLabelClass}>Root cause *</label>
+        <label className={capaLabelClass}>{t('capaAllocationFields.rootCause')}</label>
         <textarea
           value={value.rootCause}
           onChange={(e) => set('rootCause', e.target.value)}
           rows={2}
-          placeholder="What caused the problem, in your own words"
+          placeholder={t('capaAllocationFields.rootCausePlaceholder')}
           className={capaInputClass}
         />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className={capaLabelClass}>Root-cause category *</label>
+          <label className={capaLabelClass}>{t('capaAllocationFields.rootCauseCategory')}</label>
           <select
             value={value.rootCauseCategory}
             onChange={(e) => set('rootCauseCategory', e.target.value)}
             className={capaInputClass}
           >
-            <option value="">Choose a category…</option>
+            <option value="">{t('capaAllocationFields.chooseCategory')}</option>
             {categories.map((c) => (
               <option key={c.key} value={c.key}>
                 {c.label}
@@ -146,7 +148,7 @@ export function CapaAllocationFields({ value, onChange, contextNote }: Props) {
         </div>
         {value.rootCauseCategory === 'other' && (
           <div>
-            <label className={capaLabelClass}>Type the category *</label>
+            <label className={capaLabelClass}>{t('capaAllocationFields.typeCategory')}</label>
             <input
               value={value.rootCauseOther}
               onChange={(e) => set('rootCauseOther', e.target.value)}
@@ -157,7 +159,7 @@ export function CapaAllocationFields({ value, onChange, contextNote }: Props) {
       </div>
 
       <div>
-        <label className={capaLabelClass}>Corrective action *</label>
+        <label className={capaLabelClass}>{t('capaAllocationFields.correctiveAction')}</label>
         <textarea
           value={value.correctiveAction}
           onChange={(e) => set('correctiveAction', e.target.value)}
@@ -168,9 +170,9 @@ export function CapaAllocationFields({ value, onChange, contextNote }: Props) {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className={capaLabelClass}>Owner (assignee) *</label>
+          <label className={capaLabelClass}>{t('capaAllocationFields.owner')}</label>
           <select value={value.ownerUserId} onChange={(e) => set('ownerUserId', e.target.value)} className={capaInputClass}>
-            <option value="">Choose an owner…</option>
+            <option value="">{t('capaAllocationFields.chooseOwner')}</option>
             {owners.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.fullName}
@@ -178,13 +180,11 @@ export function CapaAllocationFields({ value, onChange, contextNote }: Props) {
             ))}
           </select>
           {owners.length === 0 && (
-            <p className="mt-1 text-xs text-status-error">
-              No active user holds the quality-CAPA permission yet, so no owner can be allocated.
-            </p>
+            <p className="mt-1 text-xs text-status-error">{t('capaAllocationFields.noOwnersError')}</p>
           )}
         </div>
         <div>
-          <label className={capaLabelClass}>Corrective action due date *</label>
+          <label className={capaLabelClass}>{t('capaAllocationFields.correctiveActionDueDate')}</label>
           <input
             type="date"
             value={value.correctiveActionDueDate}
@@ -195,7 +195,7 @@ export function CapaAllocationFields({ value, onChange, contextNote }: Props) {
       </div>
 
       <div>
-        <label className={capaLabelClass}>Preventive action</label>
+        <label className={capaLabelClass}>{t('capaAllocationFields.preventiveAction')}</label>
         <textarea
           value={value.preventiveAction}
           onChange={(e) => set('preventiveAction', e.target.value)}
@@ -206,7 +206,7 @@ export function CapaAllocationFields({ value, onChange, contextNote }: Props) {
       {value.preventiveAction.trim().length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className={capaLabelClass}>Preventive action due date *</label>
+            <label className={capaLabelClass}>{t('capaAllocationFields.preventiveActionDueDate')}</label>
             <input
               type="date"
               value={value.preventiveActionDueDate}
@@ -224,17 +224,17 @@ export function CapaAllocationFields({ value, onChange, contextNote }: Props) {
             checked={value.requiresRegulatoryApproval}
             onChange={(e) => set('requiresRegulatoryApproval', e.target.checked)}
           />
-          This CAPA needs regulatory approval
+          {t('capaAllocationFields.needsRegulatoryApproval')}
         </label>
         {value.requiresRegulatoryApproval && (
           <div>
-            <label className={capaLabelClass}>Regulatory approver *</label>
+            <label className={capaLabelClass}>{t('capaAllocationFields.regulatoryApprover')}</label>
             <select
               value={value.regulatoryApproverUserId}
               onChange={(e) => set('regulatoryApproverUserId', e.target.value)}
               className={capaInputClass}
             >
-              <option value="">Choose a regulatory approver…</option>
+              <option value="">{t('capaAllocationFields.chooseApprover')}</option>
               {approvers.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.fullName}
@@ -242,10 +242,7 @@ export function CapaAllocationFields({ value, onChange, contextNote }: Props) {
               ))}
             </select>
             {approvers.length === 0 && (
-              <p className="mt-1 text-xs text-status-error">
-                No user holds the regulatory-approval permission yet. Ask an administrator to grant
-                regulatory.manage_registrations to the right person before opening a CAPA that needs regulatory approval.
-              </p>
+              <p className="mt-1 text-xs text-status-error">{t('capaAllocationFields.noApproversError')}</p>
             )}
           </div>
         )}

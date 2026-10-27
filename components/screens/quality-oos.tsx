@@ -9,14 +9,16 @@ import { listBatches } from '@/lib/api/master-data'
 import { listSpecifications, Specification } from '@/lib/api/quality'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
 
-const STATUS_LABELS: Record<string, string> = {
-  phase_1_lab_investigation: 'Phase 1 — Lab Investigation',
-  phase_2_manufacturing_investigation: 'Phase 2 — Manufacturing Investigation',
-  closed: 'Closed',
+const STATUS_LABEL_KEYS: Record<string, MessageKey> = {
+  phase_1_lab_investigation: 'qualityOos.statusPhase1',
+  phase_2_manufacturing_investigation: 'qualityOos.statusPhase2',
+  closed: 'qualityOos.statusClosed',
 }
 
 function formatDate(value: string | null): string {
@@ -31,6 +33,7 @@ function formatDate(value: string | null): string {
  */
 export function QualityOosScreen() {
   const router = useRouter()
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canViewAll = has('quality.view_all')
   const canLog = has('quality.log_deviation')
@@ -47,19 +50,19 @@ export function QualityOosScreen() {
     setError(null)
     listOos({ page: 1, limit: 50, status: statusFilter || undefined })
       .then((res) => setRecords(res.rows))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load OOS investigations.')))
+      .catch((err) => setError(getErrorMessage(err, t('qualityOos.errorLoad'))))
       .finally(() => setLoading(false))
-  }, [statusFilter])
+  }, [statusFilter, t])
 
   useEffect(load, [load])
 
   if (!canViewAll) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">OOS/OOT Investigations</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityOos.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to view OOS investigations. Contact your System Administrator.</p>
+          <p className="text-sm text-muted-foreground">{t('qualityOos.noPermission')}</p>
         </div>
       </div>
     )
@@ -69,25 +72,25 @@ export function QualityOosScreen() {
     <div className="space-y-6 p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">OOS/OOT Investigations</h1>
-          <p className="mt-1 text-sm text-muted-foreground">The real two-phase FDA framework: lab investigation, then manufacturing investigation if no assignable cause is found.</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('qualityOos.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('qualityOos.subtitle')}</p>
         </div>
         {canLog && (
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce transition-colors">
-            <Plus className="h-4 w-4" /> Log OOS
+            <Plus className="h-4 w-4" /> {t('qualityOos.logOos')}
           </button>
         )}
       </div>
 
       <div className="flex items-start gap-2 rounded-lg border border-status-info/30 bg-status-info/5 p-3 text-xs leading-relaxed text-muted-foreground">
         <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-status-info" />
-        <p>An OOS cannot close from Phase 1 without a documented assignable lab cause — this is the concrete control against &quot;testing into compliance.&quot;</p>
+        <p>{t('qualityOos.infoCannotCloseFromPhase1')}</p>
       </div>
 
       <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${inputClass} w-auto`}>
-        <option value="">All statuses</option>
-        {Object.entries(STATUS_LABELS).map(([key, label]) => (
-          <option key={key} value={key}>{label}</option>
+        <option value="">{t('qualityOos.allStatuses')}</option>
+        {Object.entries(STATUS_LABEL_KEYS).map(([key, labelKey]) => (
+          <option key={key} value={key}>{t(labelKey)}</option>
         ))}
       </select>
 
@@ -102,16 +105,16 @@ export function QualityOosScreen() {
         ) : records.length === 0 ? (
           <div className="p-12 text-center">
             <FlaskConical className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No OOS investigations yet.</p>
+            <p className="text-sm text-muted-foreground">{t('qualityOos.noOosYet')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">OOS #</th>
-                <th className="p-3">Test Result</th>
-                <th className="p-3">Logged</th>
-                <th className="p-3">Phase</th>
+                <th className="p-3">{t('qualityOos.columnOosNumber')}</th>
+                <th className="p-3">{t('qualityOos.columnTestResult')}</th>
+                <th className="p-3">{t('qualityOos.columnLogged')}</th>
+                <th className="p-3">{t('qualityOos.columnPhase')}</th>
               </tr>
             </thead>
             <tbody>
@@ -121,7 +124,7 @@ export function QualityOosScreen() {
                   <td className="p-3 text-foreground">{o.testResult}</td>
                   <td className="p-3 text-muted-foreground">{formatDate(o.createdAt)}</td>
                   <td className="p-3">
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground">{STATUS_LABELS[o.status] ?? o.status}</span>
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground">{STATUS_LABEL_KEYS[o.status] ? t(STATUS_LABEL_KEYS[o.status]) : o.status}</span>
                   </td>
                 </tr>
               ))}
@@ -135,7 +138,7 @@ export function QualityOosScreen() {
           onClose={() => setShowCreate(false)}
           onCreated={(id) => {
             setShowCreate(false)
-            setNotice('OOS investigation logged.')
+            setNotice(t('qualityOos.oosLoggedNotice'))
             load()
             router.push(`/quality-oos/${id}`)
           }}
@@ -146,6 +149,7 @@ export function QualityOosScreen() {
 }
 
 function CreateOosModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+  const { t } = useTranslation()
   const [batchId, setBatchId] = useState('')
   const [specificationId, setSpecificationId] = useState('')
   const [testResult, setTestResult] = useState('')
@@ -176,7 +180,7 @@ function CreateOosModal({ onClose, onCreated }: { onClose: () => void; onCreated
       const created = await createOos({ batchId, specificationId, parameterId, testResult: testResult.trim() })
       onCreated(created.id)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not log this OOS investigation.'))
+      setError(getErrorMessage(err, t('qualityOos.errorCreate')))
       setSubmitting(false)
     }
   }
@@ -184,12 +188,12 @@ function CreateOosModal({ onClose, onCreated }: { onClose: () => void; onCreated
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
       <div className="w-full max-w-lg rounded-lg border border-border bg-card p-6 space-y-4 my-8">
-        <h2 className="font-display font-bold text-lg text-foreground">Log an OOS Result</h2>
+        <h2 className="font-display font-bold text-lg text-foreground">{t('qualityOos.logOosResultTitle')}</h2>
 
         <div>
-          <label className={labelClass}>Batch *</label>
+          <label className={labelClass}>{t('qualityOos.batch')}</label>
           <select value={batchId} onChange={(e) => setBatchId(e.target.value)} className={inputClass}>
-            <option value="">Select a batch</option>
+            <option value="">{t('qualityOos.selectBatch')}</option>
             {batches.map((b) => (
               <option key={b.id} value={b.id}>{b.batchNumber}</option>
             ))}
@@ -197,9 +201,9 @@ function CreateOosModal({ onClose, onCreated }: { onClose: () => void; onCreated
         </div>
 
         <div>
-          <label className={labelClass}>Specification *</label>
+          <label className={labelClass}>{t('qualityOos.specification')}</label>
           <select value={specificationId} onChange={(e) => { setSpecificationId(e.target.value); setParameterId('') }} className={inputClass}>
-            <option value="">Select a specification</option>
+            <option value="">{t('qualityOos.selectSpecification')}</option>
             {specifications.map((s) => (
               <option key={s.id} value={s.id}>{s.title}</option>
             ))}
@@ -208,9 +212,9 @@ function CreateOosModal({ onClose, onCreated }: { onClose: () => void; onCreated
 
         {selectedSpec && (
           <div>
-            <label className={labelClass}>Parameter *</label>
+            <label className={labelClass}>{t('qualityOos.parameter')}</label>
             <select value={parameterId} onChange={(e) => setParameterId(e.target.value)} className={inputClass}>
-              <option value="">Select a parameter</option>
+              <option value="">{t('qualityOos.selectParameter')}</option>
               {selectedSpec.parameters.map((p) => (
                 <option key={p.id} value={p.id}>{p.parameterName} {p.lowerLimit && p.upperLimit ? `(${p.lowerLimit}–${p.upperLimit}${p.unit ? ` ${p.unit}` : ''})` : ''}</option>
               ))}
@@ -219,15 +223,15 @@ function CreateOosModal({ onClose, onCreated }: { onClose: () => void; onCreated
         )}
 
         <div>
-          <label className={labelClass}>Test Result *</label>
-          <input value={testResult} onChange={(e) => setTestResult(e.target.value)} placeholder="e.g. 98.2% assay" className={inputClass} />
+          <label className={labelClass}>{t('qualityOos.testResult')}</label>
+          <input value={testResult} onChange={(e) => setTestResult(e.target.value)} placeholder={t('qualityOos.testResultPlaceholder')} className={inputClass} />
         </div>
 
         {error && <p className="text-sm text-status-error">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -235,7 +239,7 @@ function CreateOosModal({ onClose, onCreated }: { onClose: () => void; onCreated
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Log OOS
+            {t('qualityOos.logOos')}
           </button>
         </div>
       </div>

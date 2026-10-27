@@ -10,6 +10,7 @@ import { ENGAGEMENT_TYPE_LABELS, getCompanyMarkets } from '@/lib/api/company'
 import { ProductPicker } from '@/components/pv-cases/product-picker'
 import { ProductClassPicker } from '@/components/regulatory/product-class-picker'
 import { Modal } from '@/components/ui/modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 
@@ -43,6 +44,7 @@ export function NewDossierModal({
   onCreated: (dossierId: string) => void
   prefill?: NewDossierPrefill
 }) {
+  const { t } = useTranslation()
   const [product, setProduct] = useState<Product | null>(null)
   const [authorities, setAuthorities] = useState<RegulatoryAuthority[]>([])
   const [authorityId, setAuthorityId] = useState(prefill?.authorityId ?? '')
@@ -115,31 +117,30 @@ export function NewDossierModal({
       })
       onCreated(dossier.id)
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not start this dossier.'))
+      setError(getErrorMessage(err, t('newDossierModal.couldNotStart')))
     } finally {
       setCreating(false)
     }
   }
 
   return (
-    <Modal title={prefill ? 'Start Re-Registration' : 'Start a new registration dossier'} onClose={onClose} maxWidth="max-w-2xl">
+    <Modal title={prefill ? t('newDossierModal.titleReReg') : t('newDossierModal.titleNew')} onClose={onClose} maxWidth="max-w-2xl">
       <div className="space-y-4">
         {prefill && (
           <div className="rounded-lg border border-status-warning/30 bg-status-warning/5 p-3 text-xs text-muted-foreground">
-            The expired registration&apos;s product, authority, and product class are pre-filled below — this starts a genuinely
-            new registration filing, not a continuation of the expired one.
+            {t('newDossierModal.prefillNotice')}
           </div>
         )}
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Product</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('newDossierModal.productLabel')}</label>
           <ProductPicker linkedProduct={product} onSelect={setProduct} onClear={() => setProduct(null)} />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">Regulatory authority</label>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">{t('newDossierModal.authorityLabel')}</label>
             <select value={authorityId} onChange={(e) => setAuthorityId(e.target.value)} className={inputClass}>
-              <option value="">Select an authority…</option>
+              <option value="">{t('newDossierModal.selectAuthority')}</option>
               {authorities.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name} ({a.code})
@@ -148,20 +149,20 @@ export function NewDossierModal({
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">Product class</label>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">{t('newDossierModal.productClassLabel')}</label>
             <ProductClassPicker key={authorityId} authorityId={authorityId || undefined} value={productClass} onChange={setProductClass} className={inputClass} />
           </div>
         </div>
 
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Route of administration (optional)</label>
-          <input value={route} onChange={(e) => setRoute(e.target.value)} placeholder="Leave blank to apply regardless of route" className={inputClass} />
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('newDossierModal.routeLabel')}</label>
+          <input value={route} onChange={(e) => setRoute(e.target.value)} placeholder={t('newDossierModal.routePlaceholder')} className={inputClass} />
         </div>
 
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-foreground">Engagement model override (optional)</label>
+          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('newDossierModal.engagementOverrideLabel')}</label>
           <select value={engagementType} onChange={(e) => setEngagementType(e.target.value)} className={inputClass}>
-            <option value="">Use your company&apos;s default</option>
+            <option value="">{t('newDossierModal.useCompanyDefault')}</option>
             {Object.entries(ENGAGEMENT_TYPE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -172,45 +173,47 @@ export function NewDossierModal({
 
         {previewLoading && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking what this market requires…
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('newDossierModal.checkingRequirements')}
           </div>
         )}
 
         {!previewLoading && preview && (
           <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Here&apos;s what you&apos;ll need</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('newDossierModal.whatYoullNeed')}</p>
 
             {preview.requirement ? (
               <div>
                 <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
                   <CheckCircle2 className="h-3.5 w-3.5 text-status-success" />
-                  {preview.requirement.documentDefinitions.length} document{preview.requirement.documentDefinitions.length === 1 ? '' : 's'} in the checklist
-                  {preview.requirement.standardTimelineDays ? ` · ~${preview.requirement.standardTimelineDays}-day standard review` : ''}
+                  {preview.requirement.documentDefinitions.length === 1
+                    ? t('newDossierModal.documentsSingular', { count: String(preview.requirement.documentDefinitions.length) })
+                    : t('newDossierModal.documentsPlural', { count: String(preview.requirement.documentDefinitions.length) })}
+                  {preview.requirement.standardTimelineDays ? t('newDossierModal.standardReviewSuffix', { days: String(preview.requirement.standardTimelineDays) }) : ''}
                 </p>
                 <ul className="ml-5 list-disc space-y-0.5 text-xs text-muted-foreground">
                   {preview.requirement.documentDefinitions.map((d) => (
                     <li key={d.id}>
                       {d.name}
-                      {!d.isMandatory && ' (optional)'}
+                      {!d.isMandatory && t('newDossierModal.optionalSuffix')}
                       {d.ctdModule && ` — ${d.ctdModule}`}
                     </li>
                   ))}
                 </ul>
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">No document checklist configured for this combination yet.</p>
+              <p className="text-xs text-muted-foreground">{t('newDossierModal.noChecklist')}</p>
             )}
 
             {preview.feeSchedules.length > 0 && (
               <p className="text-xs text-foreground">
-                Fees:{' '}
+                {t('newDossierModal.feesPrefix')}
                 {preview.feeSchedules.map((f) => `${f.feeType} — ${f.currency} ${f.amount}`).join(', ')}
               </p>
             )}
 
             {preview.renewalRule && (
               <p className="text-xs text-foreground">
-                Renewal cadence: every {preview.renewalRule.intervalValue} {preview.renewalRule.intervalUnit}
+                {t('newDossierModal.renewalCadence', { value: String(preview.renewalRule.intervalValue), unit: preview.renewalRule.intervalUnit })}
               </p>
             )}
 
@@ -227,7 +230,7 @@ export function NewDossierModal({
 
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleCreate}
@@ -235,7 +238,7 @@ export function NewDossierModal({
             className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {creating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Start dossier
+            {t('newDossierModal.startDossier')}
           </button>
         </div>
       </div>

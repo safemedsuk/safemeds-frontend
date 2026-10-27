@@ -11,14 +11,16 @@ import {
   type NotificationCategory,
 } from '@/lib/api/notifications'
 import { formatLocalDateTime } from '@/lib/datetime-local'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import type { MessageKey } from '@/lib/i18n/messages/en'
 
 type Filter = 'all' | 'unread'
 
-const CATEGORY_LABELS: Record<NotificationCategory, string> = {
-  task_assigned: 'Task',
-  deadline_approaching: 'Deadline approaching',
-  deadline_breached: 'Deadline passed',
-  workflow_update: 'Workflow update',
+const CATEGORY_LABEL_KEYS: Record<NotificationCategory, MessageKey> = {
+  task_assigned: 'notifications.catTask',
+  deadline_approaching: 'notifications.catDeadlineApproaching',
+  deadline_breached: 'notifications.catDeadlineBreached',
+  workflow_update: 'notifications.catWorkflowUpdate',
 }
 
 /** Where a notification's own record lives, when this app has a screen for that record type. */
@@ -45,6 +47,7 @@ function recordHref(n: Notification): string | null {
  * with the zone abbreviation, with the exact ISO instant on hover.
  */
 export function NotificationsScreen() {
+  const { t } = useTranslation()
   const [filter, setFilter] = useState<Filter>('all')
   const [rows, setRows] = useState<Notification[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -64,13 +67,13 @@ export function NotificationsScreen() {
         setRows((prev) => (isMore ? [...prev, ...page.rows] : page.rows))
         setNextCursor(page.nextCursor)
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not load notifications.'))
+        setError(getErrorMessage(err, t('notifications.errorLoad')))
       } finally {
         setLoading(false)
         setLoadingMore(false)
       }
     },
-    [filter],
+    [filter, t],
   )
 
   useEffect(() => {
@@ -83,7 +86,7 @@ export function NotificationsScreen() {
       const updated = await markNotificationRead(n.id)
       setRows((prev) => prev.map((r) => (r.id === n.id ? { ...r, readAt: updated.readAt } : r)))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not mark this notification as read.'))
+      setError(getErrorMessage(err, t('notifications.errorMarkOne')))
     }
   }
 
@@ -96,7 +99,7 @@ export function NotificationsScreen() {
       const now = new Date().toISOString()
       setRows((prev) => prev.map((r) => (r.readAt ? r : { ...r, readAt: now })))
     } catch (err) {
-      setError(getErrorMessage(err, 'Some notifications could not be marked as read.'))
+      setError(getErrorMessage(err, t('notifications.errorMarkAll')))
     } finally {
       setMarkingAll(false)
     }
@@ -106,10 +109,8 @@ export function NotificationsScreen() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Notifications</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Everything sent to you by SafeMeds, newest first. Times are shown in your local time zone.
-          </p>
+          <h1 className="text-3xl font-display font-bold text-foreground">{t('notifications.title')}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t('notifications.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
@@ -119,7 +120,7 @@ export function NotificationsScreen() {
                 onClick={() => setFilter(f)}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium ${filter === f ? 'bg-safemeds-teal text-white' : 'text-muted-foreground hover:text-foreground'}`}
               >
-                {f === 'all' ? 'All' : 'Unread'}
+                {f === 'all' ? t('notifications.all') : t('notifications.unread')}
               </button>
             ))}
           </div>
@@ -129,7 +130,7 @@ export function NotificationsScreen() {
             className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
           >
             {markingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}
-            Mark loaded as read
+            {t('notifications.markLoadedRead')}
           </button>
         </div>
       </div>
@@ -143,9 +144,7 @@ export function NotificationsScreen() {
       ) : rows.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-10 text-center">
           <Bell className="mx-auto h-8 w-8 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">
-            {filter === 'unread' ? 'You have no unread notifications.' : 'You have no notifications yet.'}
-          </p>
+          <p className="mt-3 text-sm text-muted-foreground">{filter === 'unread' ? t('notifications.noUnread') : t('notifications.noneYet')}</p>
         </div>
       ) : (
         <ul className="space-y-2">
@@ -160,7 +159,7 @@ export function NotificationsScreen() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      {!n.readAt && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-safemeds-teal" aria-label="Unread" />}
+                      {!n.readAt && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-safemeds-teal" aria-label={t('notifications.unreadAriaLabel')} />}
                       <p className="text-sm font-semibold text-foreground">{n.title}</p>
                     </div>
                     {n.body && <p className="mt-1 text-sm text-muted-foreground">{n.body}</p>}
@@ -169,10 +168,10 @@ export function NotificationsScreen() {
                         {when.display}
                         {when.zone ? ` ${when.zone}` : ''}
                       </time>
-                      <span className="rounded-full bg-muted px-2 py-0.5">{CATEGORY_LABELS[n.category] ?? n.category}</span>
+                      <span className="rounded-full bg-muted px-2 py-0.5">{t(CATEGORY_LABEL_KEYS[n.category] ?? 'notifications.catTask')}</span>
                       {href && (
                         <Link href={href} className="text-safemeds-teal hover:underline" onClick={() => void markOne(n)}>
-                          Open record
+                          {t('notifications.openRecord')}
                         </Link>
                       )}
                     </div>
@@ -182,7 +181,7 @@ export function NotificationsScreen() {
                       onClick={() => void markOne(n)}
                       className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
                     >
-                      Mark as read
+                      {t('notifications.markAsRead')}
                     </button>
                   )}
                 </div>
@@ -200,7 +199,7 @@ export function NotificationsScreen() {
             className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
           >
             {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
-            Load more
+            {t('notifications.loadMore')}
           </button>
         </div>
       )}

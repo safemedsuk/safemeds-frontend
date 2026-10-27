@@ -15,6 +15,7 @@ import {
 } from '@/lib/api/document-numbering'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useTimedMessage } from '@/lib/hooks/use-timed-message'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'block text-xs font-medium text-muted-foreground mb-1'
@@ -61,6 +62,7 @@ function toDrafts(config: DocumentNumberingConfig): { companyInitials: string; t
  * shown is a live preview; the backend re-validates and audits every save.
  */
 export function DocumentNumberingSettings() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('company_profile.manage')
 
@@ -79,9 +81,9 @@ export function DocumentNumberingSettings() {
         setDraft(toDrafts(config))
         setError(null)
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load document numbering.')))
+      .catch((err) => setError(getErrorMessage(err, t('docNumbering.errorLoad'))))
       .finally(() => setLoading(false))
-  }, [])
+  }, [t])
 
   useEffect(load, [load])
 
@@ -90,23 +92,23 @@ export function DocumentNumberingSettings() {
   const validation = useMemo(() => {
     if (!draft) return { ok: false, messages: [] as string[] }
     const messages: string[] = []
-    if (!INITIALS_PATTERN.test(draft.companyInitials.trim())) messages.push('Company initials must be 1 to 10 letters or digits.')
-    if (new Set(draft.tokenOrder).size !== 4) messages.push('Each segment must appear exactly once in the company order.')
+    if (!INITIALS_PATTERN.test(draft.companyInitials.trim())) messages.push(t('docNumbering.errorInitialsFormat'))
+    if (new Set(draft.tokenOrder).size !== 4) messages.push(t('docNumbering.errorEachSegmentOnce'))
     const seen = new Map<string, string>()
-    for (const t of draft.types) {
-      if (t.initials.trim() && !INITIALS_PATTERN.test(t.initials.trim())) {
-        messages.push(`${t.label}: initials must be 1 to 10 letters or digits.`)
+    for (const ty of draft.types) {
+      if (ty.initials.trim() && !INITIALS_PATTERN.test(ty.initials.trim())) {
+        messages.push(t('docNumbering.errorTypeInitialsFormat', { label: ty.label }))
       }
-      const effective = (t.initials.trim() || t.defaultInitials).toUpperCase()
+      const effective = (ty.initials.trim() || ty.defaultInitials).toUpperCase()
       const clash = seen.get(effective)
-      if (clash) messages.push(`${t.label} and ${clash} both use "${effective}". Give each type its own initials.`)
-      else seen.set(effective, t.label)
-      if (t.ownScheme && new Set(t.tokenOrder).size !== 4) {
-        messages.push(`${t.label}: its own order must use each segment exactly once.`)
+      if (clash) messages.push(t('docNumbering.errorInitialsClash', { label: ty.label, other: clash, initials: effective }))
+      else seen.set(effective, ty.label)
+      if (ty.ownScheme && new Set(ty.tokenOrder).size !== 4) {
+        messages.push(t('docNumbering.errorOwnSchemeOrder', { label: ty.label }))
       }
     }
     return { ok: messages.length === 0, messages }
-  }, [draft])
+  }, [draft, t])
 
   const dirty = useMemo(() => {
     if (!draft || !loaded) return false
@@ -131,18 +133,18 @@ export function DocumentNumberingSettings() {
         companyInitials: draft.companyInitials.trim().toUpperCase(),
         tokenOrder: draft.tokenOrder,
         separator: draft.separator,
-        types: draft.types.map((t) => ({
-          documentType: t.documentType,
-          initials: t.initials.trim() ? t.initials.trim().toUpperCase() : null,
-          tokenOrder: t.ownScheme ? t.tokenOrder : null,
-          separator: t.ownScheme ? t.separator : null,
+        types: draft.types.map((ty) => ({
+          documentType: ty.documentType,
+          initials: ty.initials.trim() ? ty.initials.trim().toUpperCase() : null,
+          tokenOrder: ty.ownScheme ? ty.tokenOrder : null,
+          separator: ty.ownScheme ? ty.separator : null,
         })),
       })
       setLoaded(updated)
       setDraft(toDrafts(updated))
-      setNotice('Document numbering saved. New documents use this scheme; numbers already issued are unchanged.')
+      setNotice(t('docNumbering.savedNotice'))
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not save document numbering.'))
+      setError(getErrorMessage(err, t('docNumbering.errorSave')))
     } finally {
       setSaving(false)
     }
@@ -156,15 +158,13 @@ export function DocumentNumberingSettings() {
     )
   }
   if (!draft) {
-    return <p className="text-sm text-status-error">{error ?? 'Document numbering is unavailable.'}</p>
+    return <p className="text-sm text-status-error">{error ?? t('docNumbering.unavailable')}</p>
   }
 
   return (
     <div className="space-y-5">
       <p className="text-xs text-muted-foreground">
-        Controlled documents get a number when they are created. The sequence counts up from 0001 each year for each
-        document type. Changing the scheme only changes how new numbers look. Numbers already issued are never rewritten,
-        and the sequence never resets or skips mid-year.
+        {t('docNumbering.intro')}
       </p>
 
       {notice && <div className="rounded-lg border border-status-success bg-status-success/10 p-3 text-sm text-status-success">{notice}</div>}
@@ -172,18 +172,18 @@ export function DocumentNumberingSettings() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <div>
-          <label className={labelClass}>Company initials</label>
+          <label className={labelClass}>{t('docNumbering.companyInitials')}</label>
           <input
             value={draft.companyInitials}
             disabled={!canManage}
             onChange={(e) => setDraft({ ...draft, companyInitials: e.target.value })}
-            placeholder="e.g. WHO"
+            placeholder={t('docNumbering.initialsPlaceholder')}
             className={inputClass}
           />
-          {loaded?.companyInitialsIsDefault && <p className="mt-1 text-[11px] text-muted-foreground">Currently derived from the company name.</p>}
+          {loaded?.companyInitialsIsDefault && <p className="mt-1 text-[11px] text-muted-foreground">{t('docNumbering.currentlyDerived')}</p>}
         </div>
         <div>
-          <label className={labelClass}>Separator</label>
+          <label className={labelClass}>{t('docNumbering.separator')}</label>
           <select value={draft.separator} disabled={!canManage} onChange={(e) => setDraft({ ...draft, separator: e.target.value as NumberingSeparator })} className={inputClass}>
             {NUMBERING_SEPARATORS.map((s) => (
               <option key={s} value={s}>
@@ -193,7 +193,7 @@ export function DocumentNumberingSettings() {
           </select>
         </div>
         <div>
-          <label className={labelClass}>Order preset</label>
+          <label className={labelClass}>{t('docNumbering.orderPreset')}</label>
           <div className="flex flex-wrap gap-2">
             {PRESETS.map((p) => (
               <button
@@ -211,7 +211,7 @@ export function DocumentNumberingSettings() {
       </div>
 
       <div>
-        <label className={labelClass}>Company order (left to right)</label>
+        <label className={labelClass}>{t('docNumbering.companyOrder')}</label>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           {draft.tokenOrder.map((token, slot) => (
             <select
@@ -221,16 +221,16 @@ export function DocumentNumberingSettings() {
               onChange={(e) => setDraft({ ...draft, tokenOrder: setOrderSlot(draft.tokenOrder, slot, e.target.value as NumberingToken) })}
               className={inputClass}
             >
-              {(Object.keys(NUMBERING_TOKEN_LABELS) as NumberingToken[]).map((t) => (
-                <option key={t} value={t}>
-                  {NUMBERING_TOKEN_LABELS[t]}
+              {(Object.keys(NUMBERING_TOKEN_LABELS) as NumberingToken[]).map((tk) => (
+                <option key={tk} value={tk}>
+                  {NUMBERING_TOKEN_LABELS[tk]}
                 </option>
               ))}
             </select>
           ))}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Live preview:{' '}
+          {t('docNumbering.livePreview')}{' '}
           <span className="font-mono text-foreground">
             {previewNumber(draft.companyInitials, 'SOP', draft.tokenOrder, draft.separator, year)}
           </span>
@@ -241,25 +241,25 @@ export function DocumentNumberingSettings() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <th className="p-3">Document type</th>
-              <th className="p-3">Initials</th>
-              <th className="p-3">Scheme</th>
-              <th className="p-3">Next number</th>
+              <th className="p-3">{t('docNumbering.columnDocType')}</th>
+              <th className="p-3">{t('docNumbering.columnInitials')}</th>
+              <th className="p-3">{t('docNumbering.columnScheme')}</th>
+              <th className="p-3">{t('docNumbering.columnNextNumber')}</th>
             </tr>
           </thead>
           <tbody>
-            {draft.types.map((t, i) => {
-              const order = t.ownScheme ? t.tokenOrder : draft.tokenOrder
-              const sep = t.ownScheme ? t.separator : draft.separator
-              const preview = previewNumber(draft.companyInitials, t.initials.trim() || t.defaultInitials, order, sep, year)
+            {draft.types.map((ty, i) => {
+              const order = ty.ownScheme ? ty.tokenOrder : draft.tokenOrder
+              const sep = ty.ownScheme ? ty.separator : draft.separator
+              const preview = previewNumber(draft.companyInitials, ty.initials.trim() || ty.defaultInitials, order, sep, year)
               return (
-                <tr key={t.documentType} className="border-b border-border last:border-0 align-top">
-                  <td className="p-3 text-foreground">{t.label}</td>
+                <tr key={ty.documentType} className="border-b border-border last:border-0 align-top">
+                  <td className="p-3 text-foreground">{ty.label}</td>
                   <td className="p-3">
                     <input
-                      value={t.initials}
+                      value={ty.initials}
                       disabled={!canManage}
-                      placeholder="default"
+                      placeholder={t('docNumbering.defaultPlaceholder')}
                       onChange={(e) => updateType(i, { initials: e.target.value })}
                       className={`${inputClass} w-28 uppercase`}
                     />
@@ -268,21 +268,21 @@ export function DocumentNumberingSettings() {
                     <label className="flex items-center gap-2 text-xs text-muted-foreground">
                       <input
                         type="checkbox"
-                        checked={t.ownScheme}
+                        checked={ty.ownScheme}
                         disabled={!canManage}
                         onChange={(e) => updateType(i, { ownScheme: e.target.checked })}
                       />
-                      Own scheme
+                      {t('docNumbering.ownScheme')}
                     </label>
-                    {t.ownScheme && (
+                    {ty.ownScheme && (
                       <div className="mt-2 space-y-2">
                         <div className="grid grid-cols-2 gap-1">
-                          {t.tokenOrder.map((token, slot) => (
+                          {ty.tokenOrder.map((token, slot) => (
                             <select
                               key={slot}
                               value={token}
                               disabled={!canManage}
-                              onChange={(e) => updateType(i, { tokenOrder: setOrderSlot(t.tokenOrder, slot, e.target.value as NumberingToken) })}
+                              onChange={(e) => updateType(i, { tokenOrder: setOrderSlot(ty.tokenOrder, slot, e.target.value as NumberingToken) })}
                               className={`${inputClass} text-xs`}
                             >
                               {(Object.keys(NUMBERING_TOKEN_LABELS) as NumberingToken[]).map((k) => (
@@ -293,10 +293,10 @@ export function DocumentNumberingSettings() {
                             </select>
                           ))}
                         </div>
-                        <select value={t.separator} disabled={!canManage} onChange={(e) => updateType(i, { separator: e.target.value as NumberingSeparator })} className={`${inputClass} text-xs`}>
+                        <select value={ty.separator} disabled={!canManage} onChange={(e) => updateType(i, { separator: e.target.value as NumberingSeparator })} className={`${inputClass} text-xs`}>
                           {NUMBERING_SEPARATORS.map((s) => (
                             <option key={s} value={s}>
-                              Separator {s}
+                              {t('docNumbering.separatorOption', { sep: s })}
                             </option>
                           ))}
                         </select>
@@ -322,14 +322,14 @@ export function DocumentNumberingSettings() {
       {canManage ? (
         <div className="flex items-center justify-end gap-3">
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Hash className="h-3.5 w-3.5" /> {dirty ? 'Unsaved changes' : 'Saved'}
+            <Hash className="h-3.5 w-3.5" /> {dirty ? t('docNumbering.unsavedChanges') : t('docNumbering.saved')}
           </span>
           <button
             onClick={() => loaded && setDraft(toDrafts(loaded))}
             disabled={!dirty || saving}
             className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
           >
-            Discard
+            {t('docNumbering.discard')}
           </button>
           <button
             onClick={handleSave}
@@ -337,11 +337,11 @@ export function DocumentNumberingSettings() {
             className="flex items-center gap-2 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white hover:bg-safemeds-spruce disabled:opacity-50"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save numbering
+            {t('docNumbering.saveNumbering')}
           </button>
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">Only company administrators can change document numbering.</p>
+        <p className="text-xs text-muted-foreground">{t('docNumbering.adminOnlyNote')}</p>
       )}
     </div>
   )

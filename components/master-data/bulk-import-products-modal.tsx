@@ -2,6 +2,7 @@
 
 import { BulkImportModal } from '@/components/bulk-import/bulk-import-modal'
 import { PRODUCT_CATEGORY_LABELS } from '@/lib/api/master-data'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   onClose: () => void
@@ -25,23 +26,31 @@ Panadol,Paracetamol,Medicinal,Tablet,500mg,Paracetamol,N02BE01,,Oral,,24s bliste
  * `BulkImportModal`, same pattern as `BulkImportUsersModal`.
  */
 export function BulkImportProductsModal({ onClose, onImported }: Props) {
+  const { t } = useTranslation()
   return (
     <BulkImportModal
       importType={IMPORT_TYPE}
-      title="Bulk import products"
+      title={t('bulkImportProducts.title')}
       description={
         <>
-          Upload a spreadsheet with columns for <strong>Brand Name</strong>, <strong>Generic Name</strong>,{' '}
-          <strong>Category</strong>, <strong>Dosage Form</strong>, and <strong>Strength</strong> — those five are
-          required. INN Name, ATC Code, Formulation, Route, Site of Manufacture, and Pack Size(s) are optional. For
-          more than one pack size in a cell, separate them with a semicolon (
-          <code className="bg-[var(--surface-raised)] px-1 rounded">;</code>).
+          {t('bulkImportProducts.descLead')} <strong>{t('bulkImportProducts.descBrandName')}</strong>,{' '}
+          <strong>{t('bulkImportProducts.descGenericName')}</strong>, <strong>{t('bulkImportProducts.descCategory')}</strong>,{' '}
+          <strong>{t('bulkImportProducts.descDosageForm')}</strong>, {t('common.and')}{' '}
+          <strong>{t('bulkImportProducts.descStrength')}</strong> {t('bulkImportProducts.descRequiredSuffix')}{' '}
+          {t('bulkImportProducts.descOptional')}
+          <code className="bg-[var(--surface-raised)] px-1 rounded">;</code>
+          {t('bulkImportProducts.descSemicolonSuffix')}
         </>
       }
-      helpPanel={{ title: 'Valid categories', values: Object.values(PRODUCT_CATEGORY_LABELS) }}
+      helpPanel={{ title: t('bulkImportProducts.helpPanelTitle'), values: Object.values(PRODUCT_CATEGORY_LABELS) }}
       templateFilename="safemeds-bulk-product-import-template.csv"
       templateCsv={TEMPLATE_CSV}
-      resultLabel={(committed) => `${committed} product${committed === 1 ? '' : 's'} imported.`}
+      resultLabel={(committed) =>
+        t('bulkImportProducts.resultLabel', {
+          count: String(committed),
+          productWord: committed === 1 ? t('bulkImportProducts.productSingular') : t('bulkImportProducts.productPlural'),
+        })
+      }
       onClose={onClose}
       onImported={onImported}
     />

@@ -15,6 +15,7 @@ import { listRegulatoryAuthorities, RegulatoryAuthority } from '@/lib/api/regula
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { Modal } from '@/components/ui/modal'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const inputClass = 'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground'
 const labelClass = 'mb-1 block text-xs font-medium text-muted-foreground'
@@ -37,6 +38,7 @@ const STATUS_STYLES: Record<string, string> = {
  * never a fabricated date (this screen's own reason to exist).
  */
 export function RecallRuleSetsAdmin() {
+  const { t } = useTranslation()
   const { has } = usePermissions()
   const canManage = has('platform.recall_rules.manage')
 
@@ -56,8 +58,8 @@ export function RecallRuleSetsAdmin() {
         setAuthorities(rows)
         setAuthorityId(rows[0]?.id ?? '')
       })
-      .catch((err) => setError(getErrorMessage(err, 'Could not load regulatory authorities.')))
-  }, [canManage])
+      .catch((err) => setError(getErrorMessage(err, t('recallRuleSetsAdmin.errorLoadAuthorities'))))
+  }, [canManage, t])
 
   const authority = authorities.find((a) => a.id === authorityId) ?? null
 
@@ -67,7 +69,7 @@ export function RecallRuleSetsAdmin() {
     setError(null)
     listRecallRuleSets(authority.countryId)
       .then((rows) => setRuleSets(rows.filter((r) => r.regulatoryAuthorityId === authorityId).sort((a, b) => b.version - a.version)))
-      .catch((err) => setError(getErrorMessage(err, 'Could not load rule-sets.')))
+      .catch((err) => setError(getErrorMessage(err, t('recallRuleSetsAdmin.errorLoadRuleSets'))))
       .finally(() => setLoading(false))
   }
 
@@ -78,10 +80,10 @@ export function RecallRuleSetsAdmin() {
     setBusy('create')
     try {
       await createRecallRuleSet({ countryId: authority.countryId, regulatoryAuthorityId: authority.id })
-      setNotice('New draft rule-set version created.')
+      setNotice(t('recallRuleSetsAdmin.newVersionCreated'))
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create a new rule-set version.'))
+      setError(getErrorMessage(err, t('recallRuleSetsAdmin.errorCreateVersion')))
     } finally {
       setBusy(null)
     }
@@ -91,10 +93,10 @@ export function RecallRuleSetsAdmin() {
     setBusy(ruleSet.id)
     try {
       await signOffRecallRuleSet(ruleSet.id)
-      setNotice(`Version ${ruleSet.version} is now live — any prior live version was retired.`)
+      setNotice(t('recallRuleSetsAdmin.versionNowLive', { version: String(ruleSet.version) }))
       load()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not sign off this rule-set.'))
+      setError(getErrorMessage(err, t('recallRuleSetsAdmin.errorSignOff')))
     } finally {
       setBusy(null)
     }
@@ -103,10 +105,10 @@ export function RecallRuleSetsAdmin() {
   if (!canManage) {
     return (
       <div className="space-y-6 p-6">
-        <h1 className="text-3xl font-display font-bold text-foreground">Recall Rule-Sets</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground">{t('recallRuleSetsAdmin.title')}</h1>
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <ShieldAlert className="mx-auto mb-4 h-12 w-12 text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">Only the platform Regulatory Lead can manage recall country rule-sets.</p>
+          <p className="text-sm text-muted-foreground">{t('recallRuleSetsAdmin.noPermission')}</p>
         </div>
       </div>
     )
@@ -116,12 +118,9 @@ export function RecallRuleSetsAdmin() {
     <div className="space-y-6 p-6">
       <div>
         <h1 className="flex items-center gap-2 text-3xl font-display font-bold text-foreground">
-          <ClipboardList className="h-7 w-7 text-safemeds-teal" /> Recall Rule-Sets
+          <ClipboardList className="h-7 w-7 text-safemeds-teal" /> {t('recallRuleSetsAdmin.title')}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Per-country recall obligation deadlines and submission templates — version-on-write, sign-off-gated, source-cited. A rule only
-          ever drives a real deadline once its rule-set is <strong>live</strong>.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('recallRuleSetsAdmin.subtitle')}</p>
       </div>
 
       {error && <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">{error}</div>}
@@ -129,7 +128,7 @@ export function RecallRuleSetsAdmin() {
 
       <div className="flex items-end gap-3">
         <div className="flex-1">
-          <label className={labelClass}>Regulatory authority</label>
+          <label className={labelClass}>{t('recallRuleSetsAdmin.regulatoryAuthority')}</label>
           <select value={authorityId} onChange={(e) => setAuthorityId(e.target.value)} className={inputClass}>
             {authorities.map((a) => (
               <option key={a.id} value={a.id}>
@@ -139,7 +138,7 @@ export function RecallRuleSetsAdmin() {
           </select>
         </div>
         <button onClick={createNewVersion} disabled={busy === 'create' || !authority} className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-          {busy === 'create' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} New version
+          {busy === 'create' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {t('recallRuleSetsAdmin.newVersion')}
         </button>
       </div>
 
@@ -147,25 +146,26 @@ export function RecallRuleSetsAdmin() {
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       ) : ruleSets.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-12 text-center">
-          <p className="text-sm text-muted-foreground">No rule-set exists yet for this authority. Start one above.</p>
+          <p className="text-sm text-muted-foreground">{t('recallRuleSetsAdmin.noRuleSetYet')}</p>
         </div>
       ) : (
         <div className="space-y-3">
           {ruleSets.map((rs) => (
             <CollapsibleSection
               key={rs.id}
-              title={`Version ${rs.version}`}
+              title={t('recallRuleSetsAdmin.versionLabel', { version: String(rs.version) })}
               badge={<span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLES[rs.status]}`}>{rs.status}</span>}
               defaultOpen={rs.status === 'draft' || rs.status === 'live'}
             >
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
-                  {rs.rules.length} rule{rs.rules.length === 1 ? '' : 's'} · {rs.submissionTemplates.length} submission template{rs.submissionTemplates.length === 1 ? '' : 's'}
+                  {t('recallRuleSetsAdmin.ruleCount', { count: String(rs.rules.length), plural: rs.rules.length === 1 ? '' : 's' })} ·{' '}
+                  {t('recallRuleSetsAdmin.templateCount', { count: String(rs.submissionTemplates.length), plural: rs.submissionTemplates.length === 1 ? '' : 's' })}
                 </p>
                 <div className="flex gap-2">
                   {(rs.status === 'draft' || rs.status === 'pending_source') && (
                     <button onClick={() => setShowAddRule(rs)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-                      Add rule
+                      {t('recallRuleSetsAdmin.addRule')}
                     </button>
                   )}
                   {(rs.status === 'draft' || rs.status === 'pending_source') && (
@@ -173,25 +173,25 @@ export function RecallRuleSetsAdmin() {
                       onClick={() => signOff(rs)}
                       disabled={busy === rs.id || rs.rules.length === 0}
                       className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-                      title={rs.rules.length === 0 ? 'Add at least one rule before signing off' : undefined}
+                      title={rs.rules.length === 0 ? t('recallRuleSetsAdmin.addRuleFirst') : undefined}
                     >
-                      {busy === rs.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Sign off
+                      {busy === rs.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} {t('recallRuleSetsAdmin.signOff')}
                     </button>
                   )}
                 </div>
               </div>
 
               {rs.rules.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No rules yet.</p>
+                <p className="text-sm text-muted-foreground">{t('recallRuleSetsAdmin.noRulesYet')}</p>
               ) : (
                 <table className="w-full text-xs">
                   <thead className="text-muted-foreground">
                     <tr>
-                      <th className="text-left font-medium">Code</th>
-                      <th className="text-left font-medium">Requirement</th>
-                      <th className="text-left font-medium">Anchor + offset</th>
-                      <th className="text-left font-medium">Source</th>
-                      <th className="text-left font-medium">Unverified</th>
+                      <th className="text-left font-medium">{t('recallRuleSetsAdmin.columnCode')}</th>
+                      <th className="text-left font-medium">{t('recallRuleSetsAdmin.columnRequirement')}</th>
+                      <th className="text-left font-medium">{t('recallRuleSetsAdmin.columnAnchorOffset')}</th>
+                      <th className="text-left font-medium">{t('recallRuleSetsAdmin.columnSource')}</th>
+                      <th className="text-left font-medium">{t('recallRuleSetsAdmin.columnUnverified')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -204,7 +204,11 @@ export function RecallRuleSetsAdmin() {
                         </td>
                         <td className="py-1.5">{r.sourceDoc}</td>
                         <td className="py-1.5">
-                          {r.unverified ? <span className="text-status-warning">Yes</span> : <span className="text-status-success">No</span>}
+                          {r.unverified ? (
+                            <span className="text-status-warning">{t('recallRuleSetsAdmin.yes')}</span>
+                          ) : (
+                            <span className="text-status-success">{t('recallRuleSetsAdmin.no')}</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -242,6 +246,7 @@ function AddRuleModal({
   onAdded: () => void
   setError: (msg: string | null) => void
 }) {
+  const { t } = useTranslation()
   const [code, setCode] = useState('')
   const [requirementText, setRequirementText] = useState('')
   const [anchorEvent, setAnchorEvent] = useState('recall_decision')
@@ -268,53 +273,53 @@ function AddRuleModal({
       void created
       onAdded()
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not add this rule.'))
+      setError(getErrorMessage(err, t('recallRuleSetsAdmin.errorAddRule')))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal title={`Add Rule — Version ${ruleSet.version}`} onClose={onClose} maxWidth="max-w-2xl">
+    <Modal title={t('recallRuleSetsAdmin.addRuleModalTitle', { version: String(ruleSet.version) })} onClose={onClose} maxWidth="max-w-2xl">
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className={labelClass}>Code</label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. initial-notify" className={inputClass} />
+            <label className={labelClass}>{t('recallRuleSetsAdmin.code')}</label>
+            <input value={code} onChange={(e) => setCode(e.target.value)} placeholder={t('recallRuleSetsAdmin.codePlaceholder')} className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Owner role</label>
+            <label className={labelClass}>{t('recallRuleSetsAdmin.ownerRole')}</label>
             <input value={ownerRoleKey} onChange={(e) => setOwnerRoleKey(e.target.value)} className={inputClass} />
           </div>
         </div>
         <div>
-          <label className={labelClass}>Requirement text</label>
+          <label className={labelClass}>{t('recallRuleSetsAdmin.requirementText')}</label>
           <textarea value={requirementText} onChange={(e) => setRequirementText(e.target.value)} rows={2} className={inputClass} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className={labelClass}>Anchor event</label>
+            <label className={labelClass}>{t('recallRuleSetsAdmin.anchorEvent')}</label>
             <input value={anchorEvent} onChange={(e) => setAnchorEvent(e.target.value)} placeholder="recall_decision" className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Offset (days)</label>
+            <label className={labelClass}>{t('recallRuleSetsAdmin.offsetDays')}</label>
             <input value={offset} onChange={(e) => setOffset(e.target.value)} type="number" className={inputClass} />
           </div>
         </div>
         <div>
-          <label className={labelClass}>Source document/guideline</label>
-          <input value={sourceDoc} onChange={(e) => setSourceDoc(e.target.value)} placeholder="e.g. GUD/022 §6.5.1" className={inputClass} />
+          <label className={labelClass}>{t('recallRuleSetsAdmin.sourceDocGuideline')}</label>
+          <input value={sourceDoc} onChange={(e) => setSourceDoc(e.target.value)} placeholder={t('recallRuleSetsAdmin.sourceDocPlaceholder')} className={inputClass} />
         </div>
         <label className="flex items-center gap-2 text-sm text-foreground">
           <input type="checkbox" checked={unverified} onChange={(e) => setUnverified(e.target.checked)} />
-          Unverified — deliberately checked by default; only uncheck once independently confirmed against the real guideline.
+          {t('recallRuleSetsAdmin.unverifiedCheckboxLabel')}
         </label>
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button onClick={save} disabled={!canSave} className="flex items-center gap-1.5 rounded-lg bg-safemeds-teal px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Add rule
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />} {t('recallRuleSetsAdmin.addRule')}
           </button>
         </div>
       </div>

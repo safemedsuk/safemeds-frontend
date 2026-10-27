@@ -4,8 +4,9 @@ import { useCallback } from 'react'
 import { useLocaleStore } from './locale-store'
 import { en, type MessageKey } from './messages/en'
 import { fr } from './messages/fr'
+import { pt } from './messages/pt'
 
-const CATALOGS: Record<string, Record<string, string>> = { en, fr }
+const CATALOGS: Record<string, Partial<Record<string, string>>> = { en, fr, pt }
 
 /**
  * `useTranslation()` — the one hook every converted screen imports.

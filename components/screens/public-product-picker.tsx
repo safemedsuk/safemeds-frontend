@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Loader2, Search, X } from 'lucide-react'
 import { searchPublicProducts, type PublicProductResult } from '@/lib/api/public-reporting'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   slug: string
@@ -20,6 +21,7 @@ interface Props {
  * typing the free-text field below.
  */
 export function PublicProductPicker({ slug, linkedProduct, onSelect, onClear }: Props) {
+  const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<PublicProductResult[]>([])
   const [open, setOpen] = useState(false)
@@ -69,7 +71,7 @@ export function PublicProductPicker({ slug, linkedProduct, onSelect, onClear }: 
           <span className="truncate text-foreground font-medium">{linkedProduct.brandName}</span>
           <span className="truncate text-xs text-muted-foreground">{linkedProduct.strength}</span>
         </div>
-        <button onClick={onClear} className="flex-shrink-0 text-muted-foreground hover:text-foreground" title="Clear selection">
+        <button onClick={onClear} className="flex-shrink-0 text-muted-foreground hover:text-foreground" title={t('publicProductPicker.clearSelection')}>
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -87,7 +89,7 @@ export function PublicProductPicker({ slug, linkedProduct, onSelect, onClear }: 
             setOpen(true)
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Search for the product by name (optional)"
+          placeholder={t('publicProductPicker.searchPlaceholder')}
           className="w-full rounded-lg border border-input bg-background pl-8 pr-8 py-2.5 text-sm text-foreground"
         />
         {loading && <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />}
@@ -95,9 +97,7 @@ export function PublicProductPicker({ slug, linkedProduct, onSelect, onClear }: 
 
       {open && query.trim().length >= 2 && (
         <div className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-card shadow-lg max-h-56 overflow-y-auto">
-          {results.length === 0 && !loading && (
-            <p className="p-3 text-xs text-muted-foreground">No match found — you can still type the product name freely below.</p>
-          )}
+          {results.length === 0 && !loading && <p className="p-3 text-xs text-muted-foreground">{t('publicProductPicker.noMatchFound')}</p>}
           {results.map((product) => (
             <button
               key={product.id}
